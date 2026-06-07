@@ -1,0 +1,109 @@
+/* Haren Portal — design tokens.
+ * Ported from Claude Design prototype styles.css.
+ * Cursor/dev-tool aesthetic. Dense, monospace-leaning. IBM Plex.
+ */
+
+:root {
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --s-1: 4px;  --s-2: 6px;  --s-3: 8px;  --s-4: 10px;
+  --s-5: 12px; --s-6: 16px; --s-7: 20px; --s-8: 24px;
+  --s-9: 32px; --s-10: 40px; --s-11: 56px;
+
+  --row-h: 32px;
+  --rail-h: 44px;
+  --pad-x: 14px;
+}
+
+[data-density="compact"] { --row-h: 26px; --rail-h: 38px; --pad-x: 10px; }
+[data-density="comfy"]   { --row-h: 32px; --rail-h: 44px; --pad-x: 14px; }
+
+/* LIGHT (default) */
+[data-theme="light"] {
+  --bg:        #f8f9fb;
+  --bg-0:      #f8f9fb;
+  --bg-1:      #ffffff;
+  --bg-2:      #f3f5f8;
+  --bg-3:      #eaedf2;
+  --bg-hover:  #e9edf3;
+  --bg-active: #dfe5ee;
+  --line:      #e1e6ee;
+  --line-2:    #c9d1de;
+  --fg:        #0f1420;
+  --fg-2:      #2c3344;
+  --fg-3:      #5a6478;
+  --fg-4:      #8590a3;
+  --fg-inv:    #ffffff;
+  --accent-1: #2563eb;
+  --accent-2: #ca8a04;
+  --accent-3: #16a34a;
+  --accent-4: #9333ea;
+  --accent-5: #dc2626;
+  --shadow-sm: 0 1px 0 rgba(255,255,255,.6) inset, 0 1px 2px rgba(15,20,32,.06);
+  --shadow-md: 0 0 0 1px var(--line), 0 4px 16px rgba(15,20,32,.06);
+}
+
+/* DARK */
+[data-theme="dark"] {
+  --bg:        #0b0d11;
+  --bg-0:      #0b0d11;
+  --bg-1:      #0e1116;
+  --bg-2:      #12161d;
+  --bg-3:      #171c25;
+  --bg-hover:  #1a1f29;
+  --bg-active: #1f2632;
+  --line:      #1f2630;
+  --line-2:    #283142;
+  --fg:        #e6eaf2;
+  --fg-2:      #b3bccc;
+  --fg-3:      #7a8597;
+  --fg-4:      #515a6b;
+  --fg-inv:    #0b0d11;
+  --accent-1: #3b82f6;
+  --accent-2: #eab308;
+  --accent-3: #22c55e;
+  --accent-4: #a855f7;
+  --accent-5: #ef4444;
+  --shadow-sm: 0 1px 0 rgba(255,255,255,.02) inset, 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 0 0 1px var(--line), 0 8px 24px rgba(0,0,0,.4);
+}
+
+/* Accent palettes */
+[data-accent="indigo-amber-emerald-violet"] {
+  --accent-1: #6366f1; --accent-2: #f59e0b; --accent-3: #10b981; --accent-4: #8b5cf6;
+}
+[data-accent="cyan-amber-lime-pink"] {
+  --accent-1: #06b6d4; --accent-2: #f59e0b; --accent-3: #84cc16; --accent-4: #ec4899;
+}
+[data-accent="mono"] {
+  --accent-1: #cbd5e1; --accent-2: #fde68a; --accent-3: #d1fae5; --accent-4: #e9d5ff;
+}
+
+/* Reset */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
+}
+#root { height: 100%; }
+button { font-family: inherit; color: inherit; cursor: default; }
+a { color: var(--accent-1); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg-3); border: 2px solid var(--bg); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: var(--line-2); }
+
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+:focus-visible { outline: 2px solid var(--accent-1); outline-offset: 1px; border-radius: 4px; }
+svg { display: block; }
