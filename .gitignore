@@ -41,3 +41,5 @@ node_modules
 # CLI packaging artifacts (generated at build/publish)
 apps/cli/content/
 apps/cli/dist/
+apps/cli/README.md
+apps/cli/LICENSE
