@@ -720,7 +720,7 @@ export async function init(args: string[]): Promise<void> {
 
   if (!mode) {
     const selected = await promptSelect("Mode:", MODES, MODE_DESCRIPTIONS, "undecided");
-    mode = selected as typeof mode;
+    mode = selected as Mode;
   }
 
   if (!language) {
