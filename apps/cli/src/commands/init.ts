@@ -1,16 +1,13 @@
-import { mkdir, writeFile, readFile, readdir, copyFile } from "fs/promises";
+import { mkdir, writeFile, readdir, copyFile } from "fs/promises";
 import { join, resolve } from "path";
 import { resolveContentDir } from "../lib/content-dir";
-import {
-  brainstormGateScript,
-  cursorRuleTemplate,
-  editorConfigTemplate,
-  gateCommand,
-  renderTemplate,
-} from "../workspace/templates";
+import { brainstormGateScript } from "../workspace/templates";
+import { buildManifestText, type Layout, type RepoEntry } from "../workspace/manifest";
+import { type Editor, writeRootFiles } from "../workspace/root-files";
+import { PROGRESS_VERSION } from "../workspace/progress";
+import { HAREN_VERSION } from "../lib/version";
 
 type Mode = "blueprint" | "explore" | "inherit" | "undecided";
-type Editor = "claude-code" | "cursor" | "both";
 
 interface IterationConfig {
   enabled: true;
@@ -25,6 +22,8 @@ interface InitOptions {
   language: string;
   iterations?: IterationConfig;
   editor?: Editor;
+  layout?: Layout;
+  repos?: Record<string, RepoEntry>;
 }
 
 const MODES = ["blueprint", "explore", "inherit", "undecided"] as const;
@@ -142,39 +141,23 @@ export async function scaffoldWorkspace(targetDir: string, options: InitOptions)
   }
 
   // Write manifest.yaml
-  let manifestContent = `project: ${options.project}
-mode: ${options.mode}
-language: ${options.language}
-
-repos:
-  # Add your repos here (relative paths from this directory)
-  # example: ../my-repo
-
-sources:
-  # Mode-specific inputs
-  # docs: ./artifacts/00-baseline/requirements.pdf
-
-hooks:
-  # on-phase-complete:
-  #   - echo "Module \${MODULE} completed \${PHASE}"
-`;
-
-  if (options.iterations) {
-    manifestContent += `
-iterations:
-  enabled: true
-  duration: ${options.iterations.duration}
-  start_date: ${options.iterations.startDate}
-  demo_day: ${options.iterations.demoDay}
-`;
-  }
-
-  await writeFile(join(targetDir, "manifest.yaml"), manifestContent);
+  await writeFile(
+    join(targetDir, "manifest.yaml"),
+    buildManifestText({
+      version: HAREN_VERSION,
+      layout: options.layout ?? "monorepo",
+      project: options.project,
+      mode: options.mode,
+      language: options.language,
+      repos: options.repos ?? {},
+      iterations: options.iterations,
+    }),
+  );
 
   // Write progress.json
   const progressData: Record<string, unknown> = {
     project: options.project,
-    version: 1,
+    version: PROGRESS_VERSION,
     phase: "init",
     status: "active",
     modules: {},
@@ -225,119 +208,11 @@ Master registry of all artifacts in this Haren workspace.
   await copyRecursive(join(contentDir, "skills"), join(targetDir, "skills"));
   await copyRecursive(join(contentDir, "templates"), join(targetDir, "templates"));
 
-  const workspaceDir = resolve(targetDir, "..");
-  const editor = options.editor || "claude-code";
-
-  // Write CLAUDE.md only for claude-code or both
-  if (editor === "claude-code" || editor === "both") {
-    const claudeMdPath = join(workspaceDir, "CLAUDE.md");
-    const claudeMdExists = await Bun.file(claudeMdPath).exists();
-
-    if (!claudeMdExists) {
-      await writeFile(
-        claudeMdPath,
-        `# Project Instructions\n\n${renderTemplate(editorConfigTemplate, "haren")}`,
-      );
-    } else {
-      const existing = await readFile(claudeMdPath, "utf-8");
-      if (!existing.includes("haren/skill.md")) {
-        await writeFile(
-          claudeMdPath,
-          existing + `\n\n${renderTemplate(editorConfigTemplate, "haren")}`,
-        );
-      }
-    }
-  }
-
-  // Generate .cursorrules when editor is cursor or both
-  if (editor === "cursor" || editor === "both") {
-    const cursorrulesPath = join(workspaceDir, ".cursorrules");
-    const cursorrulesExists = await Bun.file(cursorrulesPath).exists();
-
-    if (!cursorrulesExists) {
-      await writeFile(
-        cursorrulesPath,
-        `# Project Instructions\n\n${renderTemplate(editorConfigTemplate, "haren")}`,
-      );
-    } else {
-      const existing = await readFile(cursorrulesPath, "utf-8");
-      if (!existing.includes("haren/skill.md")) {
-        await writeFile(
-          cursorrulesPath,
-          existing + `\n\n${renderTemplate(editorConfigTemplate, "haren")}`,
-        );
-      }
-    }
-  }
-
-  // Generate hook config files
-  if (editor === "claude-code" || editor === "both") {
-    const claudeDir = join(workspaceDir, ".claude");
-    await mkdir(claudeDir, { recursive: true });
-    await writeFile(
-      join(claudeDir, "settings.json"),
-      JSON.stringify(
-        {
-          hooks: {
-            PreToolUse: [
-              {
-                matcher: "Edit|Write",
-                hooks: [
-                  {
-                    type: "command",
-                    command: gateCommand("haren"),
-                  },
-                ],
-              },
-            ],
-          },
-        },
-        null,
-        2,
-      ),
-    );
-  }
-
-  if (editor === "cursor" || editor === "both") {
-    const cursorDir = join(workspaceDir, ".cursor");
-    const cursorRulesDir = join(cursorDir, "rules");
-    await mkdir(cursorRulesDir, { recursive: true });
-
-    const harenMdcPath = join(cursorRulesDir, "haren.mdc");
-    const harenMdcExists = await Bun.file(harenMdcPath).exists();
-    if (!harenMdcExists) {
-      await writeFile(harenMdcPath, renderTemplate(cursorRuleTemplate, "haren"));
-    }
-
-    // Generate Cursor hooks.json — hard gate via beforeFileEdit and preToolUse
-    await writeFile(
-      join(cursorDir, "hooks.json"),
-      JSON.stringify(
-        {
-          version: 1,
-          hooks: {
-            beforeFileEdit: [
-              {
-                command: gateCommand("haren"),
-                type: "command",
-                timeout: 10,
-              },
-            ],
-            preToolUse: [
-              {
-                command: gateCommand("haren"),
-                matcher: "write",
-                type: "command",
-                timeout: 10,
-              },
-            ],
-          },
-        },
-        null,
-        2,
-      ),
-    );
-  }
+  await writeRootFiles({
+    workspaceDir: resolve(targetDir, ".."),
+    harenDir: targetDir,
+    editor: options.editor ?? "claude-code",
+  });
 }
 
 export async function scaffoldSkillMd(targetDir: string): Promise<void> {
@@ -433,7 +308,7 @@ When a skill says "read the master plan" or needs full module context, it means 
 ## Rules
 
 - Always read progress.json before taking action
-- Never write outside the haren/ directory unless user explicitly asks
+- Never write outside this haren folder unless user explicitly asks
 - Update progress.json after every phase transition
 - Append to FEEDBACK.md when you encounter framework friction
 - Validate artifacts before phase transitions (validate-artifact/ skill)

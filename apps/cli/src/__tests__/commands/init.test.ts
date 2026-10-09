@@ -165,8 +165,8 @@ describe("scaffoldWorkspace", () => {
     const manifest = await readFile(join(testDir, "manifest.yaml"), "utf-8");
     expect(manifest).toContain("iterations:");
     expect(manifest).toContain("  enabled: true");
-    expect(manifest).toContain("  duration: 2 weeks");
-    expect(manifest).toContain("  start_date: 2026-04-08");
+    expect(manifest).toContain('  duration: "2 weeks"');
+    expect(manifest).toContain('  start_date: "2026-04-08"');
     expect(manifest).toContain("  demo_day: Friday");
   });
 
