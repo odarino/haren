@@ -2,7 +2,7 @@ import { mkdir, writeFile, readdir, copyFile, readFile } from "fs/promises";
 import { existsSync } from "fs";
 import { basename, join, resolve } from "path";
 import { resolveContentDir } from "../lib/content-dir";
-import { brainstormGateScript } from "../workspace/templates";
+import { writeGateScript } from "../workspace/templates";
 import {
   buildManifestText,
   normalizeRepos,
@@ -250,7 +250,7 @@ Master registry of all artifacts in this Haren workspace.
   await writeFile(join(targetDir, "events", "events.jsonl"), "");
 
   // Write brainstorm-gate hook script (works with both Claude Code and Cursor)
-  await writeFile(join(targetDir, "hooks", "brainstorm-gate.ts"), brainstormGateScript);
+  await writeGateScript(targetDir);
 
   // Write skill.md entry point
   await scaffoldSkillMd(targetDir);

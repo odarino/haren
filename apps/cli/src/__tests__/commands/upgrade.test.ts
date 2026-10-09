@@ -5,6 +5,7 @@ import { tmpdir } from "os";
 import { gitInit, runGit } from "../../workspace/git";
 import { parseManifest, normalizeRepos, hasMarker } from "../../workspace/manifest";
 import { planMigration } from "../../commands/upgrade";
+import { brainstormGateScript } from "../../workspace/templates";
 
 const CLI = resolve(import.meta.dir, "..", "..", "index.ts");
 let ws: string;
@@ -92,5 +93,22 @@ describe("haren upgrade", () => {
     const claudeMd = await readFile(join(ws, "CLAUDE.md"), "utf-8");
     expect(claudeMd.startsWith("# Mine\n\n<!-- haren:begin -->")).toBe(true);
     expect(JSON.parse(await readFile(join(haren, "progress.json"), "utf-8")).version).toBe(2);
+  });
+
+  it("replaces an old brainstorm gate script", async () => {
+    const haren = await legacyWorkspace();
+    await mkdir(join(haren, "hooks"));
+    const gate = join(haren, "hooks", "brainstorm-gate.ts");
+    await writeFile(gate, 'if (filePath.includes("/haren/")) allow();\n');
+    const dry = Bun.spawn(["bun", CLI, "upgrade", "--dry-run"], {
+      cwd: ws,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    expect(await new Response(dry.stdout).text()).toContain("hooks/brainstorm-gate.ts");
+    expect(await dry.exited).toBe(0);
+    const proc = Bun.spawn(["bun", CLI, "upgrade"], { cwd: ws, stdout: "pipe", stderr: "pipe" });
+    expect(await proc.exited).toBe(0);
+    expect(await readFile(gate, "utf-8")).toBe(brainstormGateScript);
   });
 });

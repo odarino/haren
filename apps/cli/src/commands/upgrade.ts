@@ -21,6 +21,7 @@ import {
   type Editor,
   writeRootFiles,
 } from "../workspace/root-files";
+import { GATE_SCRIPT_PATH, writeGateScript } from "../workspace/templates";
 
 export interface MigrationPlan {
   manifest: { before: string; after: string };
@@ -200,8 +201,9 @@ export async function upgrade(args: string[]): Promise<void> {
     console.log(`    \x1b[36m↑\x1b[0m ${dir}/  \x1b[2m(${fileCount} files)\x1b[0m`);
   }
 
-  // Also upgrade skill.md (the dispatch table)
+  // Also upgrade skill.md (the dispatch table) and the brainstorm gate hook
   console.log(`    \x1b[36m↑\x1b[0m skill.md  \x1b[2m(entry point)\x1b[0m`);
+  console.log(`    \x1b[36m↑\x1b[0m ${GATE_SCRIPT_PATH}  \x1b[2m(brainstorm gate)\x1b[0m`);
 
   console.log("");
 
@@ -213,7 +215,7 @@ export async function upgrade(args: string[]): Promise<void> {
 
   if (dry) {
     console.log(
-      `\x1b[33m  Dry run — ${totalFiles + 1} files would be updated. No changes made.\x1b[0m`,
+      `\x1b[33m  Dry run — ${totalFiles + 2} files would be updated. No changes made.\x1b[0m`,
     );
     console.log("");
     return;
@@ -228,6 +230,7 @@ export async function upgrade(args: string[]): Promise<void> {
   // We regenerate it from the init module to keep the dispatch table in sync
   const { scaffoldSkillMd } = await import("./init");
   await scaffoldSkillMd(targetDir);
+  await writeGateScript(targetDir);
 
   if (migration.manifest.after !== migration.manifest.before) {
     await writeFile(join(targetDir, "manifest.yaml"), migration.manifest.after);
@@ -241,7 +244,7 @@ export async function upgrade(args: string[]): Promise<void> {
     editor: migration.editor,
   });
 
-  console.log(`  \x1b[32m✓\x1b[0m Upgraded ${totalFiles + 1} framework files.`);
+  console.log(`  \x1b[32m✓\x1b[0m Upgraded ${totalFiles + 2} framework files.`);
   console.log(
     `  \x1b[2mYour artifacts are untouched. Manifest and progress were migrated if needed.\x1b[0m`,
   );
