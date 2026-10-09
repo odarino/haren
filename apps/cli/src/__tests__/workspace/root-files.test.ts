@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, mkdir, rm, writeFile, readFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
+import { editorConfigTemplate, renderTemplate } from "../../workspace/templates";
 import {
   BLOCK_BEGIN,
   BLOCK_END,
@@ -28,6 +29,20 @@ describe("upsertBlock", () => {
   it("replaces legacy unmarked haren text", () => {
     const old = "# Mine\n\n## Haren Framework\n\nRead `haren/skill.md`\n";
     expect(upsertBlock(old, "new")).toBe(`# Mine\n\n${BLOCK_BEGIN}\nnew\n${BLOCK_END}\n`);
+  });
+  it("keeps user text before and after a full legacy section", () => {
+    const legacy = renderTemplate(editorConfigTemplate, "haren");
+    const old = `# Mine\n\nbefore\n\n${legacy}\n## My Notes\n\nkeep after\n`;
+    expect(upsertBlock(old, "new")).toBe(
+      `# Mine\n\nbefore\n\n${BLOCK_BEGIN}\nnew\n${BLOCK_END}\n\n## My Notes\n\nkeep after\n`,
+    );
+  });
+  it("ends a truncated legacy section at the next user heading", () => {
+    const old =
+      "# Mine\n\n## Haren Framework\n\nRead `haren/skill.md`\n\n## Brainstorming Gate\n\ngate\n\n## My Notes\n\nkeep\n";
+    expect(upsertBlock(old, "new")).toBe(
+      `# Mine\n\n${BLOCK_BEGIN}\nnew\n${BLOCK_END}\n\n## My Notes\n\nkeep\n`,
+    );
   });
   it("appends a block to a user file", () => {
     expect(upsertBlock("# Mine\n", "new")).toBe(`# Mine\n\n${BLOCK_BEGIN}\nnew\n${BLOCK_END}\n`);
@@ -122,6 +137,17 @@ describe("computeRootFiles / writeRootFiles", () => {
       harenDir: join(ws, "rules"),
       editor: "claude-code",
     });
+    expect(files.find((f) => f.path === "CLAUDE.md")?.userContent).toBe(true);
+  });
+
+  it("flags user text after a legacy section as user content", async () => {
+    const legacy = renderTemplate(editorConfigTemplate, "haren");
+    const o = { workspaceDir: ws, harenDir: join(ws, "rules"), editor: "claude-code" as const };
+    await writeFile(join(ws, "CLAUDE.md"), `# Project Instructions\n\n${legacy}`);
+    let files = await computeRootFiles(o);
+    expect(files.find((f) => f.path === "CLAUDE.md")?.userContent).toBe(false);
+    await writeFile(join(ws, "CLAUDE.md"), `# Project Instructions\n\n${legacy}\n## Mine\n`);
+    files = await computeRootFiles(o);
     expect(files.find((f) => f.path === "CLAUDE.md")?.userContent).toBe(true);
   });
 

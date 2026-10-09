@@ -10,6 +10,31 @@ export const BLOCK_END = "<!-- haren:end -->";
 const LEGACY_HEADING = "## Haren Framework";
 const GATE_SCRIPT = "brainstorm-gate.ts";
 
+const LEGACY_LAST_LINE =
+  "Design specs are written to Haren artifact folders, NOT to docs/superpowers/specs/.";
+const LEGACY_HEADINGS = new Set([LEGACY_HEADING, "## Brainstorming Gate"]);
+
+/**
+ * Before markers existed, init appended the editor config to CLAUDE.md and
+ * .cursorrules. Users may have added their own text after it. Returns the
+ * range of only the old haren section, or null.
+ */
+function legacyRange(existing: string): { start: number; end: number } | null {
+  const start = existing.indexOf(LEGACY_HEADING);
+  if (start === -1 || !existing.includes("haren/skill.md")) return null;
+  const last = existing.indexOf(LEGACY_LAST_LINE, start);
+  if (last !== -1) {
+    const newline = existing.indexOf("\n", last);
+    return { start, end: newline === -1 ? existing.length : newline + 1 };
+  }
+  const heading = /^## .*$/gm;
+  heading.lastIndex = start + LEGACY_HEADING.length;
+  for (let m = heading.exec(existing); m; m = heading.exec(existing)) {
+    if (!LEGACY_HEADINGS.has(m[0].trimEnd())) return { start, end: m.index };
+  }
+  return { start, end: existing.length };
+}
+
 export function upsertBlock(existing: string | null, body: string): string {
   const block = `${BLOCK_BEGIN}\n${body.trimEnd()}\n${BLOCK_END}\n`;
   if (existing === null || existing.trim() === "") return `# Project Instructions\n\n${block}`;
@@ -21,10 +46,10 @@ export function upsertBlock(existing: string | null, body: string): string {
     return existing.slice(0, begin) + block + after;
   }
 
-  // Before markers existed, init appended the editor config at the end of the file.
-  const legacy = existing.indexOf(LEGACY_HEADING);
-  if (legacy !== -1 && existing.includes("haren/skill.md")) {
-    return existing.slice(0, legacy) + block;
+  const legacy = legacyRange(existing);
+  if (legacy) {
+    const after = existing.slice(legacy.end).replace(/^\n+/, "");
+    return existing.slice(0, legacy.start) + block + (after ? `\n${after}` : "");
   }
 
   return `${existing.trimEnd()}\n\n${block}`;
@@ -34,11 +59,12 @@ function hasUserContent(existing: string | null): boolean {
   if (existing === null) return false;
   const begin = existing.indexOf(BLOCK_BEGIN);
   const end = existing.indexOf(BLOCK_END);
+  const legacy = legacyRange(existing);
   const outside =
     begin !== -1 && end > begin
       ? existing.slice(0, begin) + existing.slice(end + BLOCK_END.length)
-      : existing.includes(LEGACY_HEADING)
-        ? existing.slice(0, existing.indexOf(LEGACY_HEADING))
+      : legacy
+        ? existing.slice(0, legacy.start) + existing.slice(legacy.end)
         : existing;
   return outside.replace("# Project Instructions", "").trim().length > 0;
 }
