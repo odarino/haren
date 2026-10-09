@@ -1,5 +1,6 @@
 import { join } from "path";
 import { readdir } from "fs/promises";
+import { runGit } from "../workspace/git";
 
 export interface ArtifactNode {
   name: string;
@@ -52,23 +53,16 @@ export async function readArtifact(harenDir: string, relativePath: string): Prom
 }
 
 export async function readGitLog(
+  harenDir: string,
   maxCount = 50,
 ): Promise<{ hash: string; message: string; date: string; author: string }[]> {
-  try {
-    const proc = Bun.spawn(
-      ["git", "log", `--max-count=${maxCount}`, "--format=%H|%s|%aI|%aN", "--", "haren/"],
-      { stdout: "pipe", stderr: "pipe" },
-    );
-    const text = await new Response(proc.stdout).text();
-    return text
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => {
-        const [hash, message, date, author] = line.split("|");
-        return { hash, message, date, author };
-      });
-  } catch {
-    return [];
-  }
+  const result = await runGit(
+    ["-C", harenDir, "log", `--max-count=${maxCount}`, "--format=%H|%s|%aI|%aN", "--", "."],
+    harenDir,
+  );
+  if (!result.ok || !result.stdout) return [];
+  return result.stdout.split("\n").map((line) => {
+    const [hash, message, date, author] = line.split("|");
+    return { hash, message, date, author };
+  });
 }

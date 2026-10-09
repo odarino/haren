@@ -39,7 +39,7 @@ async function handleDataRequest(
       data = await readArtifactTree(harenDir);
       break;
     case "git-log":
-      data = await readGitLog();
+      data = await readGitLog(harenDir);
       break;
     default:
       if (path.startsWith("artifacts/")) {
