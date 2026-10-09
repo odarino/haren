@@ -1,6 +1,109 @@
-import { mkdir, readdir, copyFile, readFile, stat } from "fs/promises";
-import { join } from "path";
+import { mkdir, readdir, copyFile, readFile, stat, writeFile } from "fs/promises";
+import { join, resolve } from "path";
+import { existsSync } from "fs";
 import { resolveContentDir } from "../lib/content-dir";
+import { HAREN_VERSION } from "../lib/version";
+import { getRemoteUrl } from "../workspace/git";
+import { inferLayout } from "../workspace/detect";
+import {
+  hasMarker,
+  type Layout,
+  migrateManifestText,
+  normalizeRepos,
+  parseManifest,
+  type RepoEntry,
+} from "../workspace/manifest";
+import { migrateProgress } from "../workspace/progress";
+import { MultipleHarenDirsError, type HarenLocation, resolveHarenDir } from "../workspace/resolve";
+import {
+  computeRootFiles,
+  detectEditor,
+  type Editor,
+  writeRootFiles,
+} from "../workspace/root-files";
+
+export interface MigrationPlan {
+  manifest: { before: string; after: string };
+  progress: { before: string; after: string } | null;
+  layout: Layout;
+  editor: Editor;
+  steps: string[];
+}
+
+async function moduleRepoKey(harenDir: string, moduleName: string): Promise<string | undefined> {
+  const path = join(harenDir, "artifacts", "03-modules", moduleName, "module.md");
+  if (!existsSync(path)) return undefined;
+  const match = (await readFile(path, "utf-8")).match(/^repos:\s*\[([^\]]*)\]/m);
+  return (
+    match?.[1]
+      .split(",")[0]
+      ?.trim()
+      .replace(/^["']|["']$/g, "") || undefined
+  );
+}
+
+export async function planMigration(location: HarenLocation): Promise<MigrationPlan> {
+  const { harenDir, workspaceDir } = location;
+  const steps: string[] = [];
+
+  const manifestBefore = await readFile(join(harenDir, "manifest.yaml"), "utf-8");
+  const manifest = parseManifest(manifestBefore);
+  const layout: Layout = manifest.layout ?? (await inferLayout(workspaceDir)).layout ?? "workspace";
+
+  if (!hasMarker(manifest)) steps.push("manifest.yaml: add version marker");
+  if (!manifest.layout) steps.push(`manifest.yaml: add layout: ${layout}`);
+
+  let repos: Record<string, RepoEntry> | undefined;
+  const current = normalizeRepos(manifest.repos);
+  const needsRemote = layout === "workspace" && Object.values(current).some((r) => !r.remote);
+  if (Array.isArray(manifest.repos) || needsRemote) {
+    repos = {};
+    for (const [key, entry] of Object.entries(current)) {
+      const remote =
+        entry.remote ??
+        (layout === "workspace" ? await getRemoteUrl(resolve(harenDir, entry.path)) : null);
+      repos[key] = remote ? { ...entry, remote } : entry;
+    }
+    steps.push("manifest.yaml: convert repos to a map with remotes");
+  }
+
+  const manifestAfter = migrateManifestText(manifestBefore, {
+    version: HAREN_VERSION,
+    layout,
+    repos,
+  });
+
+  let progress: MigrationPlan["progress"] = null;
+  const progressPath = join(harenDir, "progress.json");
+  if (existsSync(progressPath)) {
+    const before = await readFile(progressPath, "utf-8");
+    const raw = JSON.parse(before);
+    const firstRepo = Object.keys(repos ?? current)[0];
+    const keys: Record<string, string | undefined> = {};
+    for (const name of Object.keys(raw.modules ?? {})) {
+      keys[name] = (await moduleRepoKey(harenDir, name)) ?? firstRepo;
+    }
+    const result = migrateProgress(raw, (name) => keys[name]);
+    if (result.changed) {
+      progress = { before, after: `${JSON.stringify(result.progress, null, 2)}\n` };
+      steps.push("progress.json: migrate to version 2 (lastCommit per repo)");
+    }
+  }
+
+  const editor = detectEditor(workspaceDir) ?? "claude-code";
+  const rootFiles = await computeRootFiles({ workspaceDir, harenDir, editor });
+  for (const file of rootFiles.filter((f) => f.changed)) {
+    steps.push(`${file.path}: ${file.existed ? "update" : "create"}`);
+  }
+
+  return {
+    manifest: { before: manifestBefore, after: manifestAfter },
+    progress,
+    layout,
+    editor,
+    steps,
+  };
+}
 
 async function copyRecursive(src: string, dest: string): Promise<void> {
   const entries = await readdir(src, { withFileTypes: true });
@@ -43,17 +146,23 @@ const USER_FILES = [
 ];
 
 export async function upgrade(args: string[]): Promise<void> {
-  // Find the haren workspace — either cwd or cwd/haren
-  let targetDir = process.cwd();
-  const hasCurrent = await Bun.file(join(targetDir, "manifest.yaml")).exists();
-  const hasChild = await Bun.file(join(targetDir, "haren", "manifest.yaml")).exists();
-
-  if (!hasCurrent && hasChild) {
-    targetDir = join(targetDir, "haren");
-  } else if (!hasCurrent && !hasChild) {
-    console.error("No Haren workspace found. Run 'haren init' first.");
+  const flagIndex = args.indexOf("--haren-dir");
+  let location: HarenLocation | null;
+  try {
+    location = await resolveHarenDir(process.cwd(), {
+      harenDir: flagIndex !== -1 ? args[flagIndex + 1] : undefined,
+      env: process.env,
+    });
+  } catch (err) {
+    console.error(err instanceof MultipleHarenDirsError ? err.message : String(err));
     process.exit(1);
   }
+  if (!location) {
+    console.error("No haren folder found. Run 'haren init' first.");
+    process.exit(1);
+  }
+  const targetDir = location.harenDir;
+  const migration = await planMigration(location);
 
   const contentDir = resolveContentDir();
 
@@ -96,6 +205,12 @@ export async function upgrade(args: string[]): Promise<void> {
 
   console.log("");
 
+  if (migration.steps.length > 0) {
+    console.log("\x1b[2m  Migration:\x1b[0m");
+    for (const step of migration.steps) console.log(`    \x1b[33m~\x1b[0m ${step}`);
+    console.log("");
+  }
+
   if (dry) {
     console.log(
       `\x1b[33m  Dry run — ${totalFiles + 1} files would be updated. No changes made.\x1b[0m`,
@@ -114,7 +229,21 @@ export async function upgrade(args: string[]): Promise<void> {
   const { scaffoldSkillMd } = await import("./init");
   await scaffoldSkillMd(targetDir);
 
+  if (migration.manifest.after !== migration.manifest.before) {
+    await writeFile(join(targetDir, "manifest.yaml"), migration.manifest.after);
+  }
+  if (migration.progress) {
+    await writeFile(join(targetDir, "progress.json"), migration.progress.after);
+  }
+  await writeRootFiles({
+    workspaceDir: location.workspaceDir,
+    harenDir: targetDir,
+    editor: migration.editor,
+  });
+
   console.log(`  \x1b[32m✓\x1b[0m Upgraded ${totalFiles + 1} framework files.`);
-  console.log(`  \x1b[2mYour artifacts, progress, and manifest are untouched.\x1b[0m`);
+  console.log(
+    `  \x1b[2mYour artifacts are untouched. Manifest and progress were migrated if needed.\x1b[0m`,
+  );
   console.log("");
 }
