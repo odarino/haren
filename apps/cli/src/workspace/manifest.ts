@@ -58,8 +58,14 @@ export function normalizeRepos(repos: unknown): Record<string, RepoEntry> {
 
 const YAML_KEYWORDS = /^(true|false|null|yes|no|on|off|~)$/i;
 
+// Quote anything that YAML could read as a number, a keyword, or a non-string,
+// plus values with spaces, ":" or "#". Plain paths such as "../backend" stay plain.
 function yamlScalar(value: string): string {
-  const plain = /^[A-Za-z_.\/@-][\w.\/@-]*$/.test(value) && !YAML_KEYWORDS.test(value);
+  const plain =
+    /^[A-Za-z_.\/@-][\w.\/@-]*$/.test(value) &&
+    !YAML_KEYWORDS.test(value) &&
+    !/^-?\.?\d/.test(value) &&
+    value !== "-";
   return plain ? value : JSON.stringify(value);
 }
 
@@ -109,7 +115,8 @@ export interface ManifestMigration {
 export function migrateManifestText(text: string, mig: ManifestMigration): string {
   const m = parseManifest(text);
   const head =
-    `haren:\n  version: "${mig.version}"\n` + (m.layout ? "" : `layout: ${mig.layout}\n`);
+    `haren:\n  version: ${JSON.stringify(mig.version)}\n` +
+    (m.layout ? "" : `layout: ${mig.layout}\n`);
   let out = hasMarker(m) ? replaceTopLevelBlock(text, "haren", head) : head + text;
   if (mig.repos) out = replaceTopLevelBlock(out, "repos", renderReposBlock(mig.repos));
   return out;
@@ -127,11 +134,11 @@ export interface NewManifestOptions {
 
 export function buildManifestText(o: NewManifestOptions): string {
   let text = `haren:
-  version: "${o.version}"
+  version: ${JSON.stringify(o.version)}
 layout: ${o.layout}
-project: ${o.project}
-mode: ${o.mode}
-language: ${o.language}
+project: ${yamlScalar(o.project)}
+mode: ${yamlScalar(o.mode)}
+language: ${yamlScalar(o.language)}
 
 ${renderReposBlock(o.repos)}
 sources:
@@ -146,9 +153,9 @@ hooks:
     text += `
 iterations:
   enabled: true
-  duration: ${o.iterations.duration}
-  start_date: ${o.iterations.startDate}
-  demo_day: ${o.iterations.demoDay}
+  duration: ${yamlScalar(o.iterations.duration)}
+  start_date: ${yamlScalar(o.iterations.startDate)}
+  demo_day: ${yamlScalar(o.iterations.demoDay)}
 `;
   }
   return text;
