@@ -60,6 +60,28 @@ describe("planMigration", () => {
     expect(plan.editor).toBe("claude-code");
   });
 
+  it("reports a corrupt progress.json with its path", async () => {
+    const haren = await legacyWorkspace();
+    await writeFile(join(haren, "progress.json"), "{nope");
+    await expect(
+      planMigration({ harenDir: haren, workspaceDir: ws, legacy: true }),
+    ).rejects.toThrow(/^Invalid JSON in .*progress\.json: .*\. Fix the file and run again\.$/);
+  });
+
+  it("adds a step when only the version marker changes", async () => {
+    const haren = await legacyWorkspace();
+    const first = await planMigration({ harenDir: haren, workspaceDir: ws, legacy: true });
+    await writeFile(
+      join(haren, "manifest.yaml"),
+      first.manifest.after.replace(/version: "[^"]*"/, 'version: "0.0.1"'),
+    );
+    await writeFile(join(haren, "progress.json"), first.progress!.after);
+    const plan = await planMigration({ harenDir: haren, workspaceDir: ws, legacy: false });
+    expect(plan.manifest.after).not.toBe(plan.manifest.before);
+    expect(plan.steps).toContain("manifest.yaml: update version marker");
+    expect(plan.steps).not.toContain("manifest.yaml: add version marker");
+  });
+
   it("detects a monorepo", async () => {
     await gitInit(ws);
     const haren = await legacyWorkspace();
@@ -93,6 +115,22 @@ describe("haren upgrade", () => {
     const claudeMd = await readFile(join(ws, "CLAUDE.md"), "utf-8");
     expect(claudeMd.startsWith("# Mine\n\n<!-- haren:begin -->")).toBe(true);
     expect(JSON.parse(await readFile(join(haren, "progress.json"), "utf-8")).version).toBe(2);
+  });
+
+  it("does not list files it changes as protected", async () => {
+    await legacyWorkspace();
+    const proc = Bun.spawn(["bun", CLI, "upgrade", "--dry-run"], {
+      cwd: ws,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const out = await new Response(proc.stdout).text();
+    expect(await proc.exited).toBe(0);
+    const protectedPart = out.slice(out.indexOf("Protected"), out.indexOf("Upgrading"));
+    expect(protectedPart).toContain("artifacts/");
+    for (const f of ["manifest.yaml", "progress.json", "skill.md"]) {
+      expect(protectedPart).not.toContain(f);
+    }
   });
 
   it("replaces an old brainstorm gate script", async () => {
