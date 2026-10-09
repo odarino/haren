@@ -2,6 +2,9 @@
  * Templates for files haren generates. `{{harenDir}}` is the haren folder
  * path relative to the workspace root (for example `haren` or `cmis_ai_rules`).
  */
+import { mkdir, writeFile } from "fs/promises";
+import { join } from "path";
+
 export const HAREN_DIR_TOKEN = "{{harenDir}}";
 
 export function renderTemplate(template: string, harenDirName: string): string {
@@ -122,6 +125,14 @@ Key dispatch rules:
 - Append to FEEDBACK.md when you encounter framework friction
 `;
 
+export const GATE_SCRIPT_PATH = "hooks/brainstorm-gate.ts";
+
+/** Writes (or refreshes) the brainstorm gate hook in <harenDir>/hooks/. */
+export async function writeGateScript(harenDir: string): Promise<void> {
+  await mkdir(join(harenDir, "hooks"), { recursive: true });
+  await writeFile(join(harenDir, GATE_SCRIPT_PATH), brainstormGateScript);
+}
+
 export const brainstormGateScript = `/**
  * Brainstorm Gate Hook
  * Blocks Edit/Write tool use if no module has reached 'planned' status.
@@ -132,11 +143,28 @@ export const brainstormGateScript = `/**
  * - Other exit codes = hook failure, action proceeds (fail-open)
  */
 
-import { resolve, sep } from "path";
+import { existsSync, realpathSync } from "fs";
+import { basename, dirname, join, resolve, sep } from "path";
 
 // The hook lives in <harenDir>/hooks/, so the haren folder is one level up.
-// This works for any folder name.
-const harenDir = resolve(import.meta.dir, "..");
+// This works for any folder name. Use the real path so symlinks compare equal.
+const harenDir = realpathSync(resolve(import.meta.dir, ".."));
+
+// Editors send logical paths that can go through symlinks. Resolve the nearest
+// existing ancestor to its real path, then add back the missing segments.
+function realTarget(abs: string): string {
+  const rest: string[] = [];
+  let dir = abs;
+  while (!existsSync(dir) && dirname(dir) !== dir) {
+    rest.unshift(basename(dir));
+    dir = dirname(dir);
+  }
+  try {
+    return join(realpathSync(dir), ...rest);
+  } catch {
+    return abs;
+  }
+}
 
 function allow() {
   console.log(JSON.stringify({
@@ -168,8 +196,8 @@ async function main() {
         || input?.path
         || "";
       if (filePath) {
-        const abs = resolve(process.cwd(), filePath);
-        if (abs === harenDir || abs.startsWith(harenDir + sep)) {
+        const real = realTarget(resolve(process.cwd(), filePath));
+        if (real === harenDir || real.startsWith(harenDir + sep)) {
           allow();
         }
       }

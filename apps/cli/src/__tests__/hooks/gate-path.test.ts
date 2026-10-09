@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
+import { mkdtemp, mkdir, rm, symlink, writeFile } from "fs/promises";
 import { realpathSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -52,5 +52,21 @@ describe("brainstorm-gate path check", () => {
   it("blocks a sibling folder whose name starts with the haren folder name", async () => {
     const { workspace, harenDir } = await setup("ws/haren");
     expect(await runGate(harenDir, workspace, join(workspace, "haren-old", "x.ts"))).toBe(2);
+  });
+
+  it("allows an absolute path through a symlinked workspace", async () => {
+    // No realpath here: editors send logical paths that keep symlinked prefixes.
+    const logical = await mkdtemp(join(tmpdir(), "haren-gate-link-"));
+    try {
+      const { harenDir } = await setup("ws/cmis_ai_rules");
+      const link = join(logical, "link");
+      await symlink(join(root, "ws"), link);
+      const target = join(link, "cmis_ai_rules", "artifacts", "new", "x.md");
+      expect(await runGate(harenDir, link, target)).toBe(0);
+      expect(await runGate(harenDir, link, "cmis_ai_rules/artifacts/x.md")).toBe(0);
+      expect(await runGate(harenDir, link, join(link, "backend", "x.ts"))).toBe(2);
+    } finally {
+      await rm(logical, { recursive: true, force: true });
+    }
   });
 });
