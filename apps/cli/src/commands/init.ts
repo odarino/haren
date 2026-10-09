@@ -1,6 +1,13 @@
 import { mkdir, writeFile, readFile, readdir, copyFile } from "fs/promises";
 import { join, resolve } from "path";
 import { resolveContentDir } from "../lib/content-dir";
+import {
+  brainstormGateScript,
+  cursorRuleTemplate,
+  editorConfigTemplate,
+  gateCommand,
+  renderTemplate,
+} from "../workspace/templates";
 
 type Mode = "blueprint" | "explore" | "inherit" | "undecided";
 type Editor = "claude-code" | "cursor" | "both";
@@ -128,116 +135,6 @@ async function copyRecursive(src: string, dest: string): Promise<void> {
   }
 }
 
-const harenEditorConfig = `## Haren Framework
-
-This workspace uses the Haren agentic SDLC framework.
-
-**On every session start, you MUST:**
-1. Read \`haren/skill.md\` — this is your operating manual
-2. Follow its instructions for session orientation
-3. Read \`haren/manifest.yaml\` and \`haren/progress.json\` before taking any action
-
-All project documentation, specs, plans, and artifacts are managed inside \`haren/\`.
-Never write outside \`haren/\` unless explicitly asked.
-
-## Brainstorming Gate
-
-Before writing ANY code outside \`haren/\`:
-1. Read \`haren/progress.json\`
-2. At least one module MUST have status \`planned\`, \`implementing\`, \`evaluating\`, or \`completed\`
-3. If NO module is at \`planned\` or later → STOP. Do not write code.
-   - \`discovered\`, \`specified\`, \`decomposed\` do NOT allow implementation
-   - Discovery docs and specs are NOT sufficient — planning must be completed first
-4. If blocked, tell the user to run the plan phase before implementation
-
-Design specs are written to Haren artifact folders, NOT to docs/superpowers/specs/.
-`;
-
-const cursorHarenRule = `---
-description: Haren agentic SDLC framework - project workflow and artifact management
-globs:
-  - haren/**
-  - .cursorrules
-alwaysApply: true
----
-
-# Haren Framework — MANDATORY RULES
-
-## RULE #1: NEVER WRITE WITHOUT ASKING (highest priority)
-
-**You MUST ask the user questions and get answers BEFORE writing ANY artifact or code.**
-
-This applies to ALL phases — planning, designing, implementing, everything.
-
-**The process is ALWAYS:**
-1. Read existing artifacts (spec.md, module.md, context-brief.md, architecture.md)
-2. Identify unresolved decisions
-3. **ASK the user one question at a time — present 2-3 options with trade-offs**
-4. **WAIT for the user's answer**
-5. Repeat until ALL decisions are resolved
-6. **ONLY THEN write files**
-
-**NEVER do this:**
-- Write artifacts first, then say "let me know if you want changes" — WRONG
-- Make assumptions about technical decisions — WRONG
-- Dump all questions at once — WRONG, ask ONE at a time
-- Skip asking because you think the answer is obvious — WRONG
-
-**If you are about to call the write/edit tool and you have not asked the user any questions yet in this conversation, STOP. You are violating this rule.**
-
----
-
-## RULE #2: Code Gate — No code outside \`haren/\` without \`planned\` status
-
-**BEFORE writing ANY file outside \`haren/\`, check \`haren/progress.json\`:**
-
-1. The relevant module MUST have status \`planned\`, \`implementing\`, \`evaluating\`, or \`completed\`
-2. **If NO → STOP. DO NOT WRITE CODE.**
-3. \`discovered\`, \`specified\`, \`decomposed\` do NOT allow code changes
-4. Discovery docs and specs are NOT sufficient
-
-**When blocked, respond ONLY with:**
-- No modules: "No modules found. Run the discover phase first."
-- No planned modules: "No module has reached 'planned' status yet. Run the plan phase first."
-
-No exceptions. No rationalizing. STOP means STOP.
-
----
-
-## On Every Session Start
-
-1. Read \`haren/skill.md\` — this is your operating manual
-2. Follow its instructions for session orientation
-3. Read \`haren/manifest.yaml\` and \`haren/progress.json\` before taking any action
-
-All project documentation, specs, plans, and artifacts are managed inside \`haren/\`.
-Never write outside \`haren/\` unless explicitly asked.
-
-## Phase Progression (MANDATORY)
-
-Modules MUST progress through phases in order. You CANNOT skip phases.
-
-\`\`\`
-discovered → specified → planned → implementing → evaluating → completed
-\`\`\`
-
-**Before taking ANY action on a module, read \`haren/progress.json\` and check the module's current status. Then follow the dispatch rules in \`haren/skill.md\`.**
-
-Key dispatch rules:
-- Module at \`specified\` → user says "plan" → you MUST run the \`plan/\` skill first (read \`haren/skills/plan/SKILL.md\`)
-- Module at \`discovered\` or no module → user says "plan" or "build" → you MUST run \`discover/\` skill first (brainstorming)
-- Module at \`planned\` → user says "implement" or "build" → proceed with implementation
-- **You CANNOT jump from \`specified\` directly to \`implementing\`**
-- **You CANNOT skip brainstorming/discovery for new features**
-
-## Rules
-
-- Always read progress.json before taking action
-- Never write outside the haren/ directory unless user explicitly asks
-- Update progress.json after every phase transition
-- Append to FEEDBACK.md when you encounter framework friction
-`;
-
 export async function scaffoldWorkspace(targetDir: string, options: InitOptions): Promise<void> {
   // Create all directories
   for (const dir of getDirectories(!!options.iterations)) {
@@ -317,91 +214,7 @@ Master registry of all artifacts in this Haren workspace.
   await writeFile(join(targetDir, "events", "events.jsonl"), "");
 
   // Write brainstorm-gate hook script (works with both Claude Code and Cursor)
-  await writeFile(
-    join(targetDir, "hooks", "brainstorm-gate.ts"),
-    `/**
- * Brainstorm Gate Hook
- * Blocks Edit/Write tool use if no module has reached 'planned' status.
- *
- * Works with both Claude Code and Cursor:
- * - Exit 0 = allow
- * - Exit 2 = block
- * - Other exit codes = hook failure, action proceeds (fail-open)
- */
-
-const harenDir = import.meta.dir.replace(/\\/hooks$/, "");
-
-function allow() {
-  console.log(JSON.stringify({
-    allow: true,           // Claude Code
-    permission: "allow",   // Cursor
-  }));
-  process.exit(0);
-}
-
-function deny(message: string) {
-  console.log(JSON.stringify({
-    error: message,            // Claude Code
-    permission: "deny",        // Cursor
-    user_message: message,     // Cursor — shown in UI
-    agent_message: message,    // Cursor — sent to model
-  }));
-  process.exit(2);
-}
-
-async function main() {
-  // Allow writes inside haren/ — planning/discovery phases need to write artifacts
-  try {
-    const stdin = await Bun.stdin.text();
-    if (stdin) {
-      const input = JSON.parse(stdin);
-      const filePath = input?.tool_input?.file_path
-        || input?.tool_input?.path
-        || input?.file_path
-        || input?.path
-        || "";
-      if (filePath.includes("/haren/") || filePath.startsWith("haren/")) {
-        allow();
-      }
-    }
-  } catch {
-    // stdin parse failed — continue with gate check
-  }
-
-  const progressPath = \`\${harenDir}/progress.json\`;
-  const progressFile = Bun.file(progressPath);
-
-  if (!(await progressFile.exists())) {
-    allow();
-  }
-
-  const progress = await progressFile.json();
-  const modules = progress.modules || {};
-  const hasModules = Object.keys(modules).length > 0;
-
-  const implementablePhases = ["planned", "implementing", "evaluating", "completed"];
-  const hasImplementableModule = Object.values(modules).some(
-    (m: any) => implementablePhases.includes(m.status || m.currentPhase)
-  );
-
-  if (hasImplementableModule) {
-    allow();
-  }
-
-  // No module is ready for implementation — block unconditionally
-  const message = !hasModules
-    ? "No modules or discovery found. Run the discover phase first. Say \\"let's build X\\" or \\"start discovery\\" to begin."
-    : "No module has reached 'planned' status yet. Run the plan phase on a module before writing code.";
-
-  deny(message);
-}
-
-main().catch((err) => {
-  console.error("brainstorm-gate hook error:", err);
-  process.exit(1);
-});
-`,
-  );
+  await writeFile(join(targetDir, "hooks", "brainstorm-gate.ts"), brainstormGateScript);
 
   // Write skill.md entry point
   await scaffoldSkillMd(targetDir);
@@ -421,11 +234,17 @@ main().catch((err) => {
     const claudeMdExists = await Bun.file(claudeMdPath).exists();
 
     if (!claudeMdExists) {
-      await writeFile(claudeMdPath, `# Project Instructions\n\n${harenEditorConfig}`);
+      await writeFile(
+        claudeMdPath,
+        `# Project Instructions\n\n${renderTemplate(editorConfigTemplate, "haren")}`,
+      );
     } else {
       const existing = await readFile(claudeMdPath, "utf-8");
       if (!existing.includes("haren/skill.md")) {
-        await writeFile(claudeMdPath, existing + `\n\n${harenEditorConfig}`);
+        await writeFile(
+          claudeMdPath,
+          existing + `\n\n${renderTemplate(editorConfigTemplate, "haren")}`,
+        );
       }
     }
   }
@@ -436,11 +255,17 @@ main().catch((err) => {
     const cursorrulesExists = await Bun.file(cursorrulesPath).exists();
 
     if (!cursorrulesExists) {
-      await writeFile(cursorrulesPath, `# Project Instructions\n\n${harenEditorConfig}`);
+      await writeFile(
+        cursorrulesPath,
+        `# Project Instructions\n\n${renderTemplate(editorConfigTemplate, "haren")}`,
+      );
     } else {
       const existing = await readFile(cursorrulesPath, "utf-8");
       if (!existing.includes("haren/skill.md")) {
-        await writeFile(cursorrulesPath, existing + `\n\n${harenEditorConfig}`);
+        await writeFile(
+          cursorrulesPath,
+          existing + `\n\n${renderTemplate(editorConfigTemplate, "haren")}`,
+        );
       }
     }
   }
@@ -460,7 +285,7 @@ main().catch((err) => {
                 hooks: [
                   {
                     type: "command",
-                    command: "bun haren/hooks/brainstorm-gate.ts",
+                    command: gateCommand("haren"),
                   },
                 ],
               },
@@ -481,7 +306,7 @@ main().catch((err) => {
     const harenMdcPath = join(cursorRulesDir, "haren.mdc");
     const harenMdcExists = await Bun.file(harenMdcPath).exists();
     if (!harenMdcExists) {
-      await writeFile(harenMdcPath, cursorHarenRule);
+      await writeFile(harenMdcPath, renderTemplate(cursorRuleTemplate, "haren"));
     }
 
     // Generate Cursor hooks.json — hard gate via beforeFileEdit and preToolUse
@@ -493,14 +318,14 @@ main().catch((err) => {
           hooks: {
             beforeFileEdit: [
               {
-                command: "bun haren/hooks/brainstorm-gate.ts",
+                command: gateCommand("haren"),
                 type: "command",
                 timeout: 10,
               },
             ],
             preToolUse: [
               {
-                command: "bun haren/hooks/brainstorm-gate.ts",
+                command: gateCommand("haren"),
                 matcher: "write",
                 type: "command",
                 timeout: 10,
