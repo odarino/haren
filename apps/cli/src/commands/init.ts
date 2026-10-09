@@ -1,9 +1,21 @@
-import { mkdir, writeFile, readdir, copyFile } from "fs/promises";
-import { join, resolve } from "path";
+import { mkdir, writeFile, readdir, copyFile, readFile } from "fs/promises";
+import { existsSync } from "fs";
+import { basename, join, resolve } from "path";
 import { resolveContentDir } from "../lib/content-dir";
 import { brainstormGateScript } from "../workspace/templates";
-import { buildManifestText, type Layout, type RepoEntry } from "../workspace/manifest";
-import { type Editor, writeRootFiles } from "../workspace/root-files";
+import {
+  buildManifestText,
+  normalizeRepos,
+  parseManifest,
+  renderReposBlock,
+  type Layout,
+  type RepoEntry,
+} from "../workspace/manifest";
+import { type Editor, detectEditor, writeRootFiles } from "../workspace/root-files";
+import { detectLayout, type Detection } from "../workspace/detect";
+import { buildPlan, isNoop, renderPlan, type Plan } from "../workspace/plan";
+import { cloneRepo, gitInit } from "../workspace/git";
+import type { HarenLocation } from "../workspace/resolve";
 import { PROGRESS_VERSION } from "../workspace/progress";
 import { HAREN_VERSION } from "../lib/version";
 
@@ -27,6 +39,13 @@ interface InitOptions {
 }
 
 const MODES = ["blueprint", "explore", "inherit", "undecided"] as const;
+
+const EDITORS = ["claude-code", "cursor", "both"] as const;
+const EDITOR_DESCRIPTIONS: Record<string, string> = {
+  "claude-code": "Claude Code CLI / IDE extension",
+  cursor: "Cursor AI editor",
+  both: "Both Claude Code and Cursor",
+};
 
 const MODE_DESCRIPTIONS: Record<string, string> = {
   blueprint: "Greenfield project with existing docs",
@@ -78,6 +97,40 @@ async function promptSelect(
     if (!value) return defaultValue;
     if ((options as readonly string[]).includes(value)) return value;
     process.stdout.write(`  \x1b[31m!\x1b[0m Invalid. Choose: ${options.join(", ")} `);
+  }
+}
+
+async function promptMultiSelect(
+  question: string,
+  labels: string[],
+  defaults: number[],
+): Promise<number[]> {
+  console.log(`  \x1b[36m?\x1b[0m ${question}`);
+  labels.forEach((label, i) => {
+    const mark = defaults.includes(i) ? "\x1b[36m◉\x1b[0m" : "◯";
+    console.log(`    ${mark} ${i + 1}. ${label}`);
+  });
+  process.stdout.write(`  \x1b[2m  numbers, comma-separated (enter = keep defaults):\x1b[0m `);
+  while (true) {
+    const value = await readLine();
+    if (!value) return defaults;
+    const picked = value.split(",").map((s) => Number.parseInt(s.trim(), 10) - 1);
+    if (picked.every((n) => Number.isInteger(n) && n >= 0 && n < labels.length)) {
+      return [...new Set(picked)];
+    }
+    process.stdout.write(`  \x1b[31m!\x1b[0m Invalid. Use numbers 1-${labels.length}: `);
+  }
+}
+
+async function promptConfirm(allowEdit: boolean): Promise<"yes" | "no" | "edit"> {
+  const choices = allowEdit ? "(Y)es / (n)o / (e)dit selection" : "(Y)es / (n)o";
+  process.stdout.write(`  \x1b[36m?\x1b[0m Apply this plan? ${choices} `);
+  while (true) {
+    const value = (await readLine()).toLowerCase();
+    if (value === "" || value === "y" || value === "yes") return "yes";
+    if (value === "n" || value === "no") return "no";
+    if (allowEdit && (value === "e" || value === "edit")) return "edit";
+    process.stdout.write(`  \x1b[31m!\x1b[0m Choose ${choices}: `);
   }
 }
 
@@ -316,77 +369,129 @@ When a skill says "read the master plan" or needs full module context, it means 
   );
 }
 
-export async function init(args: string[]): Promise<void> {
-  let project: string | undefined;
-  let mode: Mode | undefined;
-  let language: string | undefined;
-  let iterations: IterationConfig | undefined;
-  let editor: Editor | undefined;
-  const force = args.includes("--force");
+export interface InitArgs {
+  project?: string;
+  mode?: Mode;
+  language?: string;
+  iterations?: IterationConfig;
+  editor?: Editor;
+  force: boolean;
+  dir?: string;
+  layout?: Layout;
+  harenDir?: string;
+  yes: boolean;
+  dryRun: boolean;
+}
 
-  // Parse flags
+export function parseInitArgs(args: string[]): InitArgs {
+  const out: InitArgs = {
+    force: args.includes("--force"),
+    yes: args.includes("--yes") || args.includes("-y"),
+    dryRun: args.includes("--dry-run"),
+  };
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--project" && args[i + 1]) {
-      project = args[i + 1];
-      i++;
-    }
-    if (args[i] === "--mode" && args[i + 1]) {
-      const m = args[i + 1];
-      if (m === "blueprint" || m === "explore" || m === "inherit" || m === "undecided") {
-        mode = m;
-      } else {
-        console.error(`Invalid mode: ${m}. Must be blueprint, explore, inherit, or undecided.`);
-        process.exit(1);
-      }
-      i++;
-    }
-    if (args[i] === "--language" && args[i + 1]) {
-      language = args[i + 1];
-      i++;
-    }
-    if (args[i] === "--iterations") {
-      iterations = {
-        enabled: true,
-        duration: "2 weeks",
-        startDate: new Date().toISOString().split("T")[0],
-        demoDay: "Friday",
-      };
-    }
-    if (args[i] === "--duration" && args[i + 1]) {
-      if (iterations) iterations.duration = args[i + 1];
-      i++;
-    }
-    if (args[i] === "--start-date" && args[i + 1]) {
-      if (iterations) iterations.startDate = args[i + 1];
-      i++;
-    }
-    if (args[i] === "--demo-day" && args[i + 1]) {
-      if (iterations) iterations.demoDay = args[i + 1];
-      i++;
-    }
-    if (args[i] === "--editor" && args[i + 1]) {
-      const e = args[i + 1];
-      if (e === "claude-code" || e === "cursor" || e === "both") {
-        editor = e;
-      } else {
-        console.error(`Invalid editor: ${e}. Must be claude-code, cursor, or both.`);
-        process.exit(1);
-      }
-      i++;
+    const value = args[i + 1];
+    switch (args[i]) {
+      case "--project":
+        out.project = value;
+        i++;
+        break;
+      case "--language":
+        out.language = value;
+        i++;
+        break;
+      case "--dir":
+        out.dir = value;
+        i++;
+        break;
+      case "--haren-dir":
+        out.harenDir = value;
+        i++;
+        break;
+      case "--mode":
+        if (!MODES.includes(value as Mode)) {
+          throw new Error(
+            `Invalid mode: ${value}. Must be blueprint, explore, inherit, or undecided.`,
+          );
+        }
+        out.mode = value as Mode;
+        i++;
+        break;
+      case "--editor":
+        if (value !== "claude-code" && value !== "cursor" && value !== "both") {
+          throw new Error(`Invalid editor: ${value}. Must be claude-code, cursor, or both.`);
+        }
+        out.editor = value;
+        i++;
+        break;
+      case "--layout":
+        if (value !== "monorepo" && value !== "workspace") {
+          throw new Error(`Invalid layout: ${value}. Must be monorepo or workspace.`);
+        }
+        out.layout = value;
+        i++;
+        break;
+      case "--iterations":
+        out.iterations = {
+          enabled: true,
+          duration: "2 weeks",
+          startDate: new Date().toISOString().split("T")[0],
+          demoDay: "Friday",
+        };
+        break;
+      case "--duration":
+        if (out.iterations) out.iterations.duration = value;
+        i++;
+        break;
+      case "--start-date":
+        if (out.iterations) out.iterations.startDate = value;
+        i++;
+        break;
+      case "--demo-day":
+        if (out.iterations) out.iterations.demoDay = value;
+        i++;
+        break;
     }
   }
+  return out;
+}
 
-  const targetDir = join(process.cwd(), "haren");
+export async function applyClones(plan: Plan, rootDir: string): Promise<string[]> {
+  const failed: string[] = [];
+  for (const item of plan.items) {
+    if (item.action !== "clone" || !item.remote) continue;
+    console.log(`  \x1b[36m↓\x1b[0m Cloning ${item.path} ...`);
+    const result = await cloneRepo(item.remote, join(rootDir, item.path));
+    if (!result.ok) {
+      console.error(`  \x1b[31m✗\x1b[0m ${item.path}: ${result.stderr.split("\n").pop()}`);
+      failed.push(item.path);
+    }
+  }
+  return failed;
+}
 
-  // Guard against overwriting existing workspace
-  const manifestExists = await Bun.file(join(targetDir, "manifest.yaml")).exists();
-  if (manifestExists && !force) {
-    console.error("Haren workspace already exists here (haren/manifest.yaml found).");
-    console.error("Use --force to overwrite.");
+function canPrompt(opts: InitArgs): boolean {
+  return !opts.yes && process.stdin.isTTY === true;
+}
+
+async function confirmOrExit(opts: InitArgs, allowEdit: boolean): Promise<"yes" | "no" | "edit"> {
+  if (opts.yes) return "yes";
+  if (!process.stdin.isTTY) {
+    console.error("  No terminal to confirm the plan. Re-run with --yes to apply.");
     process.exit(1);
   }
+  return promptConfirm(allowEdit);
+}
 
-  // Show banner
+function printNextSteps(): void {
+  console.log("");
+  console.log(
+    "  \x1b[36mNext:\x1b[0m open the workspace root in your editor and run \x1b[1m/haren-onboard\x1b[0m.",
+  );
+  console.log("");
+}
+
+function printBanner(): void {
   console.log("");
   console.log(
     "\x1b[36m" +
@@ -408,105 +513,224 @@ export async function init(args: string[]): Promise<void> {
   ` +
       "\x1b[0m",
   );
-  console.log("\x1b[2m     Agentic SDLC Framework v1.1.0\x1b[0m");
+  console.log(`\x1b[2m     Agentic SDLC Framework v${HAREN_VERSION}\x1b[0m`);
   console.log("");
+}
 
-  // Interactive prompts for missing values
-  const cwdName = process.cwd().split("/").pop() || "my-project";
+async function promptIterations(): Promise<IterationConfig | undefined> {
+  const enable = await promptSelect(
+    "Enable iteration planning?",
+    ["no", "yes"] as const,
+    {
+      no: "flat planning, one pass per module",
+      yes: "iteration-based planning with scoped deliverables",
+    },
+    "no",
+  );
+  if (enable !== "yes") return undefined;
+  const duration = await prompt("Iteration duration:", "2 weeks");
+  const today = new Date().toISOString().split("T")[0];
+  const startDate = await prompt("Start date:", today);
+  const demoDay = await prompt("Demo day:", "Friday");
+  return { enabled: true, duration, startDate, demoDay };
+}
 
-  if (!project) {
-    project = await prompt("Project name:", cwdName);
+async function runSetup(location: HarenLocation, opts: InitArgs): Promise<void> {
+  if (location.legacy) {
+    console.log(`  Found a haren folder without a version marker: ${location.harenDir}`);
+    console.log("  Run 'haren upgrade' to migrate it.");
+    return;
+  }
+  const manifest = parseManifest(await readFile(join(location.harenDir, "manifest.yaml"), "utf-8"));
+  const layout: Layout = manifest.layout ?? "workspace";
+  let editor = opts.editor ?? detectEditor(location.workspaceDir);
+  if (!editor) {
+    editor = canPrompt(opts)
+      ? ((await promptSelect(
+          "Which editors do you use?",
+          EDITORS,
+          EDITOR_DESCRIPTIONS,
+          "claude-code",
+        )) as Editor)
+      : "claude-code";
   }
 
-  if (!mode) {
-    const selected = await promptSelect("Mode:", MODES, MODE_DESCRIPTIONS, "undecided");
-    mode = selected as Mode;
-  }
-
-  if (!language) {
-    language = await prompt("Preferred language:", "English");
-  }
-
-  if (iterations === undefined) {
-    const enableIterations = await promptSelect(
-      "Enable iteration planning?",
-      ["no", "yes"] as const,
-      {
-        no: "flat planning, one pass per module",
-        yes: "iteration-based planning with scoped deliverables",
-      },
-      "no",
-    );
-
-    if (enableIterations === "yes") {
-      const duration = await prompt("Iteration duration:", "2 weeks");
-      const today = new Date().toISOString().split("T")[0];
-      const startDate = await prompt("Start date:", today);
-      const demoDay = await prompt("Demo day:", "Friday");
-      iterations = { enabled: true, duration, startDate, demoDay };
-    }
-  }
-
-  if (editor === undefined) {
-    const selected = await promptSelect(
-      "Which editors do you use?",
-      ["claude-code", "cursor", "both"] as const,
-      {
-        "claude-code": "Claude Code CLI / IDE extension",
-        cursor: "Cursor AI editor",
-        both: "Both Claude Code and Cursor",
-      },
-      "claude-code",
-    );
-    editor = selected as Editor;
-  }
-
-  console.log("");
-
-  // Create the haren/ directory
-  await mkdir(targetDir, { recursive: true });
-
-  await scaffoldWorkspace(targetDir, {
-    project,
-    mode: mode!,
-    language,
-    iterations,
+  const plan = await buildPlan({
+    rootDir: location.workspaceDir,
+    harenDir: location.harenDir,
+    layout,
+    createHaren: false,
+    repos: normalizeRepos(manifest.repos),
     editor,
   });
+  console.log(`  Found haren folder: ${location.harenDir}`);
+  if (isNoop(plan)) {
+    console.log("  Already set up. Run 'haren upgrade' to update framework files.");
+    return;
+  }
+  console.log("");
+  console.log(renderPlan(plan));
+  console.log("");
+  if (opts.dryRun) return;
+  if ((await confirmOrExit(opts, false)) === "no") return;
 
-  console.log(`  \x1b[32m+\x1b[0m Project:  \x1b[1m${project}\x1b[0m`);
-  console.log(`  \x1b[32m+\x1b[0m Mode:     \x1b[1m${mode}\x1b[0m`);
-  console.log(`  \x1b[32m+\x1b[0m Language: \x1b[1m${language}\x1b[0m`);
-  console.log(`  \x1b[32m+\x1b[0m Path:     \x1b[1mharen/\x1b[0m`);
-  if (iterations) {
-    console.log(
-      `  \x1b[32m+\x1b[0m Iterations: \x1b[1menabled\x1b[0m (${iterations.duration}, demo: ${iterations.demoDay})`,
+  const failed = await applyClones(plan, location.workspaceDir);
+  await writeRootFiles({
+    workspaceDir: location.workspaceDir,
+    harenDir: location.harenDir,
+    editor,
+  });
+  printNextSteps();
+  if (failed.length > 0) {
+    console.error(
+      `  ${failed.length} repo(s) failed to clone: ${failed.join(", ")}. Run 'haren init' again to retry.`,
     );
+    process.exit(1);
   }
-  console.log(`  \x1b[32m+\x1b[0m Editor:  \x1b[1m${editor}\x1b[0m`);
-  console.log("");
-  console.log("\x1b[2m  Files created in haren/:\x1b[0m");
-  console.log("");
-  console.log("  manifest.yaml    \x1b[2m—\x1b[0m project config");
-  console.log("  progress.json    \x1b[2m—\x1b[0m auto-managed state");
-  console.log("  skill.md         \x1b[2m—\x1b[0m LLM entry point");
-  console.log("  agents/          \x1b[2m—\x1b[0m 6 agent definitions");
-  console.log("  skills/          \x1b[2m—\x1b[0m 13 skill definitions");
-  console.log("  templates/       \x1b[2m—\x1b[0m 9 artifact templates");
-  console.log("  artifacts/       \x1b[2m—\x1b[0m phase outputs (empty)");
-  console.log("");
-  if (editor === "claude-code" || editor === "both") {
-    console.log(`  \x1b[32m+\x1b[0m CLAUDE.md + .claude/settings.json created`);
+}
+
+export async function init(args: string[]): Promise<void> {
+  let opts: InitArgs;
+  try {
+    opts = parseInitArgs(args);
+  } catch (err) {
+    console.error((err as Error).message);
+    process.exit(1);
   }
-  if (editor === "cursor" || editor === "both") {
-    console.log(`  \x1b[32m+\x1b[0m .cursorrules + .cursor/rules/haren.mdc created`);
+
+  const rootDir = resolve(
+    opts.dir?.replace(/^~(?=$|\/)/, process.env.HOME ?? "~") ?? process.cwd(),
+  );
+  if (!opts.dryRun) await mkdir(rootDir, { recursive: true });
+
+  printBanner();
+
+  // --haren-dir selects an existing folder only when it already has a manifest;
+  // otherwise it is the name of the folder to create.
+  const explicitHarenDir =
+    opts.harenDir && existsSync(join(rootDir, opts.harenDir, "manifest.yaml"))
+      ? opts.harenDir
+      : undefined;
+
+  let detection: Detection;
+  try {
+    detection = await detectLayout(rootDir, { harenDir: explicitHarenDir, env: process.env });
+  } catch (err) {
+    console.error(`  ${(err as Error).message}`);
+    process.exit(1);
   }
+
+  if (detection.kind === "existing" && !opts.force) {
+    await runSetup(detection.location!, opts);
+    return;
+  }
+
+  const interactive = canPrompt(opts);
+  const layout: Layout =
+    opts.layout ??
+    (detection.kind === "monorepo"
+      ? "monorepo"
+      : detection.kind === "workspace-new"
+        ? "workspace"
+        : interactive
+          ? ((await promptSelect(
+              "Layout:",
+              ["workspace", "monorepo"] as const,
+              {
+                workspace: "several git repos side by side; haren is its own repo",
+                monorepo: "one git repo; haren is a folder inside it",
+              },
+              "workspace",
+            )) as Layout)
+          : "workspace");
+  console.log(
+    `  Layout detected: ${layout === "monorepo" ? "monorepo (inside a git repo)" : "multi-repo workspace (no .git at root)"}`,
+  );
   console.log("");
-  console.log("\x1b[2m  ─────────────────────────────────────────\x1b[0m");
-  console.log("");
-  const editorName =
-    editor === "cursor" ? "Cursor" : editor === "both" ? "your editor" : "Claude Code";
-  console.log(`  \x1b[36mNext:\x1b[0m Open this workspace in ${editorName}`);
-  console.log('  and say \x1b[1m"what\'s next?"\x1b[0m to begin.');
-  console.log("");
+
+  const harenDirName =
+    opts.harenDir ?? (interactive ? await prompt("haren folder name:", "haren") : "haren");
+  const harenDir = join(rootDir, harenDirName);
+
+  const children = detection.childRepos.filter((r) => r.name !== harenDirName);
+  const defaults = children.flatMap((r, i) => (r.remote ? [i] : []));
+  let selected = defaults;
+
+  const project =
+    opts.project ??
+    (interactive ? await prompt("Project name:", basename(rootDir)) : basename(rootDir));
+  const mode =
+    opts.mode ??
+    (interactive
+      ? ((await promptSelect("Mode:", MODES, MODE_DESCRIPTIONS, "undecided")) as Mode)
+      : "undecided");
+  const language =
+    opts.language ?? (interactive ? await prompt("Preferred language:", "English") : "English");
+  const iterations = opts.iterations ?? (interactive ? await promptIterations() : undefined);
+  const editor =
+    opts.editor ??
+    (interactive
+      ? ((await promptSelect(
+          "Which editors do you use?",
+          EDITORS,
+          EDITOR_DESCRIPTIONS,
+          "claude-code",
+        )) as Editor)
+      : "claude-code");
+
+  while (true) {
+    if (layout === "workspace" && children.length > 0 && interactive) {
+      selected = await promptMultiSelect(
+        "Select code repos to track:",
+        children.map((r) => `${r.name.padEnd(12)} ${r.remote ?? "(no remote)"}`),
+        selected,
+      );
+    }
+    const repos: Record<string, RepoEntry> = {};
+    for (const i of selected) {
+      const child = children[i];
+      repos[child.name] = child.remote
+        ? { path: `../${child.name}`, remote: child.remote }
+        : { path: `../${child.name}` };
+    }
+
+    const plan = await buildPlan({
+      rootDir,
+      harenDir,
+      layout,
+      createHaren: true,
+      repos,
+      editor,
+      manifestPreview: `layout: ${layout}\n${renderReposBlock(repos)}`,
+    });
+    console.log("");
+    console.log(renderPlan(plan));
+    console.log("");
+    if (opts.dryRun) return;
+
+    const answer = await confirmOrExit(opts, layout === "workspace" && children.length > 0);
+    if (answer === "no") return;
+    if (answer === "edit") continue;
+
+    await mkdir(harenDir, { recursive: true });
+    await scaffoldWorkspace(harenDir, {
+      project,
+      mode,
+      language,
+      iterations,
+      editor,
+      layout,
+      repos,
+    });
+    if (layout === "workspace") {
+      const result = await gitInit(harenDir);
+      if (!result.ok) {
+        console.error(`  git init failed in ${harenDir}: ${result.stderr}`);
+        process.exit(1);
+      }
+    }
+    console.log(`  \x1b[32m✓\x1b[0m Created ${harenDirName}/ (${layout})`);
+    printNextSteps();
+    return;
+  }
 }
