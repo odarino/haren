@@ -12,9 +12,9 @@ import {
   type RepoEntry,
 } from "../workspace/manifest";
 import { type Editor, detectEditor, writeRootFiles } from "../workspace/root-files";
-import { detectLayout, type Detection } from "../workspace/detect";
+import { detectLayout, inferLayout, type Detection } from "../workspace/detect";
 import { buildPlan, isNoop, renderPlan, type Plan } from "../workspace/plan";
-import { cloneRepo, gitInit } from "../workspace/git";
+import { cloneRepo, gitInit, hasGitDir } from "../workspace/git";
 import type { HarenLocation } from "../workspace/resolve";
 import { PROGRESS_VERSION } from "../workspace/progress";
 import { HAREN_VERSION } from "../lib/version";
@@ -625,9 +625,23 @@ export async function init(args: string[]): Promise<void> {
     return;
   }
 
+  // --force on an existing haren folder re-scaffolds it in place: it keeps the
+  // folder, the layout, and the tracked repos from its manifest.
+  let existingManifest: ReturnType<typeof parseManifest> | undefined;
+  let existingRepos: Record<string, RepoEntry> | undefined;
+  let existingLayout: Layout | undefined;
+  if (detection.kind === "existing" && detection.location) {
+    const loc = detection.location;
+    existingManifest = parseManifest(await readFile(join(loc.harenDir, "manifest.yaml"), "utf-8"));
+    existingRepos = normalizeRepos(existingManifest.repos);
+    existingLayout =
+      existingManifest.layout ?? (await inferLayout(loc.workspaceDir)).layout ?? "workspace";
+  }
+
   const interactive = canPrompt(opts);
   const layout: Layout =
     opts.layout ??
+    existingLayout ??
     (detection.kind === "monorepo"
       ? "monorepo"
       : detection.kind === "workspace-new"
@@ -648,24 +662,38 @@ export async function init(args: string[]): Promise<void> {
   );
   console.log("");
 
+  const existingLoc = detection.kind === "existing" ? detection.location : null;
   const harenDirName =
-    opts.harenDir ?? (interactive ? await prompt("haren folder name:", "haren") : "haren");
-  const harenDir = join(rootDir, harenDirName);
+    opts.harenDir ??
+    (existingLoc
+      ? basename(existingLoc.harenDir)
+      : interactive
+        ? await prompt("haren folder name:", "haren")
+        : "haren");
+  const harenDir =
+    existingLoc && !opts.harenDir ? existingLoc.harenDir : join(rootDir, harenDirName);
 
-  const children = detection.childRepos.filter((r) => r.name !== harenDirName);
+  const children = (existingRepos ? [] : detection.childRepos).filter(
+    (r) => r.name !== harenDirName,
+  );
   const defaults = children.flatMap((r, i) => (r.remote ? [i] : []));
   let selected = defaults;
 
   const project =
     opts.project ??
+    existingManifest?.project ??
     (interactive ? await prompt("Project name:", basename(rootDir)) : basename(rootDir));
+  const existingMode = MODES.find((m) => m === existingManifest?.mode);
   const mode =
     opts.mode ??
+    existingMode ??
     (interactive
       ? ((await promptSelect("Mode:", MODES, MODE_DESCRIPTIONS, "undecided")) as Mode)
       : "undecided");
   const language =
-    opts.language ?? (interactive ? await prompt("Preferred language:", "English") : "English");
+    opts.language ??
+    existingManifest?.language ??
+    (interactive ? await prompt("Preferred language:", "English") : "English");
   const iterations = opts.iterations ?? (interactive ? await promptIterations() : undefined);
   const editor =
     opts.editor ??
@@ -686,7 +714,7 @@ export async function init(args: string[]): Promise<void> {
         selected,
       );
     }
-    const repos: Record<string, RepoEntry> = {};
+    const repos: Record<string, RepoEntry> = { ...existingRepos };
     for (const i of selected) {
       const child = children[i];
       repos[child.name] = child.remote
@@ -722,7 +750,7 @@ export async function init(args: string[]): Promise<void> {
       layout,
       repos,
     });
-    if (layout === "workspace") {
+    if (layout === "workspace" && !hasGitDir(harenDir)) {
       const result = await gitInit(harenDir);
       if (!result.ok) {
         console.error(`  git init failed in ${harenDir}: ${result.stderr}`);
