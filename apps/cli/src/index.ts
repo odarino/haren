@@ -14,6 +14,9 @@ export function parseArgs(args: string[]): ParsedCommand {
   const rest = args.slice(1);
 
   switch (command) {
+    case "--help":
+    case "-h":
+      return { command: "help", args: [] };
     case "init":
     case "upgrade":
     case "agent":
@@ -45,8 +48,14 @@ async function main() {
     }
     case "help":
       console.log("Usage:");
-      console.log("  haren init      Create a new Haren workspace");
-      console.log("  haren upgrade   Upgrade framework files (agents, skills, templates)");
+      console.log("  haren init      Set up haren (detects monorepo or multi-repo workspace)");
+      console.log(
+        "                  --dir <path>  --layout monorepo|workspace  --haren-dir <name>",
+      );
+      console.log("                  --yes  --dry-run  --force");
+      console.log(
+        "  haren upgrade   Upgrade framework files and migrate manifest/progress (--dry-run)",
+      );
       console.log("  haren agent     Manage local agent (start, stop, status)");
       break;
     case "unknown":
@@ -57,6 +66,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(err instanceof Error ? err.message : err);
   process.exit(1);
 });
