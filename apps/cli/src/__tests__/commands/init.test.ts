@@ -352,7 +352,7 @@ describe("scaffoldWorkspace", () => {
     });
     const claudeMd = await readFile(join(parentDir, "CLAUDE.md"), "utf-8");
     expect(claudeMd).toContain("## Brainstorming Gate");
-    expect(claudeMd).toContain("discover phase");
+    expect(claudeMd).toContain("planned");
     expect(claudeMd).toContain("NOT to docs/superpowers/specs/");
   });
 
@@ -364,7 +364,7 @@ describe("scaffoldWorkspace", () => {
     });
     const hookScript = await readFile(join(testDir, "hooks", "brainstorm-gate.ts"), "utf-8");
     expect(hookScript).toContain("progress.json");
-    expect(hookScript).toContain("02-discovery");
+    expect(hookScript).toContain("implementablePhases");
   });
 
   it("includes brainstorming in skill.md Available Actions and dispatch", async () => {
