@@ -52,6 +52,8 @@ export async function planMigration(location: HarenLocation): Promise<MigrationP
   const layout: Layout = manifest.layout ?? (await inferLayout(workspaceDir)).layout ?? "workspace";
 
   if (!hasMarker(manifest)) steps.push("manifest.yaml: add version marker");
+  else if (String(manifest.haren?.version) !== HAREN_VERSION)
+    steps.push("manifest.yaml: update version marker");
   if (!manifest.layout) steps.push(`manifest.yaml: add layout: ${layout}`);
 
   let repos: Record<string, RepoEntry> | undefined;
@@ -78,7 +80,14 @@ export async function planMigration(location: HarenLocation): Promise<MigrationP
   const progressPath = join(harenDir, "progress.json");
   if (existsSync(progressPath)) {
     const before = await readFile(progressPath, "utf-8");
-    const raw = JSON.parse(before);
+    let raw: any;
+    try {
+      raw = JSON.parse(before);
+    } catch (err) {
+      throw new Error(
+        `Invalid JSON in ${progressPath}: ${(err as Error).message}. Fix the file and run again.`,
+      );
+    }
     const firstRepo = Object.keys(repos ?? current)[0];
     const keys: Record<string, string | undefined> = {};
     for (const name of Object.keys(raw.modules ?? {})) {
@@ -137,14 +146,9 @@ async function countFiles(dir: string): Promise<number> {
 
 const FRAMEWORK_DIRS = ["agents", "skills", "templates"] as const;
 
-const USER_FILES = [
-  "manifest.yaml",
-  "progress.json",
-  "skill.md",
-  "FEEDBACK.md",
-  "artifacts/",
-  "events/",
-];
+// Files upgrade never writes. manifest.yaml and progress.json show under
+// "Migration" when they change; skill.md shows under "Upgrading".
+const USER_FILES = ["FEEDBACK.md", "artifacts/", "events/"];
 
 export async function upgrade(args: string[]): Promise<void> {
   const flagIndex = args.indexOf("--haren-dir");
