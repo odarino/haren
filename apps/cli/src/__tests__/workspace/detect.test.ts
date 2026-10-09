@@ -23,6 +23,11 @@ describe("detectLayout", () => {
     expect(d.location?.harenDir).toBe(join(root, "rules"));
   });
 
+  it("returns monorepo for a missing folder inside a git work tree", async () => {
+    await gitInit(root);
+    expect((await detectLayout(join(root, "new", "sub"))).kind).toBe("monorepo");
+  });
+
   it("returns monorepo when the folder is inside a git work tree", async () => {
     await gitInit(root);
     expect((await detectLayout(root)).kind).toBe("monorepo");

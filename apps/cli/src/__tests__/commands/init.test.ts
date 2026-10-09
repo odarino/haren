@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, rm, readdir, readFile, mkdir } from "fs/promises";
+import { mkdtemp, rm, readdir, readFile, mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { scaffoldWorkspace } from "../../commands/init";
@@ -365,6 +365,19 @@ describe("scaffoldWorkspace", () => {
     const hookScript = await readFile(join(testDir, "hooks", "brainstorm-gate.ts"), "utf-8");
     expect(hookScript).toContain("progress.json");
     expect(hookScript).toContain("implementablePhases");
+  });
+
+  it("writes a .gitignore for agent state files", async () => {
+    await scaffoldWorkspace(testDir, { project: "test", mode: "blueprint", language: "English" });
+    const lines = (await readFile(join(testDir, ".gitignore"), "utf-8")).split("\n");
+    expect(lines).toContain(".agent.json");
+    expect(lines).toContain(".agent.pid");
+  });
+
+  it("keeps an existing .gitignore", async () => {
+    await writeFile(join(testDir, ".gitignore"), "mine\n");
+    await scaffoldWorkspace(testDir, { project: "test", mode: "blueprint", language: "English" });
+    expect(await readFile(join(testDir, ".gitignore"), "utf-8")).toBe("mine\n");
   });
 
   it("includes brainstorming in skill.md Available Actions and dispatch", async () => {
