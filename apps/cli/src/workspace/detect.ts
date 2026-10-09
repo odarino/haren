@@ -1,3 +1,5 @@
+import { existsSync } from "fs";
+import { dirname } from "path";
 import { type ChildRepo, hasGitDir, isInsideWorkTree, listChildRepos } from "./git";
 import type { Layout } from "./manifest";
 import { type HarenLocation, type ResolveOptions, resolveHarenDir } from "./resolve";
@@ -16,7 +18,11 @@ export async function inferLayout(
   if (hasGitDir(dir)) return { layout: "monorepo", childRepos: [] };
   const childRepos = await listChildRepos(dir);
   if (childRepos.length > 0) return { layout: "workspace", childRepos };
-  if (await isInsideWorkTree(dir)) return { layout: "monorepo", childRepos: [] };
+  // init creates a new --dir only when it applies the plan; probe its nearest
+  // existing ancestor so a new folder inside a git repo still reads as monorepo.
+  let probe = dir;
+  while (!existsSync(probe) && dirname(probe) !== probe) probe = dirname(probe);
+  if (await isInsideWorkTree(probe)) return { layout: "monorepo", childRepos: [] };
   return { layout: null, childRepos: [] };
 }
 

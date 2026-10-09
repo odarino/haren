@@ -173,4 +173,68 @@ describe("haren init flow", () => {
       backend: { path: "../backend", remote: "git@github.com:acme/b.git" },
     });
   });
+
+  it("does not create --dir when the plan is not applied", async () => {
+    const target = join(ws, "new-ws");
+    const r = await haren([
+      "init",
+      "--dir",
+      target,
+      "--project",
+      "p",
+      "--mode",
+      "explore",
+      "--language",
+      "English",
+      "--editor",
+      "claude-code",
+      "--haren-dir",
+      "haren",
+    ]);
+    expect(r.code).toBe(1);
+    expect(existsSync(target)).toBe(false);
+  });
+
+  async function forceWorkspace(remote: string): Promise<string> {
+    const team = join(ws, "team");
+    await mkdir(team);
+    const first = await haren(
+      ["init", "--yes", "--layout", "workspace", "--haren-dir", "rules"],
+      team,
+    );
+    expect(first.code).toBe(0);
+    const manifestPath = join(team, "rules", "manifest.yaml");
+    const text = await readFile(manifestPath, "utf-8");
+    await Bun.write(
+      manifestPath,
+      text.replace(
+        /repos:[\s\S]*?\n\n/,
+        `repos:\n  backend:\n    path: ../backend\n    remote: ${remote}\n\n`,
+      ),
+    );
+    return team;
+  }
+
+  it("--force clones missing repos in a workspace", async () => {
+    const src = join(ws, "origin-backend");
+    await mkdir(src);
+    await gitInit(src);
+    await runGit(
+      ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "--allow-empty", "-m", "init"],
+      src,
+    );
+    const team = await forceWorkspace(src);
+    const r = await haren(["init", "--yes", "--force"], team);
+    expect(r.code).toBe(0);
+    expect(hasGitDir(join(team, "backend"))).toBe(true);
+  });
+
+  it("--force exits 1 after writing files when a clone fails", async () => {
+    const team = await forceWorkspace(join(ws, "does-not-exist"));
+    await rm(join(team, "CLAUDE.md"));
+    const r = await haren(["init", "--yes", "--force"], team);
+    expect(r.code).toBe(1);
+    expect(r.err).toContain("failed to clone: backend");
+    expect(existsSync(join(team, "CLAUDE.md"))).toBe(true);
+  });
 });

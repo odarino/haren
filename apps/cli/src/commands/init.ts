@@ -249,6 +249,10 @@ Master registry of all artifacts in this Haren workspace.
   // Write events placeholder
   await writeFile(join(targetDir, "events", "events.jsonl"), "");
 
+  // Keep agent state (team code, user id) out of the haren repo
+  const gitignore = join(targetDir, ".gitignore");
+  if (!existsSync(gitignore)) await writeFile(gitignore, ".agent.json\n.agent.pid\n");
+
   // Write brainstorm-gate hook script (works with both Claude Code and Cursor)
   await writeGateScript(targetDir);
 
@@ -601,7 +605,7 @@ export async function init(args: string[]): Promise<void> {
   const rootDir = resolve(
     opts.dir?.replace(/^~(?=$|\/)/, process.env.HOME ?? "~") ?? process.cwd(),
   );
-  if (!opts.dryRun) await mkdir(rootDir, { recursive: true });
+  // rootDir is created only when the plan is applied (mkdir harenDir below).
 
   printBanner();
 
@@ -740,6 +744,8 @@ export async function init(args: string[]): Promise<void> {
     if (answer === "no") return;
     if (answer === "edit") continue;
 
+    // --force on an existing workspace: clone tracked repos that are missing.
+    const failed = layout === "workspace" ? await applyClones(plan, rootDir) : [];
     await mkdir(harenDir, { recursive: true });
     await scaffoldWorkspace(harenDir, {
       project,
@@ -759,6 +765,12 @@ export async function init(args: string[]): Promise<void> {
     }
     console.log(`  \x1b[32m✓\x1b[0m Created ${harenDirName}/ (${layout})`);
     printNextSteps();
+    if (failed.length > 0) {
+      console.error(
+        `  ${failed.length} repo(s) failed to clone: ${failed.join(", ")}. Run 'haren init' again to retry.`,
+      );
+      process.exit(1);
+    }
     return;
   }
 }
