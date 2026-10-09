@@ -21,7 +21,12 @@ export interface ModuleProgress {
   status: ModuleStatus;
   currentPhase: string;
   features: Record<string, FeatureStatus>;
-  lastCommit: string | null;
+  /** Last known commit per repo key from manifest `repos`. */
+  lastCommit: Record<string, string>;
+  /** Branch used in every repo the module touches, e.g. `feat/checkout`. */
+  branch?: string;
+  /** Repo keys from manifest `repos` that this module touches. */
+  repos?: string[];
   lastUpdated: string;
 }
 
@@ -138,4 +143,29 @@ export function updateFeatureStatus(
       },
     },
   };
+}
+
+export const PROGRESS_VERSION = 2;
+
+/**
+ * Migrate a v1 progress.json (string `lastCommit`) to v2 (per-repo map).
+ * `repoKeyFor` returns the repo key for a module; the fallback key is "default".
+ */
+export function migrateProgress(
+  raw: unknown,
+  repoKeyFor: (moduleName: string) => string | undefined,
+): { progress: unknown; changed: boolean } {
+  if (!raw || typeof raw !== "object") return { progress: raw, changed: false };
+  const data = raw as { version?: number; modules?: Record<string, Record<string, unknown>> };
+  if ((data.version ?? 1) >= PROGRESS_VERSION) return { progress: raw, changed: false };
+
+  const modules: Record<string, Record<string, unknown>> = {};
+  for (const [name, mod] of Object.entries(data.modules ?? {})) {
+    const old = mod?.lastCommit;
+    let lastCommit: Record<string, string> = {};
+    if (typeof old === "string" && old) lastCommit = { [repoKeyFor(name) ?? "default"]: old };
+    else if (old && typeof old === "object") lastCommit = old as Record<string, string>;
+    modules[name] = { ...mod, lastCommit };
+  }
+  return { progress: { ...data, version: PROGRESS_VERSION, modules }, changed: true };
 }
