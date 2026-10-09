@@ -1,0 +1,20 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`renderPlan renders a new workspace plan 1`] = `
+"Plan:
+  ~/projects/shop/
+  ├── haren/                   + create   (git init, own repo)
+  │   ├── manifest.yaml        + create   layout: workspace
+  │   ├── artifacts/           + create
+  │   └── hooks/               + create
+  ├── CLAUDE.md                + create   (generated, not versioned)
+  ├── backend                  = keep
+  ├── frontend                 ↓ clone    from git@github.com:acme/f.git
+  └── scratch                  ! warn     ! not a git repo
+
+  manifest.yaml preview:
+    layout: workspace
+    repos:
+      backend:
+        path: ../backend"
+`;
