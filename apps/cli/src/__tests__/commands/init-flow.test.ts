@@ -149,4 +149,28 @@ describe("haren init flow", () => {
     expect(r.code).toBe(1);
     expect(r.err).toContain("--haren-dir");
   });
+
+  it("--force keeps the monorepo layout and does not git init haren/", async () => {
+    await gitInit(ws);
+    expect((await haren(["init", "--yes"])).code).toBe(0);
+    const r = await haren(["init", "--yes", "--force"]);
+    expect(r.code).toBe(0);
+    expect(parseManifest(await readFile(join(ws, "haren", "manifest.yaml"), "utf-8")).layout).toBe(
+      "monorepo",
+    );
+    expect(existsSync(join(ws, "haren", ".git"))).toBe(false);
+  });
+
+  it("--force keeps a renamed folder and its tracked repos", async () => {
+    await repo("backend", "git@github.com:acme/b.git");
+    expect((await haren(["init", "--yes", "--haren-dir", "rules"])).code).toBe(0);
+    const r = await haren(["init", "--yes", "--force"]);
+    expect(r.code).toBe(0);
+    expect(existsSync(join(ws, "haren"))).toBe(false);
+    const m = parseManifest(await readFile(join(ws, "rules", "manifest.yaml"), "utf-8"));
+    expect(m.layout).toBe("workspace");
+    expect(normalizeRepos(m.repos)).toEqual({
+      backend: { path: "../backend", remote: "git@github.com:acme/b.git" },
+    });
+  });
 });
