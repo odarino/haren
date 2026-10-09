@@ -134,4 +134,37 @@ describe("buildManifestText", () => {
     expect(normalizeRepos(m.repos).backend.remote).toBe("git@github.com:acme/b.git");
     expect((m.iterations as { enabled: boolean }).enabled).toBe(true);
   });
+
+  it("keeps special scalar values as strings on round-trip", () => {
+    const text = buildManifestText({
+      version: "1.2.0",
+      layout: "workspace",
+      project: "my: app #1",
+      mode: "explore",
+      language: "yes",
+      repos: {},
+      iterations: { duration: "2 weeks", startDate: "2026-10-09", demoDay: "123" },
+    });
+    const m = parseManifest(text);
+    expect(m.project).toBe("my: app #1");
+    expect(m.language).toBe("yes");
+    expect((m.haren as { version: unknown }).version).toBe("1.2.0");
+    const it2 = m.iterations as { duration: unknown; start_date: unknown; demo_day: unknown };
+    expect(it2.duration).toBe("2 weeks");
+    expect(it2.start_date).toBe("2026-10-09");
+    expect(it2.demo_day).toBe("123");
+  });
+});
+
+describe("yamlScalar via renderReposBlock", () => {
+  it("quotes values that YAML would read as numbers or special tokens", () => {
+    const repos = {
+      a: { path: "123" },
+      b: { path: "-" },
+      c: { path: ".hidden" },
+      d: { path: "-1" },
+    };
+    const parsed = normalizeRepos(parseManifest(renderReposBlock(repos)).repos);
+    expect(parsed).toEqual(repos);
+  });
 });
