@@ -1,27 +1,8 @@
 import { join } from "path";
 import { readAgentConfig, writeAgentConfig, type AgentConfig } from "../agent/config";
 import { detectCLIs } from "../agent/cli-detector";
-
-async function findHarenDir(): Promise<string | null> {
-  const cwd = process.cwd();
-  const harenDir = join(cwd, "haren");
-  const manifestFile = Bun.file(join(harenDir, "manifest.yaml"));
-  if (await manifestFile.exists()) return harenDir;
-  return null;
-}
-
-async function getGitRemoteUrl(): Promise<string | null> {
-  try {
-    const proc = Bun.spawn(["git", "remote", "get-url", "origin"], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const text = await new Response(proc.stdout).text();
-    return text.trim() || null;
-  } catch {
-    return null;
-  }
-}
+import { MultipleHarenDirsError, resolveHarenDir } from "../workspace/resolve";
+import { getRemoteUrl } from "../workspace/git";
 
 function readLine(question: string): Promise<string> {
   process.stdout.write(question);
@@ -47,9 +28,20 @@ export async function agent(args: string[]): Promise<void> {
     return;
   }
 
-  const harenDir = await findHarenDir();
-  if (!harenDir) {
-    console.error("No haren/ directory found. Run 'haren init' first.");
+  const flagIndex = args.indexOf("--haren-dir");
+  let harenDir: string;
+  try {
+    const location = await resolveHarenDir(process.cwd(), {
+      harenDir: flagIndex !== -1 ? args[flagIndex + 1] : undefined,
+      env: process.env,
+    });
+    if (!location) {
+      console.error("No haren folder found. Run 'haren init' first.");
+      process.exit(1);
+    }
+    harenDir = location.harenDir;
+  } catch (err) {
+    console.error(err instanceof MultipleHarenDirsError ? err.message : String(err));
     process.exit(1);
   }
 
@@ -94,12 +86,13 @@ async function startAgent(harenDir: string): Promise<void> {
     const userId = crypto.randomUUID();
     config = { portalUrl, teamCode, userId, userName };
     await writeAgentConfig(harenDir, config);
-    console.log("\nConfig saved to haren/.agent.json");
+    console.log(`\nConfig saved to ${join(harenDir, ".agent.json")}`);
   }
 
-  const gitRemoteUrl = await getGitRemoteUrl();
+  const gitRemoteUrl = await getRemoteUrl(harenDir);
   if (!gitRemoteUrl) {
-    console.error("Could not detect git remote URL. Is this a git repository?");
+    console.error(`Could not read the git remote of ${harenDir}.`);
+    console.error(`Add one with: git -C ${harenDir} remote add origin <url>`);
     process.exit(1);
   }
 
