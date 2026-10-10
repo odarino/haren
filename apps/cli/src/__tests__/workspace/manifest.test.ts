@@ -125,6 +125,15 @@ describe("replaceTopLevelBlock line endings", () => {
 });
 
 describe("migrateManifestText", () => {
+  it("replaces a haren block whose version is empty, once and idempotently", () => {
+    for (const block of ["haren:\n  version:\n", 'haren:\n  version: ""\n']) {
+      const mig = { version: "1.2.0", layout: "workspace" as const };
+      const out = migrateManifestText(`${block}project: x\n`, mig);
+      expect(out.match(/^haren:/gm)?.length).toBe(1);
+      expect(hasMarker(parseManifest(out))).toBe(true);
+      expect(migrateManifestText(out, mig)).toBe(out);
+    }
+  });
   it("replaces an invalid layout value instead of adding a second key", () => {
     const out = migrateManifestText(`layout: banana\nproject: x\n`, {
       version: "1.2.0",

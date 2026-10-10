@@ -16,7 +16,13 @@ export function gitEnv(
   interactive: boolean = process.stdin.isTTY === true,
   base: Record<string, string | undefined> = process.env,
 ): Record<string, string | undefined> {
-  return interactive ? { ...base } : { ...base, GIT_TERMINAL_PROMPT: "0" };
+  if (interactive) return { ...base };
+  // BatchMode stops ssh from asking for a password or host-key answer.
+  return {
+    ...base,
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_SSH_COMMAND: base.GIT_SSH_COMMAND ?? "ssh -o BatchMode=yes",
+  };
 }
 
 export async function runGit(args: string[], cwd: string): Promise<GitResult> {

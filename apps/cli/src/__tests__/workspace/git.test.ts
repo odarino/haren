@@ -81,13 +81,21 @@ describe("git helpers", () => {
   });
 
   it("turns off git prompts only when stdin is not a terminal", () => {
-    expect(gitEnv(false, { PATH: "/bin" })).toEqual({ PATH: "/bin", GIT_TERMINAL_PROMPT: "0" });
+    expect(gitEnv(false, { PATH: "/bin" })).toEqual({
+      PATH: "/bin",
+      GIT_TERMINAL_PROMPT: "0",
+      GIT_SSH_COMMAND: "ssh -o BatchMode=yes",
+    });
     expect(gitEnv(true, { PATH: "/bin" })).toEqual({ PATH: "/bin" });
+  });
+
+  it("keeps a user GIT_SSH_COMMAND when git cannot prompt", () => {
+    expect(gitEnv(false, { GIT_SSH_COMMAND: "ssh -i k" }).GIT_SSH_COMMAND).toBe("ssh -i k");
   });
 
   it("passes the prompt setting to git", async () => {
     const res = await runGit(["-c", "alias.envp=!echo x$GIT_TERMINAL_PROMPT", "envp"], root);
-    expect(res.stdout).toBe(process.stdin.isTTY ? "x" : "x0");
+    expect(res.stdout).toBe(`x${gitEnv().GIT_TERMINAL_PROMPT ?? ""}`);
   });
 
   it("clones into a nested path whose parent does not exist yet", async () => {

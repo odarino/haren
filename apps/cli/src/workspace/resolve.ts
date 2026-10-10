@@ -33,7 +33,7 @@ async function hasMarkedManifest(dir: string): Promise<boolean> {
   } catch (e) {
     if (/^haren:/m.test(text)) {
       throw new Error(
-        `manifest.yaml in ${dir} is not valid YAML: ${e instanceof Error ? e.message : String(e)}`,
+        `manifest.yaml in ${dir} is not valid YAML: ${e instanceof Error ? e.message : String(e)}. Fix the file or move it, then run again.`,
       );
     }
     return false;
