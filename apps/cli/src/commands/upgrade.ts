@@ -22,6 +22,7 @@ import {
 } from "../workspace/resolve";
 import {
   computeRootFiles,
+  summarizeRootFiles,
   detectEditor,
   type Editor,
   writeRootFiles,
@@ -117,8 +118,9 @@ export async function planMigration(location: HarenLocation): Promise<MigrationP
 
   const editor = detectEditor(workspaceDir) ?? "claude-code";
   const rootFiles = await computeRootFiles({ workspaceDir, harenDir, editor });
-  for (const file of rootFiles.filter((f) => f.changed)) {
-    steps.push(`${file.path}: ${file.existed ? "update" : "create"}`);
+  for (const file of summarizeRootFiles(rootFiles).filter((f) => f.changed)) {
+    const count = file.count ? ` (${file.count} files)` : "";
+    steps.push(`${file.path}: ${file.existed ? "update" : "create"}${count}`);
   }
 
   return {

@@ -255,6 +255,7 @@ Trong monorepo, `remote` để trống và mỗi `path` trỏ vào bên trong c�
 **Tích hợp editor** — `init` cấu hình sẵn cho editor bạn chọn:
 • **Claude Code** → `CLAUDE.md` + `.claude/settings.json` (đăng ký cổng chặn dưới dạng hook `PreToolUse`).
 • **Cursor** → `.cursorrules` + `.cursor/rules/haren.mdc` + `.cursor/hooks.json` (đăng ký cổng chặn qua `beforeFileEdit`/`preToolUse`).
+• Cả hai editor đều được cài mọi skill và agent của haren vào thư mục riêng của editor: `.claude/skills/haren-<skill>/`, `.claude/agents/haren-<agent>.md`, và tương tự trong `.cursor/`. Prefix `haren-` giúp không trùng với skill và agent của bạn (ví dụ `/haren-plan`, agent `haren-developer`). `haren upgrade` cập nhật lại các bản này từ thư mục haren.
 
 Các file này nằm ở workspace root (thư mục cha của thư mục haren). Config có sẵn được giữ nguyên: haren chỉ ghi trong khối có đánh dấu của nó.
 
