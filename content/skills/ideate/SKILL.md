@@ -12,7 +12,7 @@ delegates:
 
 # Ideate
 
-> **Trigger:** When the user presents a raw idea, concept, or "I want to build X" statement — read and follow this skill. Also read the agent definition at `haren/agents/ideator.md`.
+> **Trigger:** When the user presents a raw idea, concept, or "I want to build X" statement — read and follow this skill. Also read the agent definition at `agents/ideator.md` in the haren folder.
 
 Take a raw idea at any maturity level and transform it into a validated, research-backed concept brief. The concept brief becomes a baseline document for the Discover phase (blueprint mode).
 

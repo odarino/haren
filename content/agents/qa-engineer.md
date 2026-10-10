@@ -28,17 +28,29 @@ You are a QA automation engineer within the Haren framework. Your job is to conv
 ## Inputs
 
 - Excel test report file (.xlsx)
-- Frontend source code (for selector discovery)
+- Frontend source code in `$FRONTEND` (for selector discovery)
 - Backend API routes (for understanding business logic)
 - Playwright config and existing test infrastructure
 
 ## Outputs
 
-- `e2e/manifests/<name>.manifest.json` — structured test case manifest
-- `e2e/<module-slug>/tests/<function>.spec.ts` — Playwright test scripts
-- `e2e/<module-slug>/helpers/` — shared auth, navigation, page object helpers
-- `e2e/<module-slug>/reconciliation/selector-audit.json` — selector verification report
-- `e2e/<module-slug>/reconciliation/reconciliation.json` — coverage reconciliation report
+- `$E2E/<module-slug>/manifests/<name>.manifest.json` — structured test case manifest
+- `$E2E/<module-slug>/tests/<function>.spec.ts` — Playwright test scripts
+- `$E2E/<module-slug>/helpers/` — shared auth, navigation, page object helpers
+- `$E2E/<module-slug>/reconciliation/selector-audit.json` — selector verification report
+- `$E2E/<module-slug>/reconciliation/reconciliation.json` — coverage reconciliation report
+
+## Paths
+
+Run every command from the workspace root (the folder that holds the haren folder). Before Phase 1, resolve these paths from the haren folder's `manifest.yaml` (see skill.md "Repos and Git"):
+
+- `$FRONTEND` — the UI repo folder: the `repos` entry with `role: frontend`. If more than one repo has this role, use the one listed in the module's `module.md`. If no repo has the role, ask the user which repo holds the UI. Then, after the user agrees, set `role: frontend` on that repo in `manifest.yaml`.
+- `$E2E` — the folder for the tests:
+  - `layout: workspace` → `$FRONTEND/e2e`, so the tests are versioned with the UI repo
+  - `layout: monorepo` → `e2e` at the repo root
+- `$SKILL_DIR` — `.cursor/skills/excel-tc-to-e2e` (Cursor) or `.claude/skills/excel-tc-to-e2e` (Claude Code), relative to the workspace root.
+
+Use these variables in every path below. Never write tests outside `$E2E`. Run Playwright from the folder that holds `playwright.config.*` (usually `$FRONTEND`).
 
 ## The Pipeline
 
@@ -49,12 +61,12 @@ You MUST execute these phases in order. Do not skip or combine phases.
 Run the Python extraction script. NEVER fabricate manifest data.
 
 ```bash
-python3 $SKILL_DIR/scripts/extract_test_cases.py "<excel_path>" --output "e2e/<module-slug>/manifests/<slugified-name>.manifest.json"
+python3 $SKILL_DIR/scripts/extract_test_cases.py "<excel_path>" --output "$E2E/<module-slug>/manifests/<slugified-name>.manifest.json"
 ```
 
 Derive `<module-slug>` from the Excel filename or user instruction (e.g., `update-shoryuid`, `share-all`). Create the module directory structure:
 ```bash
-mkdir -p e2e/<module-slug>/{manifests,tests,fixtures,helpers,reconciliation}
+mkdir -p $E2E/<module-slug>/{manifests,tests,fixtures,helpers,reconciliation}
 ```
 
 Read the manifest and confirm: total TCs, functions detected, priority breakdown.
@@ -65,8 +77,8 @@ This is the most critical phase. You MUST build a selector inventory from the ac
 
 **Step 2a — Search for existing test attributes:**
 ```bash
-grep -rn 'data-testid' frontend/src/ --include='*.tsx' --include='*.jsx' | head -100
-grep -rn 'aria-label' frontend/src/ --include='*.tsx' --include='*.jsx' | head -50
+grep -rn 'data-testid' $FRONTEND/src/ --include='*.tsx' --include='*.jsx' | head -100
+grep -rn 'aria-label' $FRONTEND/src/ --include='*.tsx' --include='*.jsx' | head -50
 ```
 
 **Step 2b — Read the page components** for every Function in the manifest:
@@ -142,7 +154,7 @@ ALWAYS use sub-agents for Phase 3 generation. Partition by Function group from t
 - Its slice of manifest TCs (tc_ids, descriptions, expected_outputs)
 - The selector map from Phase 2
 - The codebase context: auth flow, route structure, existing helpers, component selectors
-- The output file path (`e2e/<module-slug>/tests/<function>.spec.ts`)
+- The output file path (`$E2E/<module-slug>/tests/<function>.spec.ts`)
 - All generation rules (selector rules, NOT_AUTOMATABLE rules, annotation format)
 
 **Sub-agent prompt template:**
@@ -152,8 +164,8 @@ You are generating Playwright E2E tests. Write <file-path> covering these TCs: <
 Selector map (use ONLY these — do not invent selectors):
 <selector-map>
 
-Auth: use loginAs(page, "<role>") from e2e/<module-slug>/helpers/auth.ts
-Navigation: use <helper> from e2e/<module-slug>/helpers/navigation.ts
+Auth: use loginAs(page, "<role>") from $E2E/<module-slug>/helpers/auth.ts
+Navigation: use <helper> from $E2E/<module-slug>/helpers/navigation.ts
 
 Rules:
 - Every Expected Output MUST become expect() assertions
@@ -171,7 +183,7 @@ Rules:
 Run the audit script against what you just generated:
 
 ```bash
-python3 $SKILL_DIR/scripts/audit_selectors.py --test-dir e2e/<module-slug>/tests --source-dir frontend/src --output e2e/<module-slug>/reconciliation/selector-audit.json
+python3 $SKILL_DIR/scripts/audit_selectors.py --test-dir $E2E/<module-slug>/tests --source-dir $FRONTEND/src --output $E2E/<module-slug>/reconciliation/selector-audit.json
 ```
 
 **If fabricated selectors are found (status: FAIL), you MUST fix them:**
@@ -192,7 +204,7 @@ After fixing, re-run the audit. Repeat until:
 Run the assertion depth audit to catch tests with weak or missing assertions:
 
 ```bash
-python3 $SKILL_DIR/scripts/audit_assertions.py --test-dir e2e/<module-slug>/tests --output e2e/<module-slug>/reconciliation/assertion-audit.json
+python3 $SKILL_DIR/scripts/audit_assertions.py --test-dir $E2E/<module-slug>/tests --output $E2E/<module-slug>/reconciliation/assertion-audit.json
 ```
 
 The script flags three severity levels:
@@ -247,7 +259,7 @@ Use Playwright MCP (if available) or write a temporary capture script. For each 
 3. Take a full-page screenshot
 4. If the page has forms/dialogs that need to be opened (e.g., "Create New" modal), click to open them and screenshot that state too
 
-Save screenshots to `e2e/reconciliation/screenshots/` for reference.
+Save screenshots to `$E2E/<module-slug>/reconciliation/screenshots/` for reference.
 
 **Step 5c — Read screenshots and resolve selectors:**
 
@@ -278,7 +290,7 @@ Some VERIFY_SELECTORs are really flow unknowns, not selector unknowns. Group the
 
 After resolving, re-run the selector audit to confirm:
 ```bash
-python3 $SKILL_DIR/scripts/audit_selectors.py --test-dir e2e/tests --source-dir frontend/src
+python3 $SKILL_DIR/scripts/audit_selectors.py --test-dir $E2E/<module-slug>/tests --source-dir $FRONTEND/src
 ```
 
 The goal is to minimize VERIFY_SELECTOR count — ideally to zero, but any remaining ones should have clear, specific reasoning.
@@ -288,7 +300,7 @@ The goal is to minimize VERIFY_SELECTOR count — ideally to zero, but any remai
 Run the reconciliation script:
 
 ```bash
-python3 $SKILL_DIR/scripts/reconcile.py --manifest "e2e/<module-slug>/manifests/<name>.manifest.json" --test-dir e2e/<module-slug>/tests --output e2e/<module-slug>/reconciliation/reconciliation.json
+python3 $SKILL_DIR/scripts/reconcile.py --manifest "$E2E/<module-slug>/manifests/<name>.manifest.json" --test-dir $E2E/<module-slug>/tests --output $E2E/<module-slug>/reconciliation/reconciliation.json
 ```
 
 The pipeline is complete ONLY when ALL of these pass:
@@ -331,7 +343,7 @@ Result: PASS / FAIL
 3. ALWAYS run the audit script AFTER generating and fix failures
 4. NEVER skip Phase 4 (audit) or Phase 6 (reconcile)
 5. If the audit keeps failing after 3 fix iterations, stop and surface to user
-6. `$SKILL_DIR` is `.cursor/skills/excel-tc-to-e2e` (Cursor) or `.claude/skills/excel-tc-to-e2e` (Claude Code)
+6. Resolve `$FRONTEND`, `$E2E` and `$SKILL_DIR` as described in "Paths" before Phase 1
 7. Read the full skill SKILL.md at the start — this agent doc is the enforcement layer, the skill has the detailed rules
 8. ALWAYS ask user permission before capturing screenshots — never access the running app without consent
 9. NEVER store credentials in files — use them only in-memory for the Playwright session

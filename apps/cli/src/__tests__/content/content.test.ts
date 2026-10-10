@@ -36,3 +36,22 @@ describe("content: read-context and update-tracking", () => {
     expect(read("skills/read-context/SKILL.md")).toContain("Haren repo:");
   });
 });
+
+describe("content: qa-engineer, ideate, module template", () => {
+  it("qa-engineer resolves $FRONTEND and $E2E from the manifest", () => {
+    const text = read("agents/qa-engineer.md");
+    expect(text).toContain("## Paths");
+    expect(text).toContain("role: frontend");
+    expect(text).toContain("`$FRONTEND/e2e`");
+    // no bare cwd-relative paths left
+    expect(text).not.toMatch(/(^|[\s`"(])frontend\/src/m);
+    expect(text).not.toMatch(/(^|[\s`"(])e2e\//m);
+    // the skill folder name must stay intact
+    expect(text).toContain(".claude/skills/excel-tc-to-e2e");
+  });
+
+  it("ideate and module template do not hard-code the haren folder name", () => {
+    expect(read("skills/ideate/SKILL.md")).not.toMatch(/(^|[\s`])haren\//m);
+    expect(read("templates/module.md")).toContain("repos: [{repo keys from the manifest `repos` map}]");
+  });
+});
