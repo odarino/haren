@@ -417,6 +417,7 @@ describe("scaffoldWorkspace", () => {
     expect(skillMd).toContain("## Repos and Git");
     expect(skillMd).toContain("`feat/<module-slug>`");
     expect(skillMd).toContain("The key `default`");
+    expect(skillMd).toContain("as a second commit on the same branch");
     expect(skillMd).toContain(
       "| Onboard to the project / check the workspace | onboard/ (`/haren-onboard`) | — |",
     );
