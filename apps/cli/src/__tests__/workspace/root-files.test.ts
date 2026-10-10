@@ -11,6 +11,8 @@ import {
   mergeClaudeSettings,
   mergeCursorHooks,
   computeRootFiles,
+  frameworkFiles,
+  summarizeRootFiles,
   writeRootFiles,
   detectEditor,
 } from "../../workspace/root-files";
@@ -206,5 +208,91 @@ describe("computeRootFiles / writeRootFiles", () => {
     expect(detectEditor(ws)).toBe("claude-code");
     await writeFile(join(ws, ".cursorrules"), "x");
     expect(detectEditor(ws)).toBe("both");
+  });
+});
+
+describe("frameworkFiles", () => {
+  let h: string;
+  beforeEach(async () => {
+    h = await mkdtemp(join(tmpdir(), "haren-fw-"));
+    await mkdir(join(h, "skills", "plan"), { recursive: true });
+    await mkdir(join(h, "skills", "discover"), { recursive: true });
+    await mkdir(join(h, "skills", "onboard"), { recursive: true });
+    await mkdir(join(h, "agents"), { recursive: true });
+    await writeFile(
+      join(h, "skills", "plan", "SKILL.md"),
+      "---\nname: plan\ndescription: d\n---\nname: body\n",
+    );
+    await writeFile(join(h, "skills", "discover", "SKILL.md"), "---\nname: discover\n---\n");
+    await writeFile(join(h, "skills", "discover", "explore.md"), "name: keep me\n");
+    await writeFile(join(h, "skills", "onboard", "SKILL.md"), "---\nname: haren-onboard\n---\n");
+    await writeFile(join(h, "agents", "developer.md"), "---\nname: developer\n---\nbody\n");
+  });
+  afterEach(async () => {
+    await rm(h, { recursive: true, force: true });
+  });
+
+  it("prefixes skills and agents with haren- and keeps sibling files", async () => {
+    const files = await frameworkFiles(h);
+    expect(files.map((f) => f.path)).toEqual([
+      "agents/haren-developer.md",
+      "skills/haren-discover/explore.md",
+      "skills/haren-discover/SKILL.md",
+      "skills/haren-onboard/SKILL.md",
+      "skills/haren-plan/SKILL.md",
+    ]);
+  });
+
+  it("renames only the frontmatter name field", async () => {
+    const files = await frameworkFiles(h);
+    const plan = files.find((f) => f.path === "skills/haren-plan/SKILL.md")!;
+    expect(plan.content).toBe("---\nname: haren-plan\ndescription: d\n---\nname: body\n");
+    const sibling = files.find((f) => f.path === "skills/haren-discover/explore.md")!;
+    expect(sibling.content).toBe("name: keep me\n");
+    const agent = files.find((f) => f.path === "agents/haren-developer.md")!;
+    expect(agent.content).toBe("---\nname: haren-developer\n---\nbody\n");
+  });
+
+  it("installs every packaged skill and agent into both editors", async () => {
+    const ws = await mkdtemp(join(tmpdir(), "haren-fw-ws-"));
+    try {
+      const files = await writeRootFiles({
+        workspaceDir: ws,
+        harenDir: join(ws, "haren"),
+        editor: "both",
+      });
+      const paths = files.map((f) => f.path);
+      for (const dir of [".claude", ".cursor"]) {
+        expect(paths).toContain(`${dir}/skills/haren-plan/SKILL.md`);
+        expect(paths).toContain(`${dir}/skills/haren-onboard/SKILL.md`);
+        expect(paths).toContain(`${dir}/agents/haren-developer.md`);
+      }
+      const text = await readFile(join(ws, ".claude", "agents", "haren-planner.md"), "utf-8");
+      expect(text).toContain("name: haren-planner");
+    } finally {
+      await rm(ws, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("summarizeRootFiles", () => {
+  const f = (path: string, existed: boolean, changed: boolean, group?: string) => ({
+    path,
+    content: "x",
+    existed,
+    changed,
+    userContent: false,
+    ...(group ? { group } : {}),
+  });
+  it("collapses grouped files into one entry per folder", () => {
+    const out = summarizeRootFiles([
+      f("CLAUDE.md", true, false),
+      f(".claude/skills/a/SKILL.md", true, false, ".claude/skills/"),
+      f(".claude/skills/b/SKILL.md", false, true, ".claude/skills/"),
+    ]);
+    expect(out.map((o) => [o.path, o.existed, o.changed, o.count])).toEqual([
+      ["CLAUDE.md", true, false, undefined],
+      [".claude/skills/", true, true, 2],
+    ]);
   });
 });

@@ -2,7 +2,7 @@ import { existsSync } from "fs";
 import { basename, relative, resolve, sep } from "path";
 import { hasGitDir } from "./git";
 import type { Layout, RepoEntry } from "./manifest";
-import { computeRootFiles, type Editor } from "./root-files";
+import { computeRootFiles, summarizeRootFiles, type Editor } from "./root-files";
 
 export type PlanAction = "create" | "modify" | "keep" | "clone" | "warn";
 
@@ -36,19 +36,23 @@ export async function buildPlan(input: PlanInput): Promise<Plan> {
   const items: PlanItem[] = [];
   const generatedNote = input.layout === "workspace" ? "(generated, not versioned)" : undefined;
 
-  for (const file of await computeRootFiles({
+  const rootFiles = await computeRootFiles({
     workspaceDir: input.rootDir,
     harenDir: input.harenDir,
     editor: input.editor,
-  })) {
-    if (!file.existed) items.push({ path: file.path, action: "create", note: generatedNote });
+  });
+  for (const file of summarizeRootFiles(rootFiles)) {
+    const count = file.count ? `(${file.count} files)` : undefined;
+    const join = (...notes: (string | undefined)[]) => notes.filter(Boolean).join(" ") || undefined;
+    if (!file.existed)
+      items.push({ path: file.path, action: "create", note: join(count, generatedNote) });
     else if (file.changed)
       items.push({
         path: file.path,
         action: "modify",
-        note: file.userContent ? "(haren block only)" : undefined,
+        note: file.userContent ? "(haren block only)" : count,
       });
-    else items.push({ path: file.path, action: "keep" });
+    else items.push({ path: file.path, action: "keep", note: count });
   }
 
   for (const [key, repo] of Object.entries(input.repos)) {

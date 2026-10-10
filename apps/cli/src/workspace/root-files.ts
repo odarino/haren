@@ -1,5 +1,5 @@
 import { existsSync } from "fs";
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "fs/promises";
 import { dirname, join, relative, sep } from "path";
 import { resolveContentDir } from "../lib/content-dir";
 import { cursorRuleTemplate, editorConfigTemplate, gateCommand, renderTemplate } from "./templates";
@@ -128,6 +128,8 @@ export interface RootFile {
   existed: boolean;
   changed: boolean;
   userContent: boolean;
+  /** Set on framework copies (skills, agents): the folder they are listed under in a plan. */
+  group?: string;
 }
 
 export interface RootFilesOptions {
@@ -142,18 +144,90 @@ async function readOrNull(path: string): Promise<string | null> {
   return existsSync(path) ? readFile(path, "utf-8") : null;
 }
 
-/**
- * A new haren folder (init's plan preview) has no skills/ yet. Use the packaged
- * copy so the preview still lists the onboard skill files.
- */
-async function readPackagedOnboard(contentDir?: string): Promise<string | null> {
-  let dir: string;
-  try {
-    dir = contentDir ?? resolveContentDir();
-  } catch {
-    return null;
+/** Framework files Claude Code and Cursor load natively, keyed by path inside the editor folder. */
+export interface FrameworkFile {
+  path: string;
+  content: string;
+  group: "skills" | "agents";
+}
+
+/** Prefix a skill or agent name with "haren-" so it does not clash with the user's own. */
+export function harenName(name: string): string {
+  return name.startsWith("haren-") ? name : `haren-${name}`;
+}
+
+/** Set the `name:` field in the frontmatter to `name`. Text without frontmatter is unchanged. */
+export function withFrontmatterName(text: string, name: string): string {
+  const fm = /^---\r?\n[\s\S]*?\r?\n---/.exec(text);
+  if (!fm) return text;
+  const head = fm[0].replace(/^name:.*$/m, `name: ${name}`);
+  return head + text.slice(fm[0].length);
+}
+
+function frontmatterName(text: string): string | undefined {
+  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+  return fm?.[1]?.match(/^name:\s*(.+?)\s*$/m)?.[1]?.replace(/^["']|["']$/g, "");
+}
+
+async function listFiles(dir: string, prefix = ""): Promise<string[]> {
+  const out: string[] = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) out.push(...(await listFiles(join(dir, entry.name), rel)));
+    else if (entry.isFile()) out.push(rel);
   }
-  return readOrNull(join(dir, "skills", "onboard", "SKILL.md"));
+  return out.sort();
+}
+
+/**
+ * The skills and agents to copy into .claude/ and .cursor/, renamed with a
+ * "haren-" prefix. Reads the haren folder; a new haren folder (init's plan
+ * preview) has none yet, so it falls back to the packaged content.
+ */
+export async function frameworkFiles(
+  harenDir: string,
+  contentDir?: string,
+): Promise<FrameworkFile[]> {
+  let source = harenDir;
+  if (!existsSync(join(harenDir, "skills")) && !existsSync(join(harenDir, "agents"))) {
+    try {
+      source = contentDir ?? resolveContentDir();
+    } catch {
+      return [];
+    }
+  }
+  const files: FrameworkFile[] = [];
+  const skillsDir = join(source, "skills");
+  if (existsSync(skillsDir)) {
+    for (const entry of await readdir(skillsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const dir = join(skillsDir, entry.name);
+      const main = await readOrNull(join(dir, "SKILL.md"));
+      if (main === null) continue;
+      const name = harenName(frontmatterName(main) ?? entry.name);
+      for (const rel of await listFiles(dir)) {
+        const text = await readFile(join(dir, rel), "utf-8");
+        files.push({
+          path: `skills/${name}/${rel}`,
+          content: rel === "SKILL.md" ? withFrontmatterName(text, name) : text,
+          group: "skills",
+        });
+      }
+    }
+  }
+  const agentsDir = join(source, "agents");
+  if (existsSync(agentsDir)) {
+    for (const file of (await readdir(agentsDir)).filter((f) => f.endsWith(".md")).sort()) {
+      const text = await readFile(join(agentsDir, file), "utf-8");
+      const name = harenName(frontmatterName(text) ?? file.slice(0, -3));
+      files.push({
+        path: `agents/${name}.md`,
+        content: withFrontmatterName(text, name),
+        group: "agents",
+      });
+    }
+  }
+  return files.sort((x, y) => x.path.localeCompare(y.path));
 }
 
 export async function computeRootFiles(o: RootFilesOptions): Promise<RootFile[]> {
@@ -162,11 +236,23 @@ export async function computeRootFiles(o: RootFilesOptions): Promise<RootFile[]>
   const useCursor = o.editor !== "claude-code";
   const command = gateCommand(name);
   const config = renderTemplate(editorConfigTemplate, name);
-  const onboard =
-    (await readOrNull(join(o.harenDir, "skills", "onboard", "SKILL.md"))) ??
-    (await readPackagedOnboard(o.contentDir));
+  const framework = await frameworkFiles(o.harenDir, o.contentDir);
 
-  const specs: { path: string; make: (old: string | null) => string; markdown?: boolean }[] = [];
+  const specs: {
+    path: string;
+    make: (old: string | null) => string;
+    markdown?: boolean;
+    group?: string;
+  }[] = [];
+  const addFramework = (editorDir: string) => {
+    for (const f of framework) {
+      specs.push({
+        path: `${editorDir}/${f.path}`,
+        make: () => f.content,
+        group: `${editorDir}/${f.group}/`,
+      });
+    }
+  };
   if (useClaude) {
     specs.push({
       path: "CLAUDE.md",
@@ -174,8 +260,7 @@ export async function computeRootFiles(o: RootFilesOptions): Promise<RootFile[]>
       markdown: true,
     });
     specs.push({ path: ".claude/settings.json", make: (old) => mergeClaudeSettings(old, command) });
-    if (onboard !== null)
-      specs.push({ path: ".claude/skills/haren-onboard/SKILL.md", make: () => onboard });
+    addFramework(".claude");
   }
   if (useCursor) {
     specs.push({
@@ -188,8 +273,7 @@ export async function computeRootFiles(o: RootFilesOptions): Promise<RootFile[]>
       make: () => renderTemplate(cursorRuleTemplate, name),
     });
     specs.push({ path: ".cursor/hooks.json", make: (old) => mergeCursorHooks(old, command) });
-    if (onboard !== null)
-      specs.push({ path: ".cursor/skills/haren-onboard/SKILL.md", make: () => onboard });
+    addFramework(".cursor");
   }
 
   const files: RootFile[] = [];
@@ -202,9 +286,36 @@ export async function computeRootFiles(o: RootFilesOptions): Promise<RootFile[]>
       existed: old !== null,
       changed: old !== content,
       userContent: spec.markdown ? hasUserContent(old) : false,
+      ...(spec.group ? { group: spec.group } : {}),
     });
   }
   return files;
+}
+
+/**
+ * Collapse framework copies into one entry per folder (".claude/skills/") so a
+ * plan lists a few lines, not every skill file. Other files stay as they are.
+ */
+export function summarizeRootFiles(files: RootFile[]): (RootFile & { count?: number })[] {
+  const out: (RootFile & { count?: number })[] = [];
+  const groups = new Map<string, RootFile & { count: number }>();
+  for (const file of files) {
+    if (!file.group) {
+      out.push(file);
+      continue;
+    }
+    const g = groups.get(file.group);
+    if (!g) {
+      const entry = { ...file, path: file.group, content: "", count: 1 };
+      groups.set(file.group, entry);
+      out.push(entry);
+    } else {
+      g.count += 1;
+      g.existed ||= file.existed;
+      g.changed ||= file.changed;
+    }
+  }
+  return out;
 }
 
 export async function writeRootFiles(o: RootFilesOptions): Promise<RootFile[]> {

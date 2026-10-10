@@ -366,6 +366,12 @@ root.
 - **Cursor** → `.cursorrules` + `.cursor/rules/haren.mdc` + `.cursor/hooks.json`
   (registers the gate via `beforeFileEdit`/`preToolUse`).
 
+Both editors also get every haren skill and agent in their native folders:
+`.claude/skills/haren-<skill>/`, `.claude/agents/haren-<agent>.md`, and the same
+under `.cursor/`. The `haren-` prefix keeps them apart from your own skills and
+agents (for example `/haren-plan`, agent `haren-developer`). `haren upgrade`
+refreshes these copies from the haren folder.
+
 These files go in the workspace root (the parent of the haren folder). Existing
 config files are kept: haren writes only inside its marked block.
 
