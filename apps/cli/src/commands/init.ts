@@ -94,11 +94,28 @@ async function promptSelect(
   process.stdout.write(`  \x1b[2m  enter choice:\x1b[0m `);
 
   while (true) {
-    const value = (await readLine()).toLowerCase();
-    if (!value) return defaultValue;
-    if ((options as readonly string[]).includes(value)) return value;
-    process.stdout.write(`  \x1b[31m!\x1b[0m Invalid. Choose: ${options.join(", ")} `);
+    const choice = parseSelectChoice(await readLine(), options, defaultValue);
+    if (choice) return choice;
+    process.stdout.write(
+      `  \x1b[31m!\x1b[0m Invalid. Choose: ${options.join(", ")} (or 1-${options.length}) `,
+    );
   }
+}
+
+/**
+ * Parse an answer to a single-choice prompt. Enter keeps the default. An answer
+ * is an option name or its 1-based number. Returns null for invalid input.
+ */
+export function parseSelectChoice(
+  value: string,
+  options: readonly string[],
+  defaultValue: string,
+): string | null {
+  const answer = value.trim().toLowerCase();
+  if (!answer) return defaultValue;
+  if (options.includes(answer)) return answer;
+  const n = Number(answer);
+  return Number.isInteger(n) && n >= 1 && n <= options.length ? options[n - 1]! : null;
 }
 
 /**
