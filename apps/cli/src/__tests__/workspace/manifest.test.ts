@@ -32,6 +32,13 @@ describe("parseManifest / hasMarker", () => {
   it("rejects a manifest without the marker", () => {
     expect(hasMarker(parseManifest(LEGACY))).toBe(false);
   });
+  it("needs a non-empty string or a number as haren.version", () => {
+    expect(hasMarker(parseManifest("haren:\n  version:\n"))).toBe(false);
+    expect(hasMarker(parseManifest('haren:\n  version: ""\n'))).toBe(false);
+    expect(hasMarker(parseManifest("haren:\n  version: [1]\n"))).toBe(false);
+    expect(hasMarker(parseManifest("haren:\n  version: 2\n"))).toBe(true);
+    expect(hasMarker(parseManifest("haren:\n  other: 1\n"))).toBe(false);
+  });
   it("returns {} for empty or non-map YAML", () => {
     expect(parseManifest("")).toEqual({});
     expect(parseManifest("- a\n- b\n")).toEqual({});
@@ -106,7 +113,34 @@ describe("replaceTopLevelBlock", () => {
   });
 });
 
+describe("replaceTopLevelBlock line endings", () => {
+  it("normalizes mixed line endings to CRLF when the file has any CRLF", () => {
+    const out = replaceTopLevelBlock(
+      "project: x\r\nrepos:\n  - ../a\nsources:\n",
+      "repos",
+      "repos:\n  a:\n    path: ../a\n",
+    );
+    expect(out).toBe("project: x\r\nrepos:\r\n  a:\r\n    path: ../a\r\nsources:\r\n");
+  });
+});
+
 describe("migrateManifestText", () => {
+  it("replaces an invalid layout value instead of adding a second key", () => {
+    const out = migrateManifestText(`layout: banana\nproject: x\n`, {
+      version: "1.2.0",
+      layout: "workspace",
+    });
+    expect(out.match(/^layout:/gm)?.length).toBe(1);
+    expect(parseManifest(out).layout).toBe("workspace");
+    expect(out).toContain("project: x");
+  });
+  it("replaces an invalid layout in an already marked manifest", () => {
+    const out = migrateManifestText(`haren:\n  version: "1.1.0"\nlayout: 5\nproject: x\n`, {
+      version: "1.2.0",
+      layout: "monorepo",
+    });
+    expect(out).toBe(`haren:\n  version: "1.2.0"\nlayout: monorepo\nproject: x\n`);
+  });
   it("adds marker and layout, converts repos, keeps comments elsewhere", () => {
     const out = migrateManifestText(LEGACY, {
       version: "1.2.0",
@@ -197,5 +231,37 @@ describe("yamlScalar via renderReposBlock", () => {
     };
     const parsed = normalizeRepos(parseManifest(renderReposBlock(repos)).repos);
     expect(parsed).toEqual(repos);
+  });
+});
+
+describe("yamlScalar reserved forms", () => {
+  it("quotes .inf, .nan, @, backtick and numeric forms and round-trips", () => {
+    const values = [
+      ".inf",
+      "-.INF",
+      "+.Inf",
+      ".NaN",
+      "@scope/pkg",
+      "`cmd`",
+      "-",
+      "+1",
+      "1e3",
+      "0x1F",
+      ".5",
+      "~",
+    ];
+    const repos: Record<string, { path: string }> = {};
+    values.forEach((v, i) => (repos[`r${i}`] = { path: v }));
+    const parsed = normalizeRepos(parseManifest(renderReposBlock(repos)).repos);
+    expect(parsed).toEqual(repos);
+  });
+  it("quotes repo keys that YAML reads as non-strings", () => {
+    const repos = { yes: { path: "../a" }, "123": { path: "../b" }, "a b": { path: "../c" } };
+    const text = renderReposBlock(repos);
+    expect(Object.keys(normalizeRepos(parseManifest(text).repos)).sort()).toEqual([
+      "123",
+      "a b",
+      "yes",
+    ]);
   });
 });
