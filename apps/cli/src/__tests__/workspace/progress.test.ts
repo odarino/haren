@@ -40,7 +40,7 @@ describe("progress", () => {
   it("writes progress.json", async () => {
     const data: Progress = {
       project: "test",
-      version: 1,
+      version: 2,
       modules: {
         auth: {
           status: "planned",
@@ -61,7 +61,7 @@ describe("progress", () => {
   it("updates module status with valid transition", async () => {
     const data: Progress = {
       project: "test",
-      version: 1,
+      version: 2,
       modules: {
         auth: {
           status: "planned",
@@ -82,7 +82,7 @@ describe("progress", () => {
   it("rejects invalid module status transition", () => {
     const data: Progress = {
       project: "test",
-      version: 1,
+      version: 2,
       modules: {
         auth: {
           status: "discovered",
@@ -101,7 +101,7 @@ describe("progress", () => {
   it("updates feature status", () => {
     const data: Progress = {
       project: "test",
-      version: 1,
+      version: 2,
       modules: {
         auth: {
           status: "implementing",
@@ -121,7 +121,7 @@ describe("progress", () => {
   it("rejects invalid feature status transition", () => {
     const data: Progress = {
       project: "test",
-      version: 1,
+      version: 2,
       modules: {
         auth: {
           status: "implementing",

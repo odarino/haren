@@ -29,4 +29,30 @@ describe("migrateProgress", () => {
     const v2 = { version: 2, modules: { a: { lastCommit: { api: "x" } } } };
     expect(migrateProgress(v2, () => "api")).toEqual({ progress: v2, changed: false });
   });
+
+  it("keeps a plain object lastCommit with string values and drops other shapes", () => {
+    const raw = {
+      version: 1,
+      modules: {
+        ok: { lastCommit: { api: "x" } },
+        arr: { lastCommit: ["x"] },
+        mixed: { lastCommit: { api: 5 } },
+      },
+    };
+    const { progress } = migrateProgress(raw, () => undefined);
+    const m = (progress as { modules: Record<string, { lastCommit: unknown }> }).modules;
+    expect(m.ok.lastCommit).toEqual({ api: "x" });
+    expect(m.arr.lastCommit).toEqual({});
+    expect(m.mixed.lastCommit).toEqual({});
+  });
+
+  it("falls back to default when repoKeyFor returns an empty string", () => {
+    const raw = { version: 1, modules: { a: { lastCommit: "abc" } } };
+    const { progress } = migrateProgress(raw, () => "");
+    expect(
+      (progress as { modules: Record<string, { lastCommit: unknown }> }).modules.a.lastCommit,
+    ).toEqual({
+      default: "abc",
+    });
+  });
 });

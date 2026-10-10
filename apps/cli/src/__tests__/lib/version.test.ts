@@ -19,4 +19,15 @@ describe("version", () => {
     expect(readHarenVersion([other])).toBe("0.0.0");
     await rm(dir, { recursive: true, force: true });
   });
+
+  it("skips a malformed package.json instead of throwing", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "haren-ver-"));
+    const bad = join(dir, "bad.json");
+    const mine = join(dir, "mine.json");
+    await writeFile(bad, "{ not json");
+    await writeFile(mine, JSON.stringify({ name: "@odarino/haren", version: "1.2.3" }));
+    expect(readHarenVersion([bad, mine])).toBe("1.2.3");
+    expect(readHarenVersion([bad])).toBe("0.0.0");
+    await rm(dir, { recursive: true, force: true });
+  });
 });

@@ -163,8 +163,15 @@ export function migrateProgress(
   for (const [name, mod] of Object.entries(data.modules ?? {})) {
     const old = mod?.lastCommit;
     let lastCommit: Record<string, string> = {};
-    if (typeof old === "string" && old) lastCommit = { [repoKeyFor(name) ?? "default"]: old };
-    else if (old && typeof old === "object") lastCommit = old as Record<string, string>;
+    if (typeof old === "string" && old) lastCommit = { [repoKeyFor(name) || "default"]: old };
+    else if (
+      old &&
+      typeof old === "object" &&
+      !Array.isArray(old) &&
+      Object.values(old).every((v) => typeof v === "string")
+    ) {
+      lastCommit = old as Record<string, string>;
+    }
     modules[name] = { ...mod, lastCommit };
   }
   return { progress: { ...data, version: PROGRESS_VERSION, modules }, changed: true };
