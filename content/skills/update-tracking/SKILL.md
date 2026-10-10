@@ -25,10 +25,17 @@ Update module and feature status in progress.json with validated transitions.
 1. Add feature with "pending" status to the module's features map
 2. Update progress.json
 
+### Record Commit
+1. Set `lastCommit.<repoKey>` to the new commit SHA for the module. `lastCommit` is a map from repo key to SHA, never a plain string (see skill.md "Repos and Git")
+2. If the module has no `branch` or `repos` yet, set them: `branch` is `feat/{module-slug}`, `repos` are the `repos:` keys in the module's `module.md`
+3. Update `lastUpdated`
+
 ### Reconcile with Git
-1. For each repo, compare progress.json lastCommit against git HEAD
-2. If drift detected, warn user and update lastCommit
-3. Flag any ambiguous state changes for human review
+1. For each module, and for each repo key in its `repos` (or in its `lastCommit` map): resolve the repo folder as in skill.md "Repos and Git"
+2. Read the commit at the tip of the module branch: `git -C <repo> rev-parse feat/{module-slug}` (use `HEAD` if the branch does not exist)
+3. Compare it with `lastCommit.<repoKey>`. Treat the key `default` as described in skill.md "Repos and Git"
+4. If drift is detected: warn the user and update `lastCommit.<repoKey>`
+5. Flag any ambiguous state changes for human review
 
 ### Transition Iteration (only if iterations enabled)
 1. Check if all tasks in the current iteration have status "passing"

@@ -20,3 +20,15 @@ describe("content: implement and developer", () => {
     });
   }
 });
+
+describe("content: read-context and update-tracking", () => {
+  for (const rel of ["skills/read-context/SKILL.md", "skills/update-tracking/SKILL.md"]) {
+    it(`${rel} checks git per repo key`, () => {
+      const text = read(rel);
+      expect(text).toContain('skill.md "Repos and Git"');
+      expect(text).toContain("lastCommit.<repoKey>");
+      expect(text).toContain("git -C <repo>");
+      expect(text).toContain("`default`");
+    });
+  }
+});
