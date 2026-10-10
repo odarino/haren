@@ -1,16 +1,8 @@
 const KNOWN_CLIS = ["claude", "cursor", "github-copilot-cli"] as const;
 
 export async function checkCLI(command: string): Promise<boolean> {
-  try {
-    const proc = Bun.spawn(["which", command], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    await proc.exited;
-    return proc.exitCode === 0;
-  } catch {
-    return false;
-  }
+  // Bun.which works on every OS; the `which` command does not exist on Windows.
+  return Bun.which(command) !== null;
 }
 
 export async function detectCLIs(): Promise<string[]> {
