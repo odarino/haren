@@ -1,6 +1,6 @@
 {
   "name": "@odarino/haren",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Minimal skill-based agentic SDLC framework",
   "type": "module",
   "license": "MIT",
@@ -23,8 +23,7 @@
   },
   "files": [
     "dist",
-    "content",
-    "postinstall.mjs"
+    "content"
   ],
   "publishConfig": {
     "access": "public"
@@ -34,7 +33,6 @@
   },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "postinstall": "node postinstall.mjs",
     "build": "bun run scripts/copy-content.ts && bun build src/index.ts --target=bun --outdir dist",
     "prepublishOnly": "bun run build",
     "test": "bun test",
