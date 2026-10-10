@@ -90,6 +90,91 @@ describe("planMigration", () => {
   });
 });
 
+async function runUpgrade(cwd = ws): Promise<number> {
+  const proc = Bun.spawn(["bun", CLI, "upgrade"], { cwd, stdout: "pipe", stderr: "pipe" });
+  return proc.exited;
+}
+
+async function snapshot(paths: string[]): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const p of paths) out[p] = await readFile(p, "utf-8");
+  return out;
+}
+
+describe("upgrade repeat runs", () => {
+  it("does not add a repos step when a repo has no remote and no list is given", async () => {
+    const haren = await legacyWorkspace();
+    await runGit(["remote", "remove", "origin"], join(ws, "backend"));
+    expect(await runUpgrade()).toBe(0);
+    const manifestPath = join(haren, "manifest.yaml");
+    const before = await readFile(manifestPath, "utf-8");
+    expect(normalizeRepos(parseManifest(before).repos)).toEqual({
+      backend: { path: "../backend" },
+    });
+    const plan = await planMigration({ harenDir: haren, workspaceDir: ws, legacy: false });
+    expect(plan.steps).not.toContain("manifest.yaml: convert repos to a map with remotes");
+    expect(plan.manifest.after).toBe(before);
+    expect(await runUpgrade()).toBe(0);
+    expect(await readFile(manifestPath, "utf-8")).toBe(before);
+  });
+
+  it("a second run on a legacy monorepo has no steps and changes no bytes", async () => {
+    await gitInit(ws);
+    const haren = await legacyWorkspace();
+    await writeFile(join(haren, "FEEDBACK.md"), "# Feedback\n\nmine\n");
+    await writeFile(join(haren, "artifacts", "03-modules", "checkout", "spec.md"), "spec\n");
+    const userFiles = [
+      join(haren, "FEEDBACK.md"),
+      join(haren, "artifacts", "03-modules", "checkout", "spec.md"),
+      join(haren, "artifacts", "03-modules", "checkout", "module.md"),
+    ];
+    const userBefore = await snapshot(userFiles);
+    expect(await runUpgrade()).toBe(0);
+    expect(await snapshot(userFiles)).toEqual(userBefore);
+
+    const tracked = [
+      join(haren, "manifest.yaml"),
+      join(haren, "progress.json"),
+      join(haren, ".gitignore"),
+      join(ws, "CLAUDE.md"),
+      join(ws, ".claude", "settings.json"),
+      join(ws, ".claude", "skills", "haren-onboard", "SKILL.md"),
+    ];
+    const first = await snapshot(tracked);
+    const plan = await planMigration({ harenDir: haren, workspaceDir: ws, legacy: false });
+    expect(plan.steps).toEqual([]);
+    expect(await runUpgrade()).toBe(0);
+    expect(await snapshot(tracked)).toEqual(first);
+    expect(await snapshot(userFiles)).toEqual(userBefore);
+  });
+});
+
+describe("upgrade .gitignore", () => {
+  it("creates .gitignore with the agent files as a migration step", async () => {
+    const haren = await legacyWorkspace();
+    const plan = await planMigration({ harenDir: haren, workspaceDir: ws, legacy: true });
+    expect(plan.steps).toContain(".gitignore: add .agent.json, .agent.pid");
+    expect(await runUpgrade()).toBe(0);
+    expect(await readFile(join(haren, ".gitignore"), "utf-8")).toBe(".agent.json\n.agent.pid\n");
+  });
+
+  it("appends only the missing lines to an existing .gitignore", async () => {
+    const haren = await legacyWorkspace();
+    await writeFile(join(haren, ".gitignore"), "node_modules\n.agent.json");
+    expect(await runUpgrade()).toBe(0);
+    expect(await readFile(join(haren, ".gitignore"), "utf-8")).toBe(
+      "node_modules\n.agent.json\n.agent.pid\n",
+    );
+  });
+
+  it("adds no step when .gitignore already lists both files", async () => {
+    const haren = await legacyWorkspace();
+    await writeFile(join(haren, ".gitignore"), ".agent.pid\n.agent.json\n");
+    const plan = await planMigration({ harenDir: haren, workspaceDir: ws, legacy: true });
+    expect(plan.steps.some((s) => s.startsWith(".gitignore"))).toBe(false);
+  });
+});
+
 describe("haren upgrade", () => {
   it("--dry-run writes nothing", async () => {
     const haren = await legacyWorkspace();
