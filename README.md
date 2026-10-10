@@ -73,8 +73,8 @@ The script does these steps:
 
 Step 4 runs only when the script can ask you a question: it needs a terminal,
 and `CI` must be empty, `false` or `0`. In other cases the script only installs
-and prints the next step. These cases include CI, a script with redirected
-input, and a non-interactive PowerShell session.
+and prints the next step. These cases include CI and a script with redirected
+input (for example `ssh host "..."` without `-t`).
 
 Pin a version with `HAREN_VERSION`. The default is `latest`. The `1.2.0`
 example works only after version 1.2.0 is published to npm.

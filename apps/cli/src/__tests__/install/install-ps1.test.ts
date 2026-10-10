@@ -47,6 +47,12 @@ describe("install.ps1 (static)", () => {
     expect(text).toContain("if ($isCI -or [Console]::IsInputRedirected");
   });
 
+  it("does not use UserInteractive to skip the prompt", () => {
+    // [Environment]::UserInteractive is False in every OpenSSH session, even with
+    // a PTY (`ssh -t`), so it would skip the prompt for SSH users who can answer it.
+    expect(text).not.toContain("UserInteractive");
+  });
+
   it("rejects ~user paths", () => {
     expect(text).toContain("$workspace.StartsWith('~')");
     expect(text).toContain("Use a full path, for example $HOME\\project");

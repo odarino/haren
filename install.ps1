@@ -52,7 +52,8 @@
 
   # CI counts only when it is set to something other than "", false or 0 (any case).
   $isCI = $env:CI -and $env:CI.Trim() -notmatch '^(false|0)?$'
-  if ($isCI -or [Console]::IsInputRedirected -or -not [Environment]::UserInteractive) {
+  # Do not test the .NET "user interactive" flag: it is False in every OpenSSH session.
+  if ($isCI -or [Console]::IsInputRedirected) {
     Write-Info 'Installed. Next: cd <your workspace>; haren init'
     return
   }
