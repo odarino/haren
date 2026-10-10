@@ -73,6 +73,15 @@ describe("renderReposBlock", () => {
   it("renders a commented example for an empty map", () => {
     expect(parseManifest(renderReposBlock({})).repos).toBeNull();
   });
+  it("writes role after default_branch and round-trips it", () => {
+    const text = renderReposBlock({
+      web: { path: "../web", default_branch: "main", role: "frontend", stack: "react-vite" },
+    });
+    expect(text).toBe(
+      "repos:\n  web:\n    path: ../web\n    default_branch: main\n    role: frontend\n    stack: react-vite\n",
+    );
+    expect(normalizeRepos(parseManifest(text).repos).web.role).toBe("frontend");
+  });
 });
 
 describe("replaceTopLevelBlock", () => {

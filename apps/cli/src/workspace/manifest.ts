@@ -2,10 +2,13 @@ import { basename } from "path";
 
 export type Layout = "monorepo" | "workspace";
 
+export type RepoRole = "frontend" | "backend" | "e2e" | "other";
+
 export interface RepoEntry {
   path: string;
   remote?: string;
   default_branch?: string;
+  role?: RepoRole;
   stack?: string;
   test_cmd?: string;
 }
@@ -20,7 +23,7 @@ export interface Manifest {
   [key: string]: unknown;
 }
 
-const REPO_FIELDS = ["path", "remote", "default_branch", "stack", "test_cmd"] as const;
+const REPO_FIELDS = ["path", "remote", "default_branch", "role", "stack", "test_cmd"] as const;
 
 export function parseManifest(text: string): Manifest {
   const data = Bun.YAML.parse(text);
