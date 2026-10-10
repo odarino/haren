@@ -371,7 +371,7 @@ When a skill says "read the master plan" or needs full module context, it means 
 
 - **Repo folder:** \`<this haren folder>/<path>\`. Run git with \`git -C <repo folder> ...\`.
 - **Workspace layout:** each repo is its own git repository, and this haren folder is one more. Commit code in the code repo. Commit artifacts, session logs and \`progress.json\` in the haren repo.
-- **Monorepo layout:** the repos and this haren folder share one git repository. One branch and one commit can hold code and artifacts.
+- **Monorepo layout:** the repos and this haren folder share one git repository and one module branch. Commit code first, then commit the haren files (session log, \`progress.json\`, \`events/events.jsonl\`) as a second commit on the same branch.
 - **Module repos:** the \`repos:\` keys in the module's \`module.md\` front matter. Copy them to \`progress.json\` \`modules.<module>.repos\`.
 - **Branch:** a module uses the branch \`feat/<module-slug>\` in every repo it touches. Record it in \`modules.<module>.branch\`.
 - **lastCommit:** \`modules.<module>.lastCommit\` maps a repo key to the last commit SHA that haren recorded, for example \`{ "backend": "abc1234" }\`. It is never a plain string. The key \`default\` comes from an old progress file: it means the repo that holds this haren folder (monorepo layout) or the module's first repo (workspace layout).
