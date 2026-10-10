@@ -12,7 +12,7 @@ Orient yourself at the start of every session or before taking any action.
 
 1. **Read manifest.yaml**
    - Project name, mode, repos, sources
-   - Validate repo paths exist (warn if not)
+   - Resolve each repo folder as in skill.md "Repos and Git". Warn if a folder is missing, and suggest `haren init` (it clones missing repos)
 
 2. **Read progress.json**
    - List all modules and their current status
@@ -33,10 +33,14 @@ Orient yourself at the start of every session or before taking any action.
    - If files were added since last session (compare against artifact-index.md):
      → Flag new documents and ask if the user wants to re-run or update discovery
 
-5. **Git check** (for each repo in manifest)
-   - Check for uncommitted changes
-   - Compare last known commit in progress.json against actual HEAD
-   - If drift detected: warn user, update progress.json to match git
+5. **Git check** — for each repo in manifest `repos`, and for the haren folder itself in the workspace layout (see skill.md "Repos and Git")
+   - Check for uncommitted changes: `git -C <repo> status --porcelain`
+   - Read the current branch: `git -C <repo> branch --show-current`
+   - For each module that has `lastCommit.<repoKey>` for this repo: check that the recorded SHA is in the history with `git -C <repo> merge-base --is-ancestor <sha> HEAD`
+     - If it is an ancestor and HEAD moved: report "N new commits since last recorded" (`git -C <repo> rev-list --count <sha>..HEAD`)
+     - If it is not an ancestor: report drift
+   - The key `default` in `lastCommit` means the repo that holds the haren folder (monorepo layout) or the module's first repo (workspace layout)
+   - If drift is detected: warn the user. After the user agrees, update `progress.json` via update-tracking skill
 
 6. **Produce orientation summary**
 
@@ -48,7 +52,7 @@ Present to the user:
 ## Session Context
 Project: {name} ({mode} mode)
 Iteration: {N} of {total} ({status}) ← only if iterations enabled
-Repos: {list with status}
+Repos: {key: branch, clean | N changed files | missing} for each repo
 
 ## Baseline Documents
 {list of files in 00-baseline/, or "None"}
