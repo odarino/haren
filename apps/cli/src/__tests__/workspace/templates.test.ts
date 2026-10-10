@@ -53,4 +53,11 @@ describe("templates", () => {
     expect(brainstormGateScript).toContain('resolve(import.meta.dir, "..")');
     expect(brainstormGateScript).not.toContain('includes("/haren/")');
   });
+
+  it("gate script awaits main() at top level", () => {
+    // On Windows, Bun exits with code 0 and no output when an un-awaited async
+    // main() is still waiting on Bun.stdin.text() — the gate then allows every write.
+    expect(brainstormGateScript).toMatch(/^await main\(\)/m);
+    expect(brainstormGateScript).not.toMatch(/^main\(\)/m);
+  });
 });
