@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { parseInitArgs, parseRepoSelection, parseSelectChoice } from "../../commands/init";
+import { parseInitArgs, listRows, moveSelection, parseRepoSelection, parseSelectKeys } from "../../commands/init";
 
 describe("parseInitArgs", () => {
   it("parses new flags", () => {
@@ -60,21 +60,43 @@ describe("parseRepoSelection", () => {
   });
 });
 
-describe("parseSelectChoice", () => {
-  const opts = ["workspace", "monorepo"] as const;
-  it("keeps the default on enter", () => {
-    expect(parseSelectChoice("", opts, "workspace")).toBe("workspace");
+describe("parseSelectKeys", () => {
+  it("reads arrow keys in normal and application cursor mode", () => {
+    expect(parseSelectKeys("\x1b[A")).toEqual(["up"]);
+    expect(parseSelectKeys("\x1b[B")).toEqual(["down"]);
+    expect(parseSelectKeys("\x1bOA\x1bOB")).toEqual(["up", "down"]);
   });
-  it("accepts an option name in any case", () => {
-    expect(parseSelectChoice(" Monorepo ", opts, "workspace")).toBe("monorepo");
+  it("reads Enter and Ctrl+C", () => {
+    expect(parseSelectKeys("\r")).toEqual(["enter"]);
+    expect(parseSelectKeys("\n")).toEqual(["enter"]);
+    expect(parseSelectKeys("\r\n")).toEqual(["enter"]);
+    expect(parseSelectKeys("\x03")).toEqual(["abort"]);
   });
-  it("accepts a 1-based number", () => {
-    expect(parseSelectChoice("2", opts, "workspace")).toBe("monorepo");
-    expect(parseSelectChoice("1", opts, "workspace")).toBe("workspace");
+  it("keeps several keys from one chunk in order", () => {
+    expect(parseSelectKeys("\x1b[B\x1b[B\r")).toEqual(["down", "down", "enter"]);
   });
-  it("rejects out-of-range numbers and unknown names", () => {
-    for (const v of ["0", "3", "1.5", "-1", "mono"]) {
-      expect(parseSelectChoice(v, opts, "workspace")).toBeNull();
-    }
+  it("drops typed text and left/right arrows", () => {
+    expect(parseSelectKeys("2monorepo\x1b[C\x1b[D")).toEqual([]);
+  });
+});
+
+describe("moveSelection", () => {
+  it("moves one step and wraps at both ends", () => {
+    expect(moveSelection(0, "down", 3)).toBe(1);
+    expect(moveSelection(2, "down", 3)).toBe(0);
+    expect(moveSelection(0, "up", 3)).toBe(2);
+    expect(moveSelection(1, "up", 3)).toBe(0);
+  });
+});
+
+describe("listRows", () => {
+  it("counts one row per line when lines fit", () => {
+    expect(listRows(["\r\x1b[2K  \x1b[1mab\x1b[0m", "cd"], 80)).toBe(2);
+  });
+  it("counts wrapped rows and ignores ANSI codes", () => {
+    expect(listRows(["\x1b[36m" + "x".repeat(25) + "\x1b[0m", "y"], 10)).toBe(4);
+  });
+  it("assumes no wrap when the width is unknown", () => {
+    expect(listRows(["x".repeat(500)], undefined)).toBe(1);
   });
 });

@@ -79,43 +79,78 @@ async function prompt(question: string, defaultValue?: string): Promise<string> 
   return value || defaultValue || "";
 }
 
+export type SelectKey = "up" | "down" | "enter" | "abort";
+
+/** Split raw terminal input into the keys a select prompt uses. Other keys are dropped. */
+export function parseSelectKeys(data: string): SelectKey[] {
+  const keys: SelectKey[] = [];
+  for (const [token] of data.matchAll(/\x1b\[[A-D]|\x1bO[A-D]|\r\n|[\s\S]/g)) {
+    if (token === "\x1b[A" || token === "\x1bOA") keys.push("up");
+    else if (token === "\x1b[B" || token === "\x1bOB") keys.push("down");
+    else if (token === "\r" || token === "\n" || token === "\r\n") keys.push("enter");
+    else if (token === "\x03") keys.push("abort");
+  }
+  return keys;
+}
+
+/** Move the highlight one step. It wraps from the last option to the first and back. */
+export function moveSelection(index: number, key: "up" | "down", count: number): number {
+  return key === "up" ? (index - 1 + count) % count : (index + 1) % count;
+}
+
+/** Rows the lines take on screen. A line longer than the terminal wraps onto more rows. */
+export function listRows(lines: string[], columns: number | undefined): number {
+  const width = columns && columns > 0 ? columns : Infinity;
+  return lines.reduce((rows, l) => {
+    const visible = l.replace(/\x1b\[[0-9;?]*[A-Za-z]|\r/g, "").length;
+    return rows + Math.max(1, Math.ceil(visible / width));
+  }, 0);
+}
+
 async function promptSelect(
   question: string,
   options: readonly string[],
   descriptions: Record<string, string>,
   defaultValue: string,
 ): Promise<string> {
-  console.log(`  \x1b[36m?\x1b[0m ${question}`);
-  for (const opt of options) {
-    const marker = opt === defaultValue ? "\x1b[36m>\x1b[0m" : " ";
-    const label = opt === defaultValue ? `\x1b[1m${opt}\x1b[0m` : opt;
-    console.log(`    ${marker} ${label}  \x1b[2m— ${descriptions[opt]}\x1b[0m`);
-  }
-  process.stdout.write(`  \x1b[2m  enter choice:\x1b[0m `);
+  const out = process.stdout;
+  const stdin = process.stdin;
+  let index = Math.max(0, options.indexOf(defaultValue));
+  const line = (i: number) => {
+    const opt = options[i]!;
+    const marker = i === index ? "\x1b[36m>\x1b[0m" : " ";
+    const label = i === index ? `\x1b[1m${opt}\x1b[0m` : opt;
+    return `\r\x1b[2K    ${marker} ${label}  \x1b[2m— ${descriptions[opt]}\x1b[0m`;
+  };
+  const draw = () => out.write(options.map((_, i) => line(i)).join("\n"));
 
-  while (true) {
-    const choice = parseSelectChoice(await readLine(), options, defaultValue);
-    if (choice) return choice;
-    process.stdout.write(
-      `  \x1b[31m!\x1b[0m Invalid. Choose: ${options.join(", ")} (or 1-${options.length}) `,
-    );
-  }
-}
+  out.write(`  \x1b[36m?\x1b[0m ${question} \x1b[2m(↑/↓, Enter)\x1b[0m\n\x1b[?25l`);
+  draw();
 
-/**
- * Parse an answer to a single-choice prompt. Enter keeps the default. An answer
- * is an option name or its 1-based number. Returns null for invalid input.
- */
-export function parseSelectChoice(
-  value: string,
-  options: readonly string[],
-  defaultValue: string,
-): string | null {
-  const answer = value.trim().toLowerCase();
-  if (!answer) return defaultValue;
-  if (options.includes(answer)) return answer;
-  const n = Number(answer);
-  return Number.isInteger(n) && n >= 1 && n <= options.length ? options[n - 1]! : null;
+  return new Promise((resolve) => {
+    const finish = (abort: boolean) => {
+      stdin.removeListener("data", onData);
+      stdin.setRawMode(false);
+      stdin.pause();
+      out.write("\x1b[?25h\n");
+      if (abort) process.exit(130);
+      resolve(options[index]!);
+    };
+    const onData = (data: Buffer | string) => {
+      for (const key of parseSelectKeys(data.toString())) {
+        if (key === "abort") return finish(true);
+        if (key === "enter") return finish(false);
+        index = moveSelection(index, key, options.length);
+        // Go back to the first option row and draw the list again.
+        const up = listRows(options.map((_, i) => line(i)), out.columns) - 1;
+        if (up > 0) out.write(`\x1b[${up}A`);
+        draw();
+      }
+    };
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.on("data", onData);
+  });
 }
 
 /**
