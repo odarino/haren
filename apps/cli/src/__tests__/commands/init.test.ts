@@ -392,4 +392,17 @@ describe("scaffoldWorkspace", () => {
     expect(skillMd).toContain("brainstorming");
     expect(skillMd).toContain("let's build");
   });
+
+  it("includes the Repos and Git convention and onboard dispatch in skill.md", async () => {
+    await scaffoldWorkspace(testDir, { project: "test", mode: "blueprint", language: "English" });
+    const skillMd = await readFile(join(testDir, "skill.md"), "utf-8");
+    expect(skillMd).toContain("## Repos and Git");
+    expect(skillMd).toContain("`feat/<module-slug>`");
+    expect(skillMd).toContain("The key `default`");
+    expect(skillMd).toContain(
+      "| Onboard to the project / check the workspace | onboard/ (`/haren-onboard`) | — |",
+    );
+    expect(skillMd).toContain("/haren-onboard");
+    expect(skillMd.indexOf("## Repos and Git")).toBeLessThan(skillMd.indexOf("## Rules"));
+  });
 });
