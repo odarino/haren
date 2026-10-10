@@ -50,7 +50,7 @@ Run every command from the workspace root (the folder that holds the haren folde
   - `layout: monorepo` → `e2e` at the repo root
 - `$SKILL_DIR` — `.cursor/skills/excel-tc-to-e2e` (Cursor) or `.claude/skills/excel-tc-to-e2e` (Claude Code), relative to the workspace root.
 
-Use these variables in every path below. Never write tests outside `$E2E`. Run Playwright from the folder that holds `playwright.config.*` (usually `$FRONTEND`).
+Use these variables in every path below. Never write tests outside `$E2E`. Run every command from the workspace root, except Playwright itself: run it from the folder that holds `playwright.config.*` (usually `$FRONTEND`).
 
 ## The Pipeline
 
@@ -111,7 +111,7 @@ Present this map to confirm you found real selectors before proceeding.
 
 ### Phase 3: Generate
 
-Read the full skill at `.cursor/skills/excel-tc-to-e2e/SKILL.md` (or `.claude/skills/`) and follow Phase 2 generation rules. Key rules:
+Read the full skill at `$SKILL_DIR/SKILL.md` and follow Phase 2 generation rules. Key rules:
 
 1. One `.spec.ts` per Function group
 2. Every TC in manifest appears in exactly one file
