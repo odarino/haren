@@ -8,7 +8,8 @@ describe("cli-detector", () => {
   });
 
   test("checkCLI returns true for existing command", async () => {
-    const result = await checkCLI("echo");
+    // `echo` is a shell builtin on Windows; use a real executable on every OS.
+    const result = await checkCLI(process.platform === "win32" ? "cmd" : "sh");
     expect(result).toBe(true);
   });
 
