@@ -31,7 +31,9 @@ export function parseManifest(text: string): Manifest {
 }
 
 export function hasMarker(m: Manifest): boolean {
-  return typeof m.haren === "object" && m.haren !== null && m.haren.version !== undefined;
+  if (typeof m.haren !== "object" || m.haren === null) return false;
+  const v = m.haren.version;
+  return (typeof v === "string" && v !== "") || typeof v === "number";
 }
 
 export function normalizeRepos(repos: unknown): Record<string, RepoEntry> {
@@ -60,14 +62,16 @@ export function normalizeRepos(repos: unknown): Record<string, RepoEntry> {
 }
 
 const YAML_KEYWORDS = /^(true|false|null|yes|no|on|off|~)$/i;
+const YAML_SPECIAL_FLOAT = /^[-+]?\.(inf|nan)$/i;
 
 // Quote anything that YAML could read as a number, a keyword, or a non-string,
 // plus values with spaces, ":" or "#". Plain paths such as "../backend" stay plain.
 function yamlScalar(value: string): string {
   const plain =
-    /^[A-Za-z_.\/@-][\w.\/@-]*$/.test(value) &&
+    /^[A-Za-z_.\/-][\w.\/@-]*$/.test(value) &&
     !YAML_KEYWORDS.test(value) &&
-    !/^-?\.?\d/.test(value) &&
+    !YAML_SPECIAL_FLOAT.test(value) &&
+    !/^[-+]?\.?\d/.test(value) &&
     value !== "-";
   return plain ? value : JSON.stringify(value);
 }
@@ -79,7 +83,7 @@ export function renderReposBlock(repos: Record<string, RepoEntry>): string {
   }
   let out = "repos:\n";
   for (const key of keys) {
-    out += `  ${key}:\n`;
+    out += `  ${yamlScalar(key)}:\n`;
     for (const field of REPO_FIELDS) {
       const value = repos[key][field];
       if (value) out += `    ${field}: ${yamlScalar(value)}\n`;
@@ -100,6 +104,8 @@ function toLf(text: string): string {
  * Replace the top-level YAML block `key:` (its line plus all indented or blank
  * lines after it) with `block`. Blank lines that end the old block stay. If the
  * key is missing, append the block. Text outside the block is not changed.
+ * If the file has any CRLF, all line endings in the result are CRLF (mixed
+ * endings are normalized to CRLF).
  */
 export function replaceTopLevelBlock(text: string, key: string, block: string): string {
   const eol = eolOf(text);
@@ -133,10 +139,15 @@ export function migrateManifestText(text: string, mig: ManifestMigration): strin
   const eol = eolOf(text);
   const lf = toLf(text);
   const m = parseManifest(lf);
+  const validLayout = m.layout === "monorepo" || m.layout === "workspace";
+  const hasLayoutLine = /^layout:/m.test(lf);
   const head =
     `haren:\n  version: ${JSON.stringify(mig.version)}\n` +
-    (m.layout ? "" : `layout: ${mig.layout}\n`);
+    (hasLayoutLine ? "" : `layout: ${mig.layout}\n`);
   let out = hasMarker(m) ? replaceTopLevelBlockLf(lf, "haren", head) : head + lf;
+  if (hasLayoutLine && !validLayout) {
+    out = replaceTopLevelBlockLf(out, "layout", `layout: ${mig.layout}\n`);
+  }
   if (mig.repos) out = replaceTopLevelBlockLf(out, "repos", renderReposBlock(mig.repos));
   return eol === "\n" ? out : out.replace(/\n/g, "\r\n");
 }
