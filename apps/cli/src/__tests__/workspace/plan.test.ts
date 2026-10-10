@@ -7,6 +7,19 @@ import { gitInit } from "../../workspace/git";
 import { writeRootFiles } from "../../workspace/root-files";
 
 describe("renderPlan", () => {
+  it("ends the root line with the separator the root path uses", () => {
+    const base = {
+      harenDirName: "haren",
+      layout: "workspace" as const,
+      createHaren: false,
+      items: [],
+    };
+    expect(renderPlan({ ...base, rootDir: "C:\\Users\\me\\ws" }).split("\n")[1]).toBe(
+      "  C:\\Users\\me\\ws\\",
+    );
+    expect(renderPlan({ ...base, rootDir: "/home/me/ws" }).split("\n")[1]).toBe("  /home/me/ws/");
+  });
+
   it("renders a new workspace plan", () => {
     const plan: Plan = {
       rootDir: "~/projects/shop",
