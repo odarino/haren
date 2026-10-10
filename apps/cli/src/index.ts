@@ -70,6 +70,7 @@ async function main() {
 
 main().catch((err) => {
   const debug = process.env.HAREN_DEBUG === "1";
-  console.error(err instanceof Error ? (debug && err.stack) || err.message : err);
+  const message = err instanceof Error ? (debug && err.stack) || err.message : String(err);
+  console.error(`  ${message}`);
   process.exit(1);
 });

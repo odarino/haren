@@ -144,7 +144,7 @@ export function migrateManifestText(text: string, mig: ManifestMigration): strin
   const head =
     `haren:\n  version: ${JSON.stringify(mig.version)}\n` +
     (hasLayoutLine ? "" : `layout: ${mig.layout}\n`);
-  let out = hasMarker(m) ? replaceTopLevelBlockLf(lf, "haren", head) : head + lf;
+  let out = /^haren:/m.test(lf) ? replaceTopLevelBlockLf(lf, "haren", head) : head + lf;
   if (hasLayoutLine && !validLayout) {
     out = replaceTopLevelBlockLf(out, "layout", `layout: ${mig.layout}\n`);
   }

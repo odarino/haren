@@ -93,6 +93,7 @@ describe("haren CLI", () => {
     const plain = await haren(args, ws);
     expect(plain.code).toBe(1);
     expect(plain.err).toContain("Invalid JSON in .claude/settings.json");
+    expect(plain.err).toMatch(/^ {2}Invalid JSON/m);
     expect(plain.err).not.toMatch(/^\s+at /m);
     const debug = await haren(args, ws, { HAREN_DEBUG: "1" });
     expect(debug.code).toBe(1);

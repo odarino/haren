@@ -167,6 +167,15 @@ describe("upgrade .gitignore", () => {
     );
   });
 
+  it("appends CRLF lines to a CRLF .gitignore", async () => {
+    const haren = await legacyWorkspace();
+    await writeFile(join(haren, ".gitignore"), "node_modules\r\n");
+    expect(await runUpgrade()).toBe(0);
+    expect(await readFile(join(haren, ".gitignore"), "utf-8")).toBe(
+      "node_modules\r\n.agent.json\r\n.agent.pid\r\n",
+    );
+  });
+
   it("adds no step when .gitignore already lists both files", async () => {
     const haren = await legacyWorkspace();
     await writeFile(join(haren, ".gitignore"), ".agent.pid\n.agent.json\n");

@@ -81,6 +81,7 @@ describe("resolveHarenDir", () => {
     await expect(resolveHarenDir(dir)).rejects.toThrow(
       `manifest.yaml in ${dir} is not valid YAML:`,
     );
+    await expect(resolveHarenDir(dir)).rejects.toThrow("Fix the file or move it, then run again.");
   });
 
   it("treats an empty harenDir option and empty HAREN_DIR as unset", async () => {

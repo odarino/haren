@@ -141,8 +141,9 @@ async function planGitignore(harenDir: string): Promise<string | null> {
   const lines = new Set(before.split(/\r?\n/).map((l) => l.trim()));
   const missing = AGENT_FILES.filter((f) => !lines.has(f));
   if (missing.length === 0) return null;
-  const base = before === "" || before.endsWith("\n") ? before : `${before}\n`;
-  return `${base}${missing.join("\n")}\n`;
+  const eol = before.includes("\r\n") ? "\r\n" : "\n";
+  const base = before === "" || before.endsWith("\n") ? before : `${before}${eol}`;
+  return `${base}${missing.join(eol)}${eol}`;
 }
 
 async function copyRecursive(src: string, dest: string): Promise<void> {
