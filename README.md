@@ -71,8 +71,10 @@ The script does these steps:
 4. It asks for your workspace folder and runs `haren init --dir <folder>`.
    It does not use your home folder as the workspace.
 
-Step 4 runs only when a terminal is available and `CI` is not set. In CI, or
-with no terminal, the script only installs and prints the next step.
+Step 4 runs only when the script can ask you a question: it needs a terminal,
+and `CI` must be empty, `false` or `0`. In other cases the script only installs
+and prints the next step. These cases include CI, a script with redirected
+input, and a non-interactive PowerShell session.
 
 Pin a version with `HAREN_VERSION`. The default is `latest`. The `1.2.0`
 example works only after version 1.2.0 is published to npm.
@@ -82,8 +84,11 @@ curl -fsSL https://raw.githubusercontent.com/odarino/haren/main/install.sh | HAR
 ```
 
 ```powershell
-$env:HAREN_VERSION = '1.2.0'; irm https://raw.githubusercontent.com/odarino/haren/main/install.ps1 | iex
+try { $env:HAREN_VERSION = '1.2.0'; irm https://raw.githubusercontent.com/odarino/haren/main/install.ps1 | iex } finally { Remove-Item Env:HAREN_VERSION }
 ```
+
+The `finally` part clears the variable, also when the install fails. A later
+install in the same PowerShell window then gets `latest` again.
 
 After the release is tagged, you can also download the script from a release
 tag, for example `.../haren/v1.2.0/install.sh`.
