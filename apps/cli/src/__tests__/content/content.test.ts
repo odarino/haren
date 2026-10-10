@@ -43,6 +43,9 @@ describe("content: read-context and update-tracking", () => {
     expect(text).toContain("`implementing` or `evaluating`");
     expect(text).toContain("merged or deleted?");
   });
+  it("developer points to the No repos listed fallback", () => {
+    expect(read("agents/developer.md")).toContain('"No repos listed" fallback');
+  });
   it("update-tracking uses the recorded module branch", () => {
     const text = read("skills/update-tracking/SKILL.md");
     expect(text).toContain("the module's recorded `branch`");
@@ -52,6 +55,21 @@ describe("content: read-context and update-tracking", () => {
     expect(text).toContain("If `repos` is empty");
     expect(text).toContain("skip this repo");
     expect(text).not.toContain("skip this step");
+    expect(text).toContain("No repos listed");
+    expect(text).toContain("the key `default`");
+  });
+  it("onboard handles a detached HEAD and orders the manifest fields", () => {
+    const text = read("skills/onboard/SKILL.md");
+    expect(text).toContain("detached HEAD at <short sha>");
+    expect(text).toContain("git -C <repo> rev-parse --short HEAD");
+    expect(text).toContain("Only when `default_branch` is known");
+    expect(text).toContain("Do not compare it with a default branch");
+    expect(text).toContain("`path`, `remote`, `default_branch`, `role`, `stack`, `test_cmd`");
+  });
+  it("update-tracking excludes the haren folder with the top pathspec", () => {
+    expect(read("skills/update-tracking/SKILL.md")).toContain(
+      "':(top,exclude)<haren folder path relative to the repo root>'",
+    );
   });
 });
 
@@ -67,6 +85,9 @@ describe("content: qa-engineer, ideate, module template", () => {
     expect(text).not.toMatch(/(^|[\s`"(])e2e\//m);
     // the skill folder name must stay intact
     expect(text).toContain(".claude/skills/excel-tc-to-e2e");
+    expect(text).toContain("Read the full skill at `$SKILL_DIR/SKILL.md`");
+    expect(text).not.toContain("Read the full skill at `.cursor");
+    expect(text).toContain("Run every command from the workspace root, except Playwright itself");
   });
 
   it("ideate and module template do not hard-code the haren folder name", () => {
