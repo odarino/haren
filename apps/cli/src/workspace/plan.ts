@@ -88,8 +88,17 @@ const MARKS: Record<PlanAction, string> = {
   warn: "! warn",
 };
 
-function row(prefix: string, name: string, action: PlanAction, note?: string): string {
-  return `  ${prefix}${name.padEnd(24 - prefix.length + 4)} ${MARKS[action].padEnd(10)} ${note ?? ""}`.trimEnd();
+// Width of the tree prefix plus the name; long names widen the column for all rows.
+const MIN_NAME_WIDTH = 28;
+
+function row(
+  width: number,
+  prefix: string,
+  name: string,
+  action: PlanAction,
+  note?: string,
+): string {
+  return `  ${prefix}${name.padEnd(width - prefix.length)} ${MARKS[action].padEnd(10)} ${note ?? ""}`.trimEnd();
 }
 
 export function renderPlan(plan: Plan): string {
@@ -114,12 +123,20 @@ export function renderPlan(plan: Plan): string {
     rows.push({ name: item.path, action: item.action, note });
   }
 
+  // Top-level prefixes are 4 characters wide, child prefixes 8.
+  const width = Math.max(
+    MIN_NAME_WIDTH,
+    ...rows.flatMap((r) => [
+      4 + r.name.length,
+      ...(r.children ?? []).map((c) => 8 + c.name.length),
+    ]),
+  );
   rows.forEach((r, i) => {
     const last = i === rows.length - 1;
-    lines.push(row(last ? "└── " : "├── ", r.name, r.action, r.note));
+    lines.push(row(width, last ? "└── " : "├── ", r.name, r.action, r.note));
     r.children?.forEach((c, j) => {
       const branch = j === r.children!.length - 1 ? "└── " : "├── ";
-      lines.push(row(`${last ? "    " : "│   "}${branch}`, c.name, c.action, c.note));
+      lines.push(row(width, `${last ? "    " : "│   "}${branch}`, c.name, c.action, c.note));
     });
   });
 

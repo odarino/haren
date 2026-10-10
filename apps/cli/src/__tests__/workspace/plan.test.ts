@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, mkdir, rm } from "fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { buildPlan, renderPlan, isNoop, type Plan } from "../../workspace/plan";
@@ -22,6 +22,28 @@ describe("renderPlan", () => {
       ],
     };
     expect(renderPlan(plan)).toMatchSnapshot();
+  });
+
+  it("keeps the action column aligned for a long repo name", () => {
+    const long = "a".repeat(40);
+    const plan: Plan = {
+      rootDir: "/ws",
+      harenDirName: "haren",
+      layout: "workspace",
+      createHaren: true,
+      items: [
+        { path: "CLAUDE.md", action: "create" },
+        { path: long, action: "keep" },
+      ],
+    };
+    const rows = renderPlan(plan)
+      .split("\n")
+      .filter((l) => /[+=] (create|keep)/.test(l));
+    expect(rows).toHaveLength(6);
+    const cols = rows.map((l) => l.search(/[+=] (create|keep)/));
+    expect(new Set(cols).size).toBe(1);
+    const longRow = rows.find((l) => l.includes(long))!;
+    expect(longRow).toMatch(new RegExp(`${long} +=`));
   });
 });
 
@@ -61,6 +83,22 @@ describe("buildPlan", () => {
       action: "create",
       note: "(generated, not versioned)",
     });
+  });
+
+  it("marks changed root files modify and is not a no-op with a create item", async () => {
+    await writeFile(join(ws, "CLAUDE.md"), "# Mine\n");
+    const plan = await buildPlan({
+      rootDir: ws,
+      harenDir: join(ws, "rules"),
+      layout: "workspace",
+      createHaren: false,
+      editor: "claude-code",
+      repos: { backend: { path: "../backend" } },
+    });
+    const byPath = Object.fromEntries(plan.items.map((i) => [i.path, i]));
+    expect(byPath["CLAUDE.md"]).toMatchObject({ action: "modify", note: "(haren block only)" });
+    expect(byPath[".claude/settings.json"].action).toBe("create");
+    expect(isNoop(plan)).toBe(false);
   });
 
   it("is a no-op when everything is in place", async () => {
