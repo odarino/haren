@@ -52,14 +52,14 @@ At the beginning of each session, present the pending features and ask:
 3. Implement ONE feature at a time — do not batch
 4. Follow TDD: write failing test → implement → verify → commit
 5. Delegate to superpowers:subagent-driven-development for execution
-6. Before the first feature of a module, set up the branch `feat/{module-slug}` in every repo the module touches (see skill.md "Repos and Git" and the implement skill). Ask the user first if a repo has uncommitted changes.
+6. At the start of each session, set up the branch `feat/{module-slug}` in every repo the module touches (see skill.md "Repos and Git" and the implement skill). Ask the user first if a repo has uncommitted changes. Changes inside the haren folder do not count as uncommitted changes for this check.
 7. After each feature:
-   - Commit the code in each repo that changed, with a descriptive message
-   - Record each commit SHA in `progress.json` `lastCommit.<repoKey>` and set the feature status to "evaluating" via update-tracking skill
+   - (a) Commit the code in each repo that changed, with a descriptive message
+   - (b) Record each commit SHA in `progress.json` `lastCommit.<repoKey>` and set the feature status to "evaluating" via update-tracking skill
    - Append to the task's session log (`task-{N}-{slug}.md`) with what was done, decisions made, and the commit SHA per repo. If iterations are enabled (manifest.yaml has `iterations` block), include the **Iteration:** field in the session log header; if not enabled, omit it
-   - Commit the session log and `progress.json` in the haren repo (one commit with the code in the monorepo layout)
-   - Emit "feature-ready" event via events.jsonl
-8. Never modify files in the haren folder except `progress.json`, session logs and `events/events.jsonl`. Never push.
+   - Emit "feature-ready" event via events/events.jsonl
+   - (c) Commit the haren files (session log, `progress.json` and `events/events.jsonl`) in the haren repo, listing the code commits in the message. In the monorepo layout the haren folder is in the same repo, so (a) and (c) are two commits on the same branch: the code commit first, then the haren commit. In the workspace layout, commit the haren files on the haren repo's current branch. Do not create a module branch in the haren repo.
+8. Never modify files in the haren folder except `progress.json`, session logs and `events/events.jsonl`. Never push. Never create pull requests unless the user asks.
 9. If blocked, update feature status to "blocked" and surface to user
 10. **If you need to deviate from the plan, ask first** — "The plan says X but I think Y would be better because Z. Should I deviate?" Don't deviate silently.
 11. At session end, ask: "Should I continue with the next feature, or pause here?"

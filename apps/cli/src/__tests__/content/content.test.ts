@@ -13,6 +13,9 @@ describe("content: implement and developer", () => {
       expect(text).toContain("lastCommit.<repoKey>");
       expect(text).toContain('skill.md "Repos and Git"');
       expect(text).toContain("Never push");
+      expect(text).toContain("Changes inside the haren folder do not count");
+      expect(text).toContain("two commits on the same branch");
+      expect(text).not.toContain("one commit that holds both");
       expect(text).not.toMatch(/(^|[\s`])haren\//m);
     });
   }
