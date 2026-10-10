@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
+import { mkdtemp, mkdir, rm, writeFile, symlink } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { resolveHarenDir, MultipleHarenDirsError } from "../../workspace/resolve";
@@ -73,6 +73,51 @@ describe("resolveHarenDir", () => {
   it("ignores a manifest.yaml without marker and without skill.md", async () => {
     await folder("other", "name: not-haren\n");
     await folder("haren", "project: x\n");
+    expect(await resolveHarenDir(root)).toBeNull();
+  });
+
+  it("throws when a manifest with a haren: line is not valid YAML", async () => {
+    const dir = await folder("broken", "haren:\n  version: [1\n");
+    await expect(resolveHarenDir(dir)).rejects.toThrow(
+      `manifest.yaml in ${dir} is not valid YAML:`,
+    );
+  });
+
+  it("treats an empty harenDir option and empty HAREN_DIR as unset", async () => {
+    const dir = await folder("haren", MARKED);
+    expect((await resolveHarenDir(root, { harenDir: "", env: { HAREN_DIR: "" } }))?.harenDir).toBe(
+      dir,
+    );
+  });
+
+  it("follows a symlink to a folder in the depth-1 scan", async () => {
+    const real = await folder("real-target", MARKED);
+    const holder = join(root, "ws");
+    await mkdir(holder);
+    await symlink(real, join(holder, "linked"));
+    expect((await resolveHarenDir(holder))?.harenDir).toBe(join(holder, "linked"));
+  });
+
+  it("lets the harenDir option win over HAREN_DIR", async () => {
+    const a = await folder("a", MARKED);
+    const b = await folder("b", MARKED);
+    expect((await resolveHarenDir(root, { harenDir: a, env: { HAREN_DIR: b } }))?.harenDir).toBe(a);
+  });
+
+  it("prefers a marked cwd over marked children", async () => {
+    const dir = await folder("haren", MARKED);
+    await folder("haren/child", MARKED);
+    expect((await resolveHarenDir(dir))?.harenDir).toBe(dir);
+  });
+
+  it("detects a legacy haren folder in cwd itself", async () => {
+    const dir = await folder("legacy", "project: x\n", true);
+    expect(await resolveHarenDir(dir)).toEqual({ harenDir: dir, workspaceDir: root, legacy: true });
+  });
+
+  it("skips hidden folders and node_modules even with a marked manifest", async () => {
+    await folder(".hidden", MARKED);
+    await folder("node_modules", MARKED);
     expect(await resolveHarenDir(root)).toBeNull();
   });
 });
