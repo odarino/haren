@@ -31,6 +31,7 @@ import { GATE_SCRIPT_PATH, writeGateScript } from "../workspace/templates";
 export interface MigrationPlan {
   manifest: { before: string; after: string };
   progress: { before: string; after: string } | null;
+  gitignore: string | null;
   layout: Layout;
   editor: Editor;
   steps: string[];
@@ -65,14 +66,20 @@ export async function planMigration(location: HarenLocation): Promise<MigrationP
   const current = normalizeRepos(manifest.repos);
   const needsRemote = layout === "workspace" && Object.values(current).some((r) => !r.remote);
   if (Array.isArray(manifest.repos) || needsRemote) {
-    repos = {};
+    const map: Record<string, RepoEntry> = {};
+    let foundRemote = false;
     for (const [key, entry] of Object.entries(current)) {
       const remote =
         entry.remote ??
         (layout === "workspace" ? await getRemoteUrl(resolve(harenDir, entry.path)) : null);
-      repos[key] = remote ? { ...entry, remote } : entry;
+      if (remote && !entry.remote) foundRemote = true;
+      map[key] = remote ? { ...entry, remote } : entry;
     }
-    steps.push("manifest.yaml: convert repos to a map with remotes");
+    // Rewrite the block only when it changes: a list, or a new remote.
+    if (Array.isArray(manifest.repos) || foundRemote) {
+      repos = map;
+      steps.push("manifest.yaml: convert repos to a map with remotes");
+    }
   }
 
   const manifestAfter = migrateManifestText(manifestBefore, {
@@ -105,6 +112,9 @@ export async function planMigration(location: HarenLocation): Promise<MigrationP
     }
   }
 
+  const gitignore = await planGitignore(harenDir);
+  if (gitignore !== null) steps.push(`.gitignore: add ${AGENT_FILES.join(", ")}`);
+
   const editor = detectEditor(workspaceDir) ?? "claude-code";
   const rootFiles = await computeRootFiles({ workspaceDir, harenDir, editor });
   for (const file of rootFiles.filter((f) => f.changed)) {
@@ -114,10 +124,25 @@ export async function planMigration(location: HarenLocation): Promise<MigrationP
   return {
     manifest: { before: manifestBefore, after: manifestAfter },
     progress,
+    gitignore,
     layout,
     editor,
     steps,
   };
+}
+
+// Agent state (team code, user id, pid) must stay out of the haren repo.
+const AGENT_FILES = [".agent.json", ".agent.pid"];
+
+/** Returns the new .gitignore text, or null when it already lists the agent files. */
+async function planGitignore(harenDir: string): Promise<string | null> {
+  const path = join(harenDir, ".gitignore");
+  const before = existsSync(path) ? await readFile(path, "utf-8") : "";
+  const lines = new Set(before.split(/\r?\n/).map((l) => l.trim()));
+  const missing = AGENT_FILES.filter((f) => !lines.has(f));
+  if (missing.length === 0) return null;
+  const base = before === "" || before.endsWith("\n") ? before : `${before}\n`;
+  return `${base}${missing.join("\n")}\n`;
 }
 
 async function copyRecursive(src: string, dest: string): Promise<void> {
@@ -245,6 +270,9 @@ export async function upgrade(args: string[]): Promise<void> {
   }
   if (migration.progress) {
     await writeFile(join(targetDir, "progress.json"), migration.progress.after);
+  }
+  if (migration.gitignore !== null) {
+    await writeFile(join(targetDir, ".gitignore"), migration.gitignore);
   }
   await writeRootFiles({
     workspaceDir: location.workspaceDir,
