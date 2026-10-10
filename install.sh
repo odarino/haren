@@ -12,7 +12,7 @@ fail() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
 # Everything runs inside main, so a partial download executes nothing.
 main() {
-  local os arch bun_bin answer workspace
+  local os arch bun_bin haren_cmd answer workspace
   os="$(uname -s)"
   arch="$(uname -m)"
   case "$os" in
@@ -35,8 +35,11 @@ main() {
   info "Installing @odarino/haren@$HAREN_VERSION"
   bun add -g "@odarino/haren@$HAREN_VERSION"
 
-  if ! command -v haren >/dev/null 2>&1; then
-    bun_bin="$(bun pm bin -g 2>/dev/null || printf '%s' "$HOME/.bun/bin")"
+  # Always run the haren that bun just installed: an older one (npm i -g) may come first on PATH.
+  bun_bin="$(bun pm bin -g 2>/dev/null | tail -n 1 || true)"
+  [ -n "$bun_bin" ] || bun_bin="${BUN_INSTALL:-$HOME/.bun}/bin"
+  haren_cmd="$bun_bin/haren"
+  if [ "$(command -v haren 2>/dev/null || true)" != "$haren_cmd" ]; then
     export PATH="$bun_bin:$PATH"
     info "Add this line to your shell profile: export PATH=\"$bun_bin:\$PATH\""
   fi
@@ -48,18 +51,31 @@ main() {
     info "Installed. Next: cd <your workspace> && haren init"
     exit 0
   fi
-  command -v haren >/dev/null 2>&1 || fail "haren is not on PATH. Open a new terminal, then run: haren init"
+  [ -x "$haren_cmd" ] || fail "haren was not found in $bun_bin after bun add. Run: bun add -g @odarino/haren"
 
   printf 'Workspace path [%s]: ' "$PWD" >&4
   answer=""
   read -r answer <&3 || true
+  # Enter from the home folder would make ~ the workspace. Ask once more instead.
+  if [ -z "$answer" ] && [ "$(pwd -P)" = "$(cd "$HOME" 2>/dev/null && pwd -P)" ]; then
+    printf 'Workspace path (a project folder, not your home folder): ' >&4
+    read -r answer <&3 || true
+  fi
+  # `read` already trimmed surrounding blanks. Drop one pair of quotes and drag-and-drop `\ `.
+  case "$answer" in
+    \"*\") answer="${answer#\"}"; answer="${answer%\"}" ;;
+    \'*\') answer="${answer#\'}"; answer="${answer%\'}" ;;
+  esac
+  answer="${answer//\\ / }"
   workspace="${answer:-$PWD}"
   case "$workspace" in
     \~) workspace="$HOME" ;;
     \~/*) workspace="$HOME/${workspace#\~/}" ;;
+    /*) ;;
+    *) workspace="$PWD/$workspace" ;;
   esac
 
-  haren init --dir "$workspace" <&3
+  "$haren_cmd" init --dir "$workspace" <&3
 }
 
 main "$@"

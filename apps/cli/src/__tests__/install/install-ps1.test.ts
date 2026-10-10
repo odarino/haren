@@ -21,7 +21,17 @@ describe("install.ps1 (static)", () => {
   it("skips the prompt in CI or when input is redirected, and runs haren init --dir", () => {
     expect(text).toContain("$env:CI");
     expect(text).toContain("[Console]::IsInputRedirected");
-    expect(text).toContain("haren init --dir $workspace");
+    expect(text).toContain("& $harenCmd.Source init --dir $workspace");
+  });
+
+  it("runs the haren that bun installed, not an older one earlier on PATH", () => {
+    expect(text).toContain("bun pm bin -g");
+    expect(text).toContain("Get-Command haren -All");
+    expect(text).toContain("StartsWith($bunBin, [StringComparison]::OrdinalIgnoreCase)");
+  });
+
+  it("asks again instead of defaulting to the home folder", () => {
+    expect(text).toContain("Workspace path (a project folder, not your home folder)");
   });
 
   it("runs everything inside one scriptblock so nothing leaks into the caller's session", () => {

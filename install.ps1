@@ -26,10 +26,27 @@
   bun add -g "@odarino/haren@$version"
   if ($LASTEXITCODE -ne 0) { throw "bun add failed with exit code $LASTEXITCODE." }
 
-  if (-not (Get-Command haren -ErrorAction SilentlyContinue)) {
-    $bunBin = (bun pm bin -g | Select-Object -Last 1).Trim()
+  # Always run the haren that bun just installed: an older one (npm i -g) may come first on PATH.
+  $bunBin = "$(bun pm bin -g | Select-Object -Last 1)".Trim()
+  if (-not $bunBin) {
+    $bunBin = if ($env:BUN_INSTALL) { "$env:BUN_INSTALL\bin" } else { "$env:USERPROFILE\.bun\bin" }
+  }
+  $onPath = Get-Command haren -ErrorAction SilentlyContinue | Select-Object -First 1
+  $findHaren = {
+    Get-Command haren -All -ErrorAction SilentlyContinue |
+      Where-Object { $_.Source -and $_.Source.StartsWith($bunBin, [StringComparison]::OrdinalIgnoreCase) } |
+      Select-Object -First 1
+  }
+  $harenCmd = & $findHaren
+  if (-not $harenCmd) {
     $env:Path = "$bunBin;$env:Path"
-    Write-Info "Add this folder to your user PATH: $bunBin"
+    $harenCmd = & $findHaren
+  }
+  if (-not $harenCmd) {
+    throw "haren was not found in $bunBin after bun add. Run: bun add -g @odarino/haren"
+  }
+  if (-not $onPath -or $onPath.Source -ne $harenCmd.Source) {
+    Write-Info "Add this folder to the start of your user PATH: $bunBin"
   }
 
   if ($env:CI -or [Console]::IsInputRedirected -or -not [Environment]::UserInteractive) {
@@ -38,6 +55,10 @@
   }
 
   $answer = Read-Host "Workspace path [$PWD]"
+  # Enter from the home folder would make ~ the workspace. Ask once more instead.
+  if (-not "$answer".Trim() -and "$PWD".TrimEnd('\', '/') -eq "$HOME".TrimEnd('\', '/')) {
+    $answer = Read-Host 'Workspace path (a project folder, not your home folder)'
+  }
   $answer = "$answer".Trim().Trim('"')
   $workspace = if ($answer) { $answer } else { "$PWD" }
   if ($workspace -eq '~') {
@@ -46,5 +67,5 @@
     $workspace = (Join-Path $HOME $workspace.Substring(2)).TrimEnd('\', '/')
   }
 
-  haren init --dir $workspace
+  & $harenCmd.Source init --dir $workspace
 }
