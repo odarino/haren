@@ -9,10 +9,13 @@ TTY_DEVICE="${HAREN_INSTALL_TTY:-/dev/tty}"
 
 info() { printf '\033[36m==>\033[0m %s\n' "$*"; }
 fail() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+# CI counts only when it is set to something other than "", false or 0 (any case).
+is_ci() { case "$(printf '%s' "${CI:-}" | tr '[:upper:]' '[:lower:]')" in '' | false | 0) return 1 ;; esac; }
 
 # Everything runs inside main, so a partial download executes nothing.
 main() {
   local os arch bun_bin haren_cmd answer workspace
+  [ -n "${HOME:-}" ] || fail "HOME is not set. Set HOME to your home folder and run this script again."
   os="$(uname -s)"
   arch="$(uname -m)"
   case "$os" in
@@ -47,7 +50,7 @@ main() {
   # Under `curl | bash`, stdin is the script itself. Talk to the terminal instead.
   # fd 3 reads answers, fd 4 writes the prompt (separate fds keep a plain file test seam working).
   # shellcheck disable=SC2094
-  if [ -n "${CI:-}" ] || ! { exec 3<"$TTY_DEVICE" 4>>"$TTY_DEVICE"; } 2>/dev/null; then
+  if is_ci || ! { exec 3<"$TTY_DEVICE" 4>>"$TTY_DEVICE"; } 2>/dev/null; then
     info "Installed. Next: cd <your workspace> && haren init"
     exit 0
   fi
@@ -71,6 +74,7 @@ main() {
   case "$workspace" in
     \~) workspace="$HOME" ;;
     \~/*) workspace="$HOME/${workspace#\~/}" ;;
+    \~*) fail "Use a full path, for example /home/${workspace#\~}" ;;
     /*) ;;
     *) workspace="$PWD/$workspace" ;;
   esac

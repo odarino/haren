@@ -64,6 +64,42 @@ describe("install.sh", () => {
     expect(r.calls).not.toContain("haren init");
   });
 
+  it("treats CI=false, CI=0 and an empty CI as not CI", async () => {
+    const tty = join(dir, "tty");
+    for (const ci of ["false", "FALSE", "0", ""]) {
+      await writeFile(tty, "~/shop\n");
+      if (existsSync(log)) await rm(log);
+      const r = await run({ CI: ci, HAREN_INSTALL_TTY: tty });
+      expect(r.code).toBe(0);
+      expect(r.calls).toContain(`haren init --dir ${dir}/shop`);
+    }
+  });
+
+  it("fails for a ~user path", async () => {
+    const tty = join(dir, "tty");
+    await writeFile(tty, "~bob/x\n");
+    const r = await run({ HAREN_INSTALL_TTY: tty });
+    expect(r.code).not.toBe(0);
+    expect(r.err).toContain("Use a full path, for example /home/bob/x");
+    expect(r.calls).not.toContain("haren init");
+  });
+
+  it("fails clearly when HOME is not set", async () => {
+    const tty = join(dir, "tty");
+    await writeFile(tty, "~/shop\n");
+    const proc = Bun.spawn(["/bin/bash", SCRIPT], {
+      cwd: dir,
+      env: { PATH: `${bin}:/usr/bin:/bin`, HAREN_INSTALL_TTY: tty },
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [err, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
+    expect(code).not.toBe(0);
+    expect(err).toContain("HOME is not set");
+    expect(err).not.toContain("unbound variable");
+  });
+
   it("asks for the workspace path on the terminal and runs haren init --dir", async () => {
     const tty = join(dir, "tty");
     await writeFile(tty, "~/shop\n");

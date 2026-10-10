@@ -42,6 +42,24 @@ describe("install.ps1 (static)", () => {
     expect(firstCode).toBe("& {");
   });
 
+  it("treats CI as set only when it is not empty, false or 0", () => {
+    expect(text).toContain("$isCI = $env:CI -and $env:CI.Trim() -notmatch '^(false|0)?$'");
+    expect(text).toContain("if ($isCI -or [Console]::IsInputRedirected");
+  });
+
+  it("rejects ~user paths", () => {
+    expect(text).toContain("$workspace.StartsWith('~')");
+    expect(text).toContain("Use a full path, for example");
+  });
+
+  it("checks the exit code of the nested Bun installer", () => {
+    const install = text.indexOf("irm bun.sh/install.ps1 | iex");
+    const check = text.indexOf('if ($LASTEXITCODE -ne 0) { throw "The Bun installer failed');
+    expect(install).toBeGreaterThan(-1);
+    expect(check).toBeGreaterThan(install);
+    expect(check).toBeLessThan(text.indexOf("$bunHome ="));
+  });
+
   it("respects BUN_INSTALL when adding Bun to PATH", () => {
     expect(text).toContain("$env:BUN_INSTALL");
   });
