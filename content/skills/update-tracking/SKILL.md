@@ -32,7 +32,7 @@ Update module and feature status in progress.json with validated transitions.
 
 ### Reconcile with Git
 1. For each module, and for each repo key in its `repos` (or in its `lastCommit` map): resolve the repo folder as in skill.md "Repos and Git"
-2. Read the tip of the module branch: `git -C <repo> rev-parse feat/{module-slug}` (use `HEAD` if the branch does not exist)
+2. Read the tip of the module branch: `git -C <repo> rev-parse <branch>`, where `<branch>` is the module's recorded `branch` (fallback `feat/{module-slug}`, then `HEAD` if the branch does not exist)
 3. Compare it with `lastCommit.<repoKey>`. Treat the key `default` as described in skill.md "Repos and Git". Check `git -C <repo> merge-base --is-ancestor <recorded sha> <tip>`
    - If it succeeds, there is no drift. Later commits are normal, including haren-only commits in the monorepo layout
 4. Only if it fails, report drift. After the user agrees, update `lastCommit.<repoKey>` to the latest commit on the branch that changed files outside the haren folder

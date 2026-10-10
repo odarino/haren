@@ -25,6 +25,19 @@ describe("templates", () => {
     expect(renderTemplate(cursorRuleTemplate, "haren")).not.toContain("Never write outside");
   });
 
+  it("allows writes in the module's repos, in implement or qa-engineer $E2E", () => {
+    for (const t of [editorConfigTemplate, cursorRuleTemplate]) {
+      const out = renderTemplate(t, "haren");
+      expect(out).toContain(
+        'only in the module\'s repos (see "Repos and Git" in `haren/skill.md`)',
+      );
+      expect(out).toContain(
+        "only in the implement phase or when qa-engineer writes tests in `$E2E`",
+      );
+      expect(out).not.toContain("only in the repos listed in");
+    }
+  });
+
   it("renders a renamed folder", () => {
     const out = renderTemplate(editorConfigTemplate, "cmis_ai_rules");
     expect(out).toContain("cmis_ai_rules/skill.md");

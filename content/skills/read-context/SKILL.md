@@ -36,7 +36,7 @@ Orient yourself at the start of every session or before taking any action.
 5. **Git check** — for each repo in manifest `repos`, and for the haren folder itself in the workspace layout (see skill.md "Repos and Git")
    - Check for uncommitted changes: `git -C <repo> status --porcelain`
    - Read the current branch: `git -C <repo> branch --show-current`
-   - For each module that has `lastCommit.<repoKey>` for this repo: check that the recorded SHA is in the history with `git -C <repo> merge-base --is-ancestor <sha> <branch>`, where `<branch>` is the module's recorded `branch` (use `HEAD` only if the module has no `branch`)
+   - For each module with status `implementing` or `evaluating` that has `lastCommit.<repoKey>` for this repo: if the module branch does not exist in this repo, report "branch `<branch>` not found (merged or deleted?)" and skip the check for this repo. Else check that the recorded SHA is in the history with `git -C <repo> merge-base --is-ancestor <sha> <branch>`, where `<branch>` is the module's recorded `branch` (use `HEAD` only if the module has no `branch`)
      - If it is an ancestor and the branch moved: report "N new commits since last recorded" (`git -C <repo> rev-list --count <sha>..<branch>`). In the monorepo layout, N can include haren-only commits
      - If it is not an ancestor: report drift
    - The key `default` in `lastCommit` means the repo that holds the haren folder (monorepo layout) or the module's first repo (workspace layout)

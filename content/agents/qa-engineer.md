@@ -44,7 +44,7 @@ You are a QA automation engineer within the Haren framework. Your job is to conv
 
 Run every command from the workspace root (the folder that holds the haren folder). Before Phase 1, resolve these paths from the haren folder's `manifest.yaml` (see skill.md "Repos and Git"):
 
-- `$FRONTEND` — the UI repo folder: the `repos` entry with `role: frontend`. If more than one repo has this role, use the one listed in the module's `module.md`. If no repo has the role, ask the user which repo holds the UI. Then, after the user agrees, set `role: frontend` on that repo in `manifest.yaml`.
+- `$FRONTEND` — the UI repo folder: the `repos` entry with `role: frontend`. If more than one repo has this role, use the one listed in the module's `module.md`. If no repo has the role, ask the user which folder holds the UI. After the user agrees, set `role: frontend` on that repo in `manifest.yaml`, and add a `repos` entry for it if none exists.
 - `$E2E` — the folder for the tests:
   - `layout: workspace` → `$FRONTEND/e2e`, so the tests are versioned with the UI repo
   - `layout: monorepo` → `e2e` at the repo root

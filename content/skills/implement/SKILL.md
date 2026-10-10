@@ -21,10 +21,11 @@ Execute the implementation plan for a module, one feature at a time.
 5. If iterations enabled, also read the **master plan path** for broader module context if needed
 6. Pick the highest-priority feature in "pending" status
 7. Set up the module branch. Follow skill.md "Repos and Git":
-   - Read the module's repos from the `repos:` front matter of `artifacts/03-modules/{module}/module.md`
+   - Read the module's repos from the `repos:` front matter of `artifacts/03-modules/{module}/module.md`. If it lists no repos, follow "No repos listed" in skill.md "Repos and Git"
    - For each repo: if it has uncommitted changes, stop and ask the user what to do. Changes inside the haren folder do not count as uncommitted changes for this check
-   - For each repo: if the branch `feat/{module-slug}` does not exist, create it from the repo's `default_branch`. Then switch to it
+   - For each repo: if the branch `feat/{module-slug}` does not exist, create it from the repo's `default_branch`, or from the current branch if `default_branch` is not set. Then switch to it
    - Record `branch` and `repos` for the module in `progress.json` via update-tracking skill
+   - If the module status is `planned`, set it to `implementing` via update-tracking skill
 
 ## Implementation Loop
 
@@ -36,7 +37,7 @@ For each feature:
    - Pass the design context from design.md
    - Ensure TDD discipline via superpowers:test-driven-development
 3. After implementation:
-   - (a) Commit the code in each repo that the feature changed: `git -C <repo> commit` with a descriptive message
+   - (a) Commit the code in each repo that the feature changed: `git -C <repo> commit` with a descriptive message. In the monorepo layout, make one code commit for all repo keys; see skill.md "Repos and Git"
    - (b) Record each new commit SHA in `progress.json` `lastCommit.<repoKey>` via update-tracking skill
    - Update feature status to "evaluating" via update-tracking skill
    - Append to task session log (`task-{N}-{slug}.md`): what was done, decisions made, any deviations from plan, and the commit SHA for each repo

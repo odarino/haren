@@ -281,7 +281,7 @@ repos:
     remote: git@github.com:acme/shop-backend.git
     default_branch: main
     role: backend         # frontend | backend | e2e | other
-    stack: node-express   # role, stack, test_cmd: set by /haren-onboard
+    stack: node-express   # role, stack, test_cmd, default_branch: set by /haren-onboard
     test_cmd: bun test
   frontend:
     path: ../frontend

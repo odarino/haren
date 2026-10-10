@@ -371,8 +371,9 @@ When a skill says "read the master plan" or needs full module context, it means 
 
 - **Repo folder:** \`<this haren folder>/<path>\`. Run git with \`git -C <repo folder> ...\`.
 - **Workspace layout:** each repo is its own git repository, and this haren folder is one more. Commit code in the code repo. Commit artifacts, session logs and \`progress.json\` in the haren repo.
-- **Monorepo layout:** the repos and this haren folder share one git repository and one module branch. Commit code first, then commit the haren files (session log, \`progress.json\`, \`events/events.jsonl\`) as a second commit on the same branch.
+- **Monorepo layout:** the repos and this haren folder share one git repository and one module branch. Commit code first, then commit the haren files (session log, \`progress.json\`, \`events/events.jsonl\`) as a second commit on the same branch. Make one code commit for all repo keys. Stage only paths outside this haren folder (for example \`git -C <repo root> add -- . ':(exclude)<haren folder>'\`, where \`<haren folder>\` is relative to the repo root). Record that one SHA under each repo key the feature changed.
 - **Module repos:** the \`repos:\` keys in the module's \`module.md\` front matter. Copy them to \`progress.json\` \`modules.<module>.repos\`.
+- **No repos listed:** if \`repos\` is empty, or the module's \`module.md\` lists no repos (common in the monorepo layout), use the git repository that holds this haren folder as the module's only repo, with the key \`default\`. In the workspace layout, this haren folder is its own repo and holds no code: ask the user which repo to use, and add it to \`repos\`.
 - **Branch:** a module uses the branch \`feat/<module-slug>\` in every repo it touches. Record it in \`modules.<module>.branch\`.
 - **lastCommit:** \`modules.<module>.lastCommit\` maps a repo key to the last commit SHA that haren recorded, for example \`{ "backend": "abc1234" }\`. It is never a plain string. The key \`default\` comes from an old progress file: it means the repo that holds this haren folder (monorepo layout) or the module's first repo (workspace layout).
 - Never push. Never create pull requests unless the user asks. Never clone repos — tell the user to run \`haren init\`.
@@ -380,7 +381,7 @@ When a skill says "read the master plan" or needs full module context, it means 
 ## Rules
 
 - Always read progress.json before taking action
-- Write outside this haren folder only in the repos listed in \`manifest.yaml\`, and only in the implement phase (see "Repos and Git"), or when the user explicitly asks
+- Write outside this haren folder only in the module's repos (see "Repos and Git"), only in the implement phase or when qa-engineer writes tests in \`$E2E\`, or when the user explicitly asks
 - Update progress.json after every phase transition
 - Append to FEEDBACK.md when you encounter framework friction
 - Validate artifacts before phase transitions (validate-artifact/ skill)
