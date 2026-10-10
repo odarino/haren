@@ -76,7 +76,24 @@ describe("install.sh", () => {
     const tty = join(dir, "tty");
     await writeFile(tty, "\n");
     const r = await run({ HAREN_INSTALL_TTY: tty });
+    expect(r.code).toBe(0);
     expect(r.calls).toContain(`haren init --dir ${dir}`);
+  });
+
+  it("expands a bare ~", async () => {
+    const tty = join(dir, "tty");
+    await writeFile(tty, "~\n");
+    const r = await run({ HAREN_INSTALL_TTY: tty });
+    expect(r.code).toBe(0);
+    expect(r.calls).toContain(`haren init --dir ${dir}\n`);
+  });
+
+  it("fails when the Bun installer download fails", async () => {
+    await rm(join(bin, "bun"));
+    await stub("curl", "exit 22");
+    const r = await run({ HAREN_INSTALL_TTY: join(dir, "no-such-tty") });
+    expect(r.code).not.toBe(0);
+    expect(r.calls).not.toContain("bun add");
   });
 
   it("installs Bun with the official installer when bun is missing", async () => {
@@ -105,5 +122,7 @@ describe("install.sh", () => {
     expect(text.split("\n").length).toBeLessThan(100);
     const sc = Bun.spawnSync(["shellcheck", SCRIPT]);
     expect(sc.exitCode).toBe(0);
+    const lines = text.split("\n").filter((l) => l.trim() !== "");
+    expect(lines[lines.length - 1]).toBe('main "$@"');
   });
 });
