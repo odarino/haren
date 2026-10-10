@@ -46,7 +46,8 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-describe("install.sh", () => {
+// install.sh targets macOS and Linux; these tests spawn /bin/bash.
+describe.skipIf(process.platform === "win32")("install.sh", () => {
   it("installs the pinned version and prints next steps when there is no terminal", async () => {
     const r = await run({ HAREN_VERSION: "1.2.0", HAREN_INSTALL_TTY: join(dir, "no-such-tty") });
     expect(r.code).toBe(0);

@@ -241,12 +241,12 @@ describe("haren init flow", () => {
 
   it("refuses to set up the home folder unless --force is given", async () => {
     const args = ["init", "--dir", ws, "--yes", "--project", "p", "--mode", "explore"];
-    const r = await haren(args, ws, { HOME: ws });
+    const r = await haren(args, ws, { HOME: ws, USERPROFILE: ws });
     expect(r.code).toBe(1);
     expect(r.err).toContain("Refusing to set up haren in your home folder");
     expect(existsSync(join(ws, "CLAUDE.md"))).toBe(false);
 
-    const forced = await haren([...args, "--force"], ws, { HOME: ws });
+    const forced = await haren([...args, "--force"], ws, { HOME: ws, USERPROFILE: ws });
     expect(forced.code).toBe(0);
     expect(existsSync(join(ws, "CLAUDE.md"))).toBe(true);
   });
@@ -281,7 +281,7 @@ describe("haren init flow", () => {
     const bad = await haren(["init", "--layout", "poly"]);
     expect(bad.code).toBe(1);
     expect(bad.err).toStartWith("  Invalid layout");
-    const home = await haren(["init", "--dir", ws, "--yes"], ws, { HOME: ws });
+    const home = await haren(["init", "--dir", ws, "--yes"], ws, { HOME: ws, USERPROFILE: ws });
     expect(home.code).toBe(1);
     expect(home.err).toStartWith("  Refusing to set up haren");
   });
