@@ -1,5 +1,5 @@
 import { existsSync } from "fs";
-import { readdir, readFile } from "fs/promises";
+import { readdir, readFile, stat } from "fs/promises";
 import { dirname, join, resolve } from "path";
 import { hasMarker, parseManifest } from "./manifest";
 
@@ -26,9 +26,16 @@ export class MultipleHarenDirsError extends Error {
 async function hasMarkedManifest(dir: string): Promise<boolean> {
   const path = join(dir, "manifest.yaml");
   if (!existsSync(path)) return false;
+  const text = await readFile(path, "utf-8").catch(() => null);
+  if (text === null) return false;
   try {
-    return hasMarker(parseManifest(await readFile(path, "utf-8")));
-  } catch {
+    return hasMarker(parseManifest(text));
+  } catch (e) {
+    if (/^haren:/m.test(text)) {
+      throw new Error(
+        `manifest.yaml in ${dir} is not valid YAML: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
     return false;
   }
 }
@@ -45,7 +52,7 @@ export async function resolveHarenDir(
   cwd: string,
   opts: ResolveOptions = {},
 ): Promise<HarenLocation | null> {
-  const explicit = opts.harenDir ?? opts.env?.HAREN_DIR;
+  const explicit = opts.harenDir || opts.env?.HAREN_DIR;
   if (explicit) {
     const dir = resolve(cwd, explicit);
     if (!existsSync(join(dir, "manifest.yaml"))) {
@@ -59,9 +66,15 @@ export async function resolveHarenDir(
   const entries = await readdir(cwd, { withFileTypes: true }).catch(() => []);
   const matches: string[] = [];
   for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith(".") || entry.name === "node_modules")
-      continue;
+    if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
     const dir = join(cwd, entry.name);
+    const isDir = entry.isSymbolicLink()
+      ? await stat(dir).then(
+          (st) => st.isDirectory(),
+          () => false,
+        )
+      : entry.isDirectory();
+    if (!isDir) continue;
     if (await hasMarkedManifest(dir)) matches.push(dir);
   }
   matches.sort();
