@@ -49,7 +49,7 @@ describe("install.ps1 (static)", () => {
 
   it("rejects ~user paths", () => {
     expect(text).toContain("$workspace.StartsWith('~')");
-    expect(text).toContain("Use a full path, for example");
+    expect(text).toContain("Use a full path, for example $HOME\\project");
   });
 
   it("checks the exit code of the nested Bun installer", () => {

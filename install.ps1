@@ -69,7 +69,7 @@
   } elseif ($workspace.StartsWith('~\') -or $workspace.StartsWith('~/')) {
     $workspace = (Join-Path $HOME $workspace.Substring(2)).TrimEnd('\', '/')
   } elseif ($workspace.StartsWith('~')) {
-    throw "Use a full path, for example C:\Users\$($workspace.Substring(1))"
+    throw "Use a full path, for example $HOME\project"
   }
 
   & $harenCmd.Source init --dir $workspace
