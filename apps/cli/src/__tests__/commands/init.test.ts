@@ -135,6 +135,24 @@ describe("scaffoldWorkspace", () => {
     expect(discoverSkill).toContain("name: discover");
   });
 
+  it("installs the haren-onboard skill for both editors", async () => {
+    await scaffoldWorkspace(testDir, {
+      project: "test",
+      mode: "blueprint",
+      language: "English",
+      editor: "both",
+    });
+    for (const dir of [
+      join(testDir, "skills", "onboard"),
+      join(parentDir, ".claude", "skills", "haren-onboard"),
+      join(parentDir, ".cursor", "skills", "haren-onboard"),
+    ]) {
+      const text = await readFile(join(dir, "SKILL.md"), "utf-8");
+      expect(text).toContain("name: haren-onboard");
+      expect(text).toContain("## 2. Health check");
+    }
+  });
+
   it("creates artifact-index.md", async () => {
     await scaffoldWorkspace(testDir, {
       project: "test",

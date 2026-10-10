@@ -151,6 +151,7 @@ function getDirectories(iterations: boolean): string[] {
     "skills/update-links",
     "skills/update-tracking",
     "skills/generate-mockup",
+    "skills/onboard",
     "artifacts/_registry",
     "artifacts/00-baseline",
     "artifacts/01-research",
