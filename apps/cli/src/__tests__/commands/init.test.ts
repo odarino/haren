@@ -370,7 +370,7 @@ describe("scaffoldWorkspace", () => {
     });
     const claudeMd = await readFile(join(parentDir, "CLAUDE.md"), "utf-8");
     expect(claudeMd).toContain("## Brainstorming Gate");
-    expect(claudeMd).toContain("planned");
+    expect(claudeMd).toContain("Before writing ANY code outside `haren/`:");
     expect(claudeMd).toContain("NOT to docs/superpowers/specs/");
   });
 
@@ -418,6 +418,8 @@ describe("scaffoldWorkspace", () => {
     expect(skillMd).toContain("`feat/<module-slug>`");
     expect(skillMd).toContain("The key `default`");
     expect(skillMd).toContain("as a second commit on the same branch");
+    expect(skillMd).toContain("only from the `planned` status on (implement phase)");
+    expect(skillMd).toContain("In the workspace layout, it means the module's first repo.");
     expect(skillMd).toContain(
       "| Onboard to the project / check the workspace | onboard/ (`/haren-onboard`) | — |",
     );
