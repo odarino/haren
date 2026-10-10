@@ -102,7 +102,9 @@ function row(
 }
 
 export function renderPlan(plan: Plan): string {
-  const lines: string[] = ["Plan:", `  ${plan.rootDir}/`];
+  // Windows paths use backslashes; do not print "C:\\ws/".
+  const rootSep = plan.rootDir.includes("\\") ? "\\" : "/";
+  const lines: string[] = ["Plan:", `  ${plan.rootDir}${rootSep}`];
   type Row = { name: string; action: PlanAction; note?: string; children?: Row[] };
   const rows: Row[] = [];
 
