@@ -18,7 +18,7 @@ Run this skill after `haren init` sets up the workspace. This skill reads and re
 
 Do these steps for each entry in `repos`:
 
-1. Find the repo folder: `<haren folder>/<path>`. If the folder does not exist, skip this step. Step 2 reports it.
+1. Find the repo folder: `<haren folder>/<path>`. If the folder does not exist, skip this repo. Step 2 reports it.
 2. Read the build files that exist in the repo folder: `package.json` and its lock file, `go.mod`, `pom.xml`, `build.gradle` or `build.gradle.kts`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`, `composer.json`, `Gemfile`, `*.csproj`.
 3. Decide these values:
    - `stack`: a short kebab-case name, for example `node-express`, `react-vite`, `nextjs`, `go`, `java-spring`, `python-fastapi`.
@@ -28,6 +28,8 @@ Do these steps for each entry in `repos`:
 4. Show one table to the user: repo, stack, test_cmd, default_branch, role. Mark the values that change.
 5. Ask: "Write these values into manifest.yaml?"
 6. Write only after the user agrees. Change only these fields of the `repos` entries. Keep every other line and every comment in `manifest.yaml`.
+
+If `repos` is empty, say so in the table output: "No repos listed in manifest.yaml." Suggest that the user adds repo entries (in the monorepo layout, folders such as `../backend`). Then continue with steps 2-4.
 
 ## 2. Health check
 

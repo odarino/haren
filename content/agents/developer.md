@@ -52,9 +52,9 @@ At the beginning of each session, present the pending features and ask:
 3. Implement ONE feature at a time — do not batch
 4. Follow TDD: write failing test → implement → verify → commit
 5. Delegate to superpowers:subagent-driven-development for execution
-6. At the start of each session, set up the branch `feat/{module-slug}` in every repo the module touches (see skill.md "Repos and Git" and the implement skill). Ask the user first if a repo has uncommitted changes. Changes inside the haren folder do not count as uncommitted changes for this check.
+6. At the start of each session, set up the branch `feat/{module-slug}` in every repo the module touches (see skill.md "Repos and Git" and the implement skill). Ask the user first if a repo has uncommitted changes. Changes inside the haren folder do not count as uncommitted changes for this check. Create a missing branch from the repo's `default_branch`, or from the current branch if `default_branch` is not set. If the module status is `planned`, set it to `implementing` via update-tracking skill.
 7. After each feature:
-   - (a) Commit the code in each repo that changed, with a descriptive message
+   - (a) Commit the code in each repo that changed, with a descriptive message. In the monorepo layout, make one code commit for all repo keys; see skill.md "Repos and Git"
    - (b) Record each commit SHA in `progress.json` `lastCommit.<repoKey>` and set the feature status to "evaluating" via update-tracking skill
    - Append to the task's session log (`task-{N}-{slug}.md`) with what was done, decisions made, and the commit SHA per repo. If iterations are enabled (manifest.yaml has `iterations` block), include the **Iteration:** field in the session log header; if not enabled, omit it
    - Emit "feature-ready" event via events/events.jsonl

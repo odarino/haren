@@ -424,8 +424,12 @@ describe("scaffoldWorkspace", () => {
     expect(skillMd).toContain("/haren-onboard");
     expect(skillMd.indexOf("## Repos and Git")).toBeLessThan(skillMd.indexOf("## Rules"));
     expect(skillMd).toContain(
-      "Write outside this haren folder only in the repos listed in `manifest.yaml`",
+      'Write outside this haren folder only in the module\'s repos (see "Repos and Git")',
     );
+    expect(skillMd).toContain("when qa-engineer writes tests in `$E2E`");
+    expect(skillMd).toContain("**No repos listed:**");
+    expect(skillMd).toContain("with the key `default`");
+    expect(skillMd).toContain("Make one code commit for all repo keys");
     expect(skillMd).not.toContain("Never write outside this haren folder");
   });
 });
