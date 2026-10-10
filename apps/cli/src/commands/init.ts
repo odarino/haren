@@ -101,6 +101,23 @@ async function promptSelect(
   }
 }
 
+/**
+ * Parse an answer to the repo picker. Enter keeps the defaults, `0` or `none`
+ * selects no repos, and numbers are 1-based. Returns null for invalid input.
+ */
+export function parseRepoSelection(
+  value: string,
+  count: number,
+  defaults: number[],
+): number[] | null {
+  const answer = value.trim().toLowerCase();
+  if (!answer) return defaults;
+  if (answer === "0" || answer === "none") return [];
+  const picked = answer.split(",").map((s) => Number(s.trim()) - 1);
+  if (!picked.every((n) => Number.isInteger(n) && n >= 0 && n < count)) return null;
+  return [...new Set(picked)];
+}
+
 async function promptMultiSelect(
   question: string,
   labels: string[],
@@ -111,15 +128,15 @@ async function promptMultiSelect(
     const mark = defaults.includes(i) ? "\x1b[36m◉\x1b[0m" : "◯";
     console.log(`    ${mark} ${i + 1}. ${label}`);
   });
-  process.stdout.write(`  \x1b[2m  numbers, comma-separated (enter = keep defaults):\x1b[0m `);
+  process.stdout.write(
+    `  \x1b[2m  numbers, comma-separated; 0 or none = no repos (enter = keep defaults):\x1b[0m `,
+  );
   while (true) {
-    const value = await readLine();
-    if (!value) return defaults;
-    const picked = value.split(",").map((s) => Number.parseInt(s.trim(), 10) - 1);
-    if (picked.every((n) => Number.isInteger(n) && n >= 0 && n < labels.length)) {
-      return [...new Set(picked)];
-    }
-    process.stdout.write(`  \x1b[31m!\x1b[0m Invalid. Use numbers 1-${labels.length}: `);
+    const picked = parseRepoSelection(await readLine(), labels.length, defaults);
+    if (picked) return picked;
+    process.stdout.write(
+      `  \x1b[31m!\x1b[0m Invalid. Use numbers 1-${labels.length}, or 0 for none: `,
+    );
   }
 }
 
@@ -426,6 +443,9 @@ export function parseInitArgs(args: string[]): InitArgs {
         i++;
         break;
       case "--haren-dir":
+        if (value === undefined || value === "" || value.startsWith("-")) {
+          throw new Error("--haren-dir needs a path");
+        }
         out.harenDir = value;
         i++;
         break;
@@ -610,6 +630,21 @@ async function runSetup(location: HarenLocation, opts: InitArgs): Promise<void> 
   }
 }
 
+function manifestIterations(
+  manifest: ReturnType<typeof parseManifest>,
+): IterationConfig | undefined {
+  const it = manifest.iterations as Record<string, unknown> | null | undefined;
+  if (!it || typeof it !== "object" || it.enabled !== true) return undefined;
+  const text = (v: unknown, fallback: string) =>
+    typeof v === "string" && v ? v : v instanceof Date ? v.toISOString().split("T")[0] : fallback;
+  return {
+    enabled: true,
+    duration: text(it.duration, "2 weeks"),
+    startDate: text(it.start_date, new Date().toISOString().split("T")[0]),
+    demoDay: text(it.demo_day, "Friday"),
+  };
+}
+
 function realPath(path: string): string {
   try {
     return realpathSync(path);
@@ -623,20 +658,20 @@ export async function init(args: string[]): Promise<void> {
   try {
     opts = parseInitArgs(args);
   } catch (err) {
-    console.error((err as Error).message);
+    console.error(`  ${(err as Error).message}`);
     process.exit(1);
   }
 
-  const rootDir = resolve(
+  const cwdRoot = resolve(
     opts.dir?.replace(/^~(?=$|\/)/, process.env.HOME ?? "~") ?? process.cwd(),
   );
-  // rootDir is created only when the plan is applied (mkdir harenDir below).
+  // The folder is created only when the plan is applied (mkdir harenDir below).
 
   // Pressing Enter in the installer from ~ would scaffold the home folder:
   // ~/CLAUDE.md, a hook in the global ~/.claude/settings.json, every repo under ~.
-  if (!opts.force && realPath(rootDir) === realPath(homedir())) {
+  if (!opts.force && realPath(cwdRoot) === realPath(homedir())) {
     console.error(
-      "Refusing to set up haren in your home folder. Choose a project folder, for example ~/my-project (or pass --force).",
+      "  Refusing to set up haren in your home folder. Choose a project folder, for example ~/my-project (or pass --force).",
     );
     process.exit(1);
   }
@@ -646,13 +681,13 @@ export async function init(args: string[]): Promise<void> {
   // --haren-dir selects an existing folder only when it already has a manifest;
   // otherwise it is the name of the folder to create.
   const explicitHarenDir =
-    opts.harenDir && existsSync(join(rootDir, opts.harenDir, "manifest.yaml"))
+    opts.harenDir && existsSync(join(cwdRoot, opts.harenDir, "manifest.yaml"))
       ? opts.harenDir
       : undefined;
 
   let detection: Detection;
   try {
-    detection = await detectLayout(rootDir, { harenDir: explicitHarenDir, env: process.env });
+    detection = await detectLayout(cwdRoot, { harenDir: explicitHarenDir, env: process.env });
   } catch (err) {
     console.error(`  ${(err as Error).message}`);
     process.exit(1);
@@ -676,6 +711,10 @@ export async function init(args: string[]): Promise<void> {
       existingManifest.layout ?? (await inferLayout(loc.workspaceDir)).layout ?? "workspace";
   }
 
+  const existingLoc = detection.kind === "existing" ? detection.location : null;
+  // From a subfolder (for example the haren folder itself), work on the
+  // workspace root that holds the existing haren folder.
+  const rootDir = existingLoc ? existingLoc.workspaceDir : cwdRoot;
   const interactive = canPrompt(opts);
   const layout: Layout =
     opts.layout ??
@@ -700,7 +739,6 @@ export async function init(args: string[]): Promise<void> {
   );
   console.log("");
 
-  const existingLoc = detection.kind === "existing" ? detection.location : null;
   const harenDirName =
     opts.harenDir ??
     (existingLoc
@@ -732,9 +770,17 @@ export async function init(args: string[]): Promise<void> {
     opts.language ??
     existingManifest?.language ??
     (interactive ? await prompt("Preferred language:", "English") : "English");
-  const iterations = opts.iterations ?? (interactive ? await promptIterations() : undefined);
+  // --force on an existing folder keeps its iterations and editor: no prompts.
+  const iterations =
+    opts.iterations ??
+    (existingManifest
+      ? manifestIterations(existingManifest)
+      : interactive
+        ? await promptIterations()
+        : undefined);
   const editor =
     opts.editor ??
+    (existingLoc ? (detectEditor(existingLoc.workspaceDir) ?? "claude-code") : undefined) ??
     (interactive
       ? ((await promptSelect(
           "Which editors do you use?",
