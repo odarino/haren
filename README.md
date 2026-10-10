@@ -48,6 +48,44 @@ Everything lives in a single haren folder (`haren/` by default) you can read, di
 
 ## Install
 
+**macOS / Linux**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/odarino/haren/main/install.sh | bash
+```
+
+**Windows (PowerShell)**
+
+```powershell
+irm https://raw.githubusercontent.com/odarino/haren/main/install.ps1 | iex
+```
+
+The script does these steps:
+
+1. It installs Bun with the official Bun installer if Bun is missing. The Bun
+   installer can add Bun to your shell profile or your user `PATH`.
+2. It installs `@odarino/haren` with `bun add -g`.
+3. If `haren` is not on your `PATH`, it prints the line to add.
+4. It asks for your workspace folder and runs `haren init --dir <folder>`.
+
+Step 4 runs only when a terminal is available and `CI` is not set. In CI, or
+with no terminal, the script only installs and prints the next step.
+
+Pin a version with `HAREN_VERSION`. The default is `latest`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/odarino/haren/main/install.sh | HAREN_VERSION=1.2.0 bash
+```
+
+```powershell
+$env:HAREN_VERSION = '1.2.0'; irm https://raw.githubusercontent.com/odarino/haren/main/install.ps1 | iex
+```
+
+After the release is tagged, you can also download the script from a release
+tag, for example `.../haren/v1.2.0/install.sh`.
+
+**With a package manager** (Bun must be installed):
+
 ```bash
 npm install -g @odarino/haren
 # or run without installing:
