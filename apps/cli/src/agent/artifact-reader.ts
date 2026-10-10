@@ -57,12 +57,20 @@ export async function readGitLog(
   maxCount = 50,
 ): Promise<{ hash: string; message: string; date: string; author: string }[]> {
   const result = await runGit(
-    ["-C", harenDir, "log", `--max-count=${maxCount}`, "--format=%H|%s|%aI|%aN", "--", "."],
+    [
+      "-C",
+      harenDir,
+      "log",
+      `--max-count=${maxCount}`,
+      "--format=%H%x1f%s%x1f%aI%x1f%aN",
+      "--",
+      ".",
+    ],
     harenDir,
   );
   if (!result.ok || !result.stdout) return [];
   return result.stdout.split("\n").map((line) => {
-    const [hash, message, date, author] = line.split("|");
+    const [hash, message, date, author] = line.split("\x1f");
     return { hash, message, date, author };
   });
 }

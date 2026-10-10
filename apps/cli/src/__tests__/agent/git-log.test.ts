@@ -41,4 +41,15 @@ describe("readGitLog", () => {
     const log = await readGitLog(join(root, "haren"));
     expect(log.map((e) => e.message)).toEqual(["docs: haren"]);
   });
+
+  it("keeps a subject that contains |", async () => {
+    await gitInit(root);
+    await writeFile(join(root, "a.md"), "a");
+    await runGit(["add", "."], root);
+    await commit("fix: a | b | c", root);
+    const [entry] = await readGitLog(root);
+    expect(entry.message).toBe("fix: a | b | c");
+    expect(entry.author).toBe("t");
+    expect(entry.hash).toMatch(/^[0-9a-f]{40}$/);
+  });
 });
