@@ -1,11 +1,11 @@
 # haren installer for Windows (PowerShell 5.1+).
 #   irm https://raw.githubusercontent.com/odarino/haren/main/install.ps1 | iex
 # Pin a version:  $env:HAREN_VERSION = '1.2.0'; irm ... | iex
-$ErrorActionPreference = 'Stop'
-
-function Write-Info([string]$Message) { Write-Host "==> $Message" -ForegroundColor Cyan }
-
 & {
+  $ErrorActionPreference = 'Stop'
+
+  function Write-Info([string]$Message) { Write-Host "==> $Message" -ForegroundColor Cyan }
+
   $version = if ($env:HAREN_VERSION) { $env:HAREN_VERSION } else { 'latest' }
 
   if (-not [Environment]::Is64BitOperatingSystem) {
@@ -15,7 +15,8 @@ function Write-Info([string]$Message) { Write-Host "==> $Message" -ForegroundCol
   if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
     Write-Info 'Installing Bun (https://bun.sh)'
     powershell -NoProfile -ExecutionPolicy Bypass -Command "irm bun.sh/install.ps1 | iex"
-    $env:Path = "$env:USERPROFILE\.bun\bin;$env:Path"
+    $bunHome = if ($env:BUN_INSTALL) { $env:BUN_INSTALL } else { "$env:USERPROFILE\.bun" }
+    $env:Path = "$bunHome\bin;$env:Path"
   }
   if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
     throw 'Bun is not on PATH after install. Open a new terminal and run this script again.'
@@ -26,7 +27,7 @@ function Write-Info([string]$Message) { Write-Host "==> $Message" -ForegroundCol
   if ($LASTEXITCODE -ne 0) { throw "bun add failed with exit code $LASTEXITCODE." }
 
   if (-not (Get-Command haren -ErrorAction SilentlyContinue)) {
-    $bunBin = (bun pm bin -g).Trim()
+    $bunBin = (bun pm bin -g | Select-Object -Last 1).Trim()
     $env:Path = "$bunBin;$env:Path"
     Write-Info "Add this folder to your user PATH: $bunBin"
   }
@@ -37,9 +38,12 @@ function Write-Info([string]$Message) { Write-Host "==> $Message" -ForegroundCol
   }
 
   $answer = Read-Host "Workspace path [$PWD]"
+  $answer = "$answer".Trim().Trim('"')
   $workspace = if ($answer) { $answer } else { "$PWD" }
-  if ($workspace -eq '~' -or $workspace.StartsWith('~\') -or $workspace.StartsWith('~/')) {
-    $workspace = Join-Path $HOME $workspace.Substring([Math]::Min(2, $workspace.Length))
+  if ($workspace -eq '~') {
+    $workspace = $HOME
+  } elseif ($workspace.StartsWith('~\') -or $workspace.StartsWith('~/')) {
+    $workspace = (Join-Path $HOME $workspace.Substring(2)).TrimEnd('\', '/')
   }
 
   haren init --dir $workspace
