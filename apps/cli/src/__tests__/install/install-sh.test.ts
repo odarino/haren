@@ -15,9 +15,9 @@ async function stub(name: string, body: string) {
   await chmod(path, 0o755);
 }
 
-async function run(env: Record<string, string>) {
+async function run(env: Record<string, string>, cwd = dir) {
   const proc = Bun.spawn(["/bin/bash", SCRIPT], {
-    cwd: dir,
+    cwd,
     env: { PATH: `${bin}:/usr/bin:/bin`, HOME: dir, ...env },
     stdin: "ignore",
     stdout: "pipe",
@@ -75,9 +75,55 @@ describe("install.sh", () => {
   it("uses the current folder when the answer is empty", async () => {
     const tty = join(dir, "tty");
     await writeFile(tty, "\n");
+    const work = join(dir, "work");
+    await mkdir(work);
+    const r = await run({ HAREN_INSTALL_TTY: tty }, work);
+    expect(r.code).toBe(0);
+    expect(r.calls).toContain(`haren init --dir ${work}\n`);
+  });
+
+  it("asks again instead of defaulting to the home folder", async () => {
+    const tty = join(dir, "tty");
+    await writeFile(tty, "\nproj\n");
     const r = await run({ HAREN_INSTALL_TTY: tty });
     expect(r.code).toBe(0);
-    expect(r.calls).toContain(`haren init --dir ${dir}`);
+    expect(r.calls).toContain(`haren init --dir ${dir}/proj\n`);
+  });
+
+  it("strips surrounding quotes and drag-and-drop backslashes from the answer", async () => {
+    const tty = join(dir, "tty");
+    await writeFile(tty, '  "~/my proj"  \n');
+    const r = await run({ HAREN_INSTALL_TTY: tty });
+    expect(r.code).toBe(0);
+    expect(r.calls).toContain(`haren init --dir ${dir}/my proj\n`);
+
+    await rm(log);
+    await writeFile(tty, "~/my\\ proj\n");
+    const r2 = await run({ HAREN_INSTALL_TTY: tty });
+    expect(r2.calls).toContain(`haren init --dir ${dir}/my proj\n`);
+  });
+
+  it("runs the haren that bun installed, not an older one earlier on PATH", async () => {
+    const old = join(dir, "old-bin");
+    await mkdir(old);
+    await writeFile(join(old, "haren"), `#!/bin/bash\necho "old-haren $*" >> "${log}"\n`);
+    await chmod(join(old, "haren"), 0o755);
+    const tty = join(dir, "tty");
+    await writeFile(tty, "~/shop\n");
+    const r = await run({ HAREN_INSTALL_TTY: tty, PATH: `${old}:${bin}:/usr/bin:/bin` });
+    expect(r.code).toBe(0);
+    expect(r.calls).toContain(`haren init --dir ${dir}/shop`);
+    expect(r.calls).not.toContain("old-haren");
+    expect(r.out).toContain(`export PATH="${bin}:$PATH"`);
+  });
+
+  it("fails clearly when bun did not install the haren binary", async () => {
+    await rm(join(bin, "haren"));
+    const tty = join(dir, "tty");
+    await writeFile(tty, "~/shop\n");
+    const r = await run({ HAREN_INSTALL_TTY: tty });
+    expect(r.code).not.toBe(0);
+    expect(r.err).toContain(`haren was not found in ${bin}`);
   });
 
   it("expands a bare ~", async () => {
