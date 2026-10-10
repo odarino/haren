@@ -24,6 +24,18 @@ describe("install.ps1 (static)", () => {
     expect(text).toContain("haren init --dir $workspace");
   });
 
+  it("runs everything inside one scriptblock so nothing leaks into the caller's session", () => {
+    const firstCode = text
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line !== "" && !line.startsWith("#"));
+    expect(firstCode).toBe("& {");
+  });
+
+  it("respects BUN_INSTALL when adding Bun to PATH", () => {
+    expect(text).toContain("$env:BUN_INSTALL");
+  });
+
   it("never exits the caller's PowerShell session", () => {
     // `irm | iex` runs in the caller's session: `exit` would close the window.
     expect(text).not.toMatch(/^\s*exit\b/m);
