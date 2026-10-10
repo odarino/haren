@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, mkdir, rm, writeFile, readFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
+import { resolveContentDir } from "../../lib/content-dir";
 import { editorConfigTemplate, renderTemplate } from "../../workspace/templates";
 import {
   BLOCK_BEGIN,
@@ -44,6 +45,17 @@ describe("upsertBlock", () => {
       `# Mine\n\n${BLOCK_BEGIN}\nnew\n${BLOCK_END}\n\n## My Notes\n\nkeep\n`,
     );
   });
+  it("throws on a broken block with one marker or reversed markers", () => {
+    const msg =
+      "CLAUDE.md has a broken haren block (<!-- haren:begin --> / <!-- haren:end -->). Fix or remove the markers and run again.";
+    for (const old of [
+      `# Mine\n\n${BLOCK_BEGIN}\nold\n`,
+      `# Mine\n\nold\n${BLOCK_END}\n`,
+      `# Mine\n\n${BLOCK_END}\nold\n${BLOCK_BEGIN}\n`,
+    ]) {
+      expect(() => upsertBlock(old, "new", "CLAUDE.md")).toThrow(msg);
+    }
+  });
   it("appends a block to a user file", () => {
     expect(upsertBlock("# Mine\n", "new")).toBe(`# Mine\n\n${BLOCK_BEGIN}\nnew\n${BLOCK_END}\n`);
   });
@@ -70,6 +82,16 @@ describe("hook merges", () => {
   });
   it("throws on invalid JSON", () => {
     expect(() => mergeClaudeSettings("{nope", "x")).toThrow();
+  });
+  it("throws the same error for valid JSON that is not an object", () => {
+    for (const text of ["null", "[]", "3", '"x"']) {
+      expect(() => mergeClaudeSettings(text, "x")).toThrow(
+        "Invalid JSON in .claude/settings.json: expected an object",
+      );
+      expect(() => mergeCursorHooks(text, "x")).toThrow(
+        "Invalid JSON in .cursor/hooks.json: expected an object",
+      );
+    }
   });
   it("merges Cursor hooks", () => {
     const out = JSON.parse(mergeCursorHooks(null, "bun rules/hooks/brainstorm-gate.ts"));
@@ -126,8 +148,35 @@ describe("computeRootFiles / writeRootFiles", () => {
       workspaceDir: ws,
       harenDir: join(ws, "rules"),
       editor: "claude-code",
+      contentDir: join(ws, "no-content"),
     });
     expect(files.map((f) => f.path)).not.toContain(".claude/skills/haren-onboard/SKILL.md");
+  });
+
+  it("uses the packaged onboard skill when the haren folder has none yet", async () => {
+    await rm(join(ws, "rules"), { recursive: true });
+    const files = await computeRootFiles({
+      workspaceDir: ws,
+      harenDir: join(ws, "rules"),
+      editor: "both",
+    });
+    const packaged = await readFile(
+      join(resolveContentDir(), "skills", "onboard", "SKILL.md"),
+      "utf-8",
+    );
+    for (const path of [
+      ".claude/skills/haren-onboard/SKILL.md",
+      ".cursor/skills/haren-onboard/SKILL.md",
+    ]) {
+      expect(files.find((f) => f.path === path)?.content).toBe(packaged);
+    }
+  });
+
+  it("names the file when its haren block is broken", async () => {
+    await writeFile(join(ws, "CLAUDE.md"), `# Mine\n\n${BLOCK_BEGIN}\nold\n`);
+    await expect(
+      computeRootFiles({ workspaceDir: ws, harenDir: join(ws, "rules"), editor: "claude-code" }),
+    ).rejects.toThrow("CLAUDE.md has a broken haren block");
   });
 
   it("flags user content in CLAUDE.md", async () => {

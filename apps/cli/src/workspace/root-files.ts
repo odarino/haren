@@ -1,6 +1,7 @@
 import { existsSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { dirname, join, relative, sep } from "path";
+import { resolveContentDir } from "../lib/content-dir";
 import { cursorRuleTemplate, editorConfigTemplate, gateCommand, renderTemplate } from "./templates";
 
 export type Editor = "claude-code" | "cursor" | "both";
@@ -35,13 +36,18 @@ function legacyRange(existing: string): { start: number; end: number } | null {
   return { start, end: existing.length };
 }
 
-export function upsertBlock(existing: string | null, body: string): string {
+export function upsertBlock(existing: string | null, body: string, file = "The file"): string {
   const block = `${BLOCK_BEGIN}\n${body.trimEnd()}\n${BLOCK_END}\n`;
   if (existing === null || existing.trim() === "") return `# Project Instructions\n\n${block}`;
 
   const begin = existing.indexOf(BLOCK_BEGIN);
   const end = existing.indexOf(BLOCK_END);
-  if (begin !== -1 && end > begin) {
+  if ((begin === -1) !== (end === -1) || (begin !== -1 && end < begin)) {
+    throw new Error(
+      `${file} has a broken haren block (${BLOCK_BEGIN} / ${BLOCK_END}). Fix or remove the markers and run again.`,
+    );
+  }
+  if (begin !== -1) {
     const after = existing.slice(end + BLOCK_END.length).replace(/^\n/, "");
     return existing.slice(0, begin) + block + after;
   }
@@ -71,13 +77,18 @@ function hasUserContent(existing: string | null): boolean {
 
 function parseJson(existing: string | null, path: string): Record<string, any> {
   if (existing === null || existing.trim() === "") return {};
+  let data: unknown;
   try {
-    return JSON.parse(existing);
+    data = JSON.parse(existing);
   } catch (err) {
     throw new Error(
       `Invalid JSON in ${path}: ${(err as Error).message}. Fix the file and run again.`,
     );
   }
+  if (data === null || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error(`Invalid JSON in ${path}: expected an object. Fix the file and run again.`);
+  }
+  return data as Record<string, any>;
 }
 
 function withoutGate(entries: unknown): any[] {
@@ -123,10 +134,26 @@ export interface RootFilesOptions {
   workspaceDir: string;
   harenDir: string;
   editor: Editor;
+  /** Packaged content folder; defaults to resolveContentDir(). */
+  contentDir?: string;
 }
 
 async function readOrNull(path: string): Promise<string | null> {
   return existsSync(path) ? readFile(path, "utf-8") : null;
+}
+
+/**
+ * A new haren folder (init's plan preview) has no skills/ yet. Use the packaged
+ * copy so the preview still lists the onboard skill files.
+ */
+async function readPackagedOnboard(contentDir?: string): Promise<string | null> {
+  let dir: string;
+  try {
+    dir = contentDir ?? resolveContentDir();
+  } catch {
+    return null;
+  }
+  return readOrNull(join(dir, "skills", "onboard", "SKILL.md"));
 }
 
 export async function computeRootFiles(o: RootFilesOptions): Promise<RootFile[]> {
@@ -135,18 +162,27 @@ export async function computeRootFiles(o: RootFilesOptions): Promise<RootFile[]>
   const useCursor = o.editor !== "claude-code";
   const command = gateCommand(name);
   const config = renderTemplate(editorConfigTemplate, name);
-  const onboardSrc = join(o.harenDir, "skills", "onboard", "SKILL.md");
-  const onboard = await readOrNull(onboardSrc);
+  const onboard =
+    (await readOrNull(join(o.harenDir, "skills", "onboard", "SKILL.md"))) ??
+    (await readPackagedOnboard(o.contentDir));
 
   const specs: { path: string; make: (old: string | null) => string; markdown?: boolean }[] = [];
   if (useClaude) {
-    specs.push({ path: "CLAUDE.md", make: (old) => upsertBlock(old, config), markdown: true });
+    specs.push({
+      path: "CLAUDE.md",
+      make: (old) => upsertBlock(old, config, "CLAUDE.md"),
+      markdown: true,
+    });
     specs.push({ path: ".claude/settings.json", make: (old) => mergeClaudeSettings(old, command) });
     if (onboard !== null)
       specs.push({ path: ".claude/skills/haren-onboard/SKILL.md", make: () => onboard });
   }
   if (useCursor) {
-    specs.push({ path: ".cursorrules", make: (old) => upsertBlock(old, config), markdown: true });
+    specs.push({
+      path: ".cursorrules",
+      make: (old) => upsertBlock(old, config, ".cursorrules"),
+      markdown: true,
+    });
     specs.push({
       path: ".cursor/rules/haren.mdc",
       make: () => renderTemplate(cursorRuleTemplate, name),
