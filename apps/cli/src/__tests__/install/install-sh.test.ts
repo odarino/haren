@@ -75,12 +75,20 @@ describe("install.sh", () => {
     }
   });
 
+  it("trims blanks around CI before comparing", async () => {
+    const tty = join(dir, "tty");
+    await writeFile(tty, "~/shop\n");
+    const r = await run({ CI: " false ", HAREN_INSTALL_TTY: tty });
+    expect(r.code).toBe(0);
+    expect(r.calls).toContain(`haren init --dir ${dir}/shop`);
+  });
+
   it("fails for a ~user path", async () => {
     const tty = join(dir, "tty");
     await writeFile(tty, "~bob/x\n");
     const r = await run({ HAREN_INSTALL_TTY: tty });
     expect(r.code).not.toBe(0);
-    expect(r.err).toContain("Use a full path, for example /home/bob/x");
+    expect(r.err).toContain(`Use a full path, for example ${dir}/project`);
     expect(r.calls).not.toContain("haren init");
   });
 

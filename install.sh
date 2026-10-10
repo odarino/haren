@@ -10,7 +10,11 @@ TTY_DEVICE="${HAREN_INSTALL_TTY:-/dev/tty}"
 info() { printf '\033[36m==>\033[0m %s\n' "$*"; }
 fail() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 # CI counts only when it is set to something other than "", false or 0 (any case).
-is_ci() { case "$(printf '%s' "${CI:-}" | tr '[:upper:]' '[:lower:]')" in '' | false | 0) return 1 ;; esac; }
+is_ci() {
+  local ci
+  ci="$(printf '%s' "${CI:-}" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  case "$ci" in '' | false | 0) return 1 ;; esac
+}
 
 # Everything runs inside main, so a partial download executes nothing.
 main() {
@@ -74,7 +78,7 @@ main() {
   case "$workspace" in
     \~) workspace="$HOME" ;;
     \~/*) workspace="$HOME/${workspace#\~/}" ;;
-    \~*) fail "Use a full path, for example /home/${workspace#\~}" ;;
+    \~*) fail "Use a full path, for example $HOME/project" ;;
     /*) ;;
     *) workspace="$PWD/$workspace" ;;
   esac
