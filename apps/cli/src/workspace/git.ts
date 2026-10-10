@@ -1,6 +1,6 @@
 import { existsSync } from "fs";
-import { readdir } from "fs/promises";
-import { dirname, join } from "path";
+import { mkdir, readdir } from "fs/promises";
+import { dirname, join, resolve } from "path";
 
 export interface GitResult {
   ok: boolean;
@@ -8,9 +8,25 @@ export interface GitResult {
   stderr: string;
 }
 
+/**
+ * Without a terminal (CI, `--yes`, piped input), git must fail on a private
+ * HTTPS remote instead of waiting for a password that nobody can type.
+ */
+export function gitEnv(
+  interactive: boolean = process.stdin.isTTY === true,
+  base: Record<string, string | undefined> = process.env,
+): Record<string, string | undefined> {
+  return interactive ? { ...base } : { ...base, GIT_TERMINAL_PROMPT: "0" };
+}
+
 export async function runGit(args: string[], cwd: string): Promise<GitResult> {
   try {
-    const proc = Bun.spawn(["git", ...args], { cwd, stdout: "pipe", stderr: "pipe" });
+    const proc = Bun.spawn(["git", ...args], {
+      cwd,
+      env: gitEnv(),
+      stdout: "pipe",
+      stderr: "pipe",
+    });
     const [stdout, stderr, code] = await Promise.all([
       new Response(proc.stdout).text(),
       new Response(proc.stderr).text(),
@@ -37,7 +53,13 @@ export async function getRemoteUrl(dir: string): Promise<string | null> {
 }
 
 export async function cloneRepo(remote: string, dest: string): Promise<GitResult> {
-  return runGit(["clone", remote, dest], dirname(dest));
+  const abs = resolve(dest);
+  try {
+    await mkdir(dirname(abs), { recursive: true });
+  } catch (err) {
+    return { ok: false, stdout: "", stderr: String(err) };
+  }
+  return runGit(["clone", remote, abs], dirname(abs));
 }
 
 export async function gitInit(dir: string): Promise<GitResult> {

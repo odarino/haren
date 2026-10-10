@@ -10,6 +10,7 @@ import {
   gitInit,
   cloneRepo,
   listChildRepos,
+  gitEnv,
 } from "../../workspace/git";
 
 let root: string;
@@ -70,5 +71,34 @@ describe("git helpers", () => {
     const bad = await cloneRepo(join(root, "missing"), join(root, "copy2"));
     expect(bad.ok).toBe(false);
     expect(bad.stderr.length).toBeGreaterThan(0);
+  });
+
+  it("skips hidden and node_modules folders even when they are git repos", async () => {
+    await makeRepo(".hidden");
+    await makeRepo("node_modules");
+    await makeRepo("api");
+    expect((await listChildRepos(root)).map((r) => r.name)).toEqual(["api"]);
+  });
+
+  it("turns off git prompts only when stdin is not a terminal", () => {
+    expect(gitEnv(false, { PATH: "/bin" })).toEqual({ PATH: "/bin", GIT_TERMINAL_PROMPT: "0" });
+    expect(gitEnv(true, { PATH: "/bin" })).toEqual({ PATH: "/bin" });
+  });
+
+  it("passes the prompt setting to git", async () => {
+    const res = await runGit(["-c", "alias.envp=!echo x$GIT_TERMINAL_PROMPT", "envp"], root);
+    expect(res.stdout).toBe(process.stdin.isTTY ? "x" : "x0");
+  });
+
+  it("clones into a nested path whose parent does not exist yet", async () => {
+    const src = await makeRepo("src");
+    await runGit(
+      ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "--allow-empty", "-m", "init"],
+      src,
+    );
+    await mkdir(join(root, "ws"));
+    const res = await cloneRepo(src, join(root, "ws", "..", "services", "api"));
+    expect(res.ok).toBe(true);
+    expect(hasGitDir(join(root, "services", "api"))).toBe(true);
   });
 });
