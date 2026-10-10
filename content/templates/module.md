@@ -1,6 +1,6 @@
 ---
 name: {module name}
-repos: [{repo keys from manifest}]
+repos: [{repo keys from the manifest `repos` map}]
 dependencies: [{module names}]
 complexity: small | medium | large
 ---
