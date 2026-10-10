@@ -393,13 +393,13 @@ When a skill says "read the master plan" or needs full module context, it means 
 - **Module repos:** the \`repos:\` keys in the module's \`module.md\` front matter. Copy them to \`progress.json\` \`modules.<module>.repos\`.
 - **No repos listed:** if \`repos\` is empty, or the module's \`module.md\` lists no repos (common in the monorepo layout), use the git repository that holds this haren folder as the module's only repo, with the key \`default\`. In the workspace layout, this haren folder is its own repo and holds no code: ask the user which repo to use, and add it to \`repos\`.
 - **Branch:** a module uses the branch \`feat/<module-slug>\` in every repo it touches. Record it in \`modules.<module>.branch\`.
-- **lastCommit:** \`modules.<module>.lastCommit\` maps a repo key to the last commit SHA that haren recorded, for example \`{ "backend": "abc1234" }\`. It is never a plain string. The key \`default\` comes from an old progress file: it means the repo that holds this haren folder (monorepo layout) or the module's first repo (workspace layout).
+- **lastCommit:** \`modules.<module>.lastCommit\` maps a repo key to the last commit SHA that haren recorded, for example \`{ "backend": "abc1234" }\`. It is never a plain string. The key \`default\` comes from an old progress file. In the monorepo layout, it means the repo that holds this haren folder. In the workspace layout, it means the module's first repo.
 - Never push. Never create pull requests unless the user asks. Never clone repos — tell the user to run \`haren init\`.
 
 ## Rules
 
 - Always read progress.json before taking action
-- Write outside this haren folder only in the module's repos (see "Repos and Git"), only in the implement phase or when qa-engineer writes tests in \`$E2E\`, or when the user explicitly asks
+- Write outside this haren folder only in the module's repos (see "Repos and Git"), only from the \`planned\` status on (implement phase) or when qa-engineer writes tests in \`$E2E\`, or when the user explicitly asks
 - Update progress.json after every phase transition
 - Append to FEEDBACK.md when you encounter framework friction
 - Validate artifacts before phase transitions (validate-artifact/ skill)

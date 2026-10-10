@@ -25,7 +25,7 @@ This workspace uses the Haren agentic SDLC framework.
 3. Read \`{{harenDir}}/manifest.yaml\` and \`{{harenDir}}/progress.json\` before taking any action
 
 All project documentation, specs, plans, and artifacts are managed inside \`{{harenDir}}/\`.
-Write outside \`{{harenDir}}/\` only in the module's repos (see "Repos and Git" in \`{{harenDir}}/skill.md\`), only in the implement phase or when qa-engineer writes tests in \`$E2E\`, or when the user explicitly asks.
+Write outside \`{{harenDir}}/\` only in the module's repos (see "Repos and Git" in \`{{harenDir}}/skill.md\`), only from the \`planned\` status on (implement phase) or when qa-engineer writes tests in \`$E2E\`, or when the user explicitly asks.
 
 ## Brainstorming Gate
 
@@ -98,7 +98,7 @@ No exceptions. No rationalizing. STOP means STOP.
 3. Read \`{{harenDir}}/manifest.yaml\` and \`{{harenDir}}/progress.json\` before taking any action
 
 All project documentation, specs, plans, and artifacts are managed inside \`{{harenDir}}/\`.
-Write outside \`{{harenDir}}/\` only in the module's repos (see "Repos and Git" in \`{{harenDir}}/skill.md\`), only in the implement phase or when qa-engineer writes tests in \`$E2E\`, or when the user explicitly asks.
+Write outside \`{{harenDir}}/\` only in the module's repos (see "Repos and Git" in \`{{harenDir}}/skill.md\`), only from the \`planned\` status on (implement phase) or when qa-engineer writes tests in \`$E2E\`, or when the user explicitly asks.
 
 ## Phase Progression (MANDATORY)
 
@@ -120,7 +120,7 @@ Key dispatch rules:
 ## Rules
 
 - Always read progress.json before taking action
-- Write outside \`{{harenDir}}/\` only in the module's repos (see "Repos and Git" in \`{{harenDir}}/skill.md\`), only in the implement phase or when qa-engineer writes tests in \`$E2E\`, or when the user explicitly asks.
+- Write outside \`{{harenDir}}/\` only in the module's repos (see "Repos and Git" in \`{{harenDir}}/skill.md\`), only from the \`planned\` status on (implement phase) or when qa-engineer writes tests in \`$E2E\`, or when the user explicitly asks.
 - Update progress.json after every phase transition
 - Append to FEEDBACK.md when you encounter framework friction
 `;

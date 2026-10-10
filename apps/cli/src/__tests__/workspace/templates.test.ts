@@ -32,7 +32,7 @@ describe("templates", () => {
         'only in the module\'s repos (see "Repos and Git" in `haren/skill.md`)',
       );
       expect(out).toContain(
-        "only in the implement phase or when qa-engineer writes tests in `$E2E`",
+        "only from the `planned` status on (implement phase) or when qa-engineer writes tests in `$E2E`",
       );
       expect(out).not.toContain("only in the repos listed in");
     }
