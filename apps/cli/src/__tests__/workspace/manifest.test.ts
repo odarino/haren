@@ -95,6 +95,15 @@ describe("replaceTopLevelBlock", () => {
       "project: x\n\nrepos:\n  a:\n    path: ../a\n",
     );
   });
+
+  it("finds the block in a CRLF file", () => {
+    const out = replaceTopLevelBlock(
+      "project: x\r\nrepos:\r\n  - ../a\r\n\r\nsources:\r\n",
+      "repos",
+      "repos:\n  a:\n    path: ../a\n",
+    );
+    expect(out).toBe("project: x\r\nrepos:\r\n  a:\r\n    path: ../a\r\n\r\nsources:\r\n");
+  });
 });
 
 describe("migrateManifestText", () => {
@@ -120,6 +129,19 @@ describe("migrateManifestText", () => {
       layout: "workspace",
     });
     expect(out).toBe(`haren:\n  version: "1.2.0"\nlayout: monorepo\nproject: x\n`);
+  });
+
+  it("keeps CRLF line endings and does not duplicate the marker on a second run", () => {
+    const crlf = LEGACY.replace(/\n/g, "\r\n");
+    const once = migrateManifestText(crlf, {
+      version: "1.2.0",
+      layout: "workspace",
+      repos: normalizeRepos(parseManifest(crlf).repos),
+    });
+    const twice = migrateManifestText(once, { version: "1.2.0", layout: "workspace" });
+    expect(once).not.toMatch(/[^\r]\n/);
+    expect(twice).toBe(once);
+    expect(twice.match(/^haren:/gm)?.length).toBe(1);
   });
 });
 

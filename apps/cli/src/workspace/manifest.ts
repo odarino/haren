@@ -88,12 +88,26 @@ export function renderReposBlock(repos: Record<string, RepoEntry>): string {
   return out;
 }
 
+function eolOf(text: string): "\r\n" | "\n" {
+  return text.includes("\r\n") ? "\r\n" : "\n";
+}
+
+function toLf(text: string): string {
+  return text.replace(/\r\n/g, "\n");
+}
+
 /**
  * Replace the top-level YAML block `key:` (its line plus all indented or blank
  * lines after it) with `block`. Blank lines that end the old block stay. If the
  * key is missing, append the block. Text outside the block is not changed.
  */
 export function replaceTopLevelBlock(text: string, key: string, block: string): string {
+  const eol = eolOf(text);
+  const out = replaceTopLevelBlockLf(toLf(text), key, toLf(block));
+  return eol === "\n" ? out : out.replace(/\n/g, "\r\n");
+}
+
+function replaceTopLevelBlockLf(text: string, key: string, block: string): string {
   const lines = text.split("\n");
   const start = lines.findIndex(
     (line) => line === `${key}:` || line.startsWith(`${key}: `) || line.startsWith(`${key}:\t`),
@@ -116,13 +130,15 @@ export interface ManifestMigration {
 }
 
 export function migrateManifestText(text: string, mig: ManifestMigration): string {
-  const m = parseManifest(text);
+  const eol = eolOf(text);
+  const lf = toLf(text);
+  const m = parseManifest(lf);
   const head =
     `haren:\n  version: ${JSON.stringify(mig.version)}\n` +
     (m.layout ? "" : `layout: ${mig.layout}\n`);
-  let out = hasMarker(m) ? replaceTopLevelBlock(text, "haren", head) : head + text;
-  if (mig.repos) out = replaceTopLevelBlock(out, "repos", renderReposBlock(mig.repos));
-  return out;
+  let out = hasMarker(m) ? replaceTopLevelBlockLf(lf, "haren", head) : head + lf;
+  if (mig.repos) out = replaceTopLevelBlockLf(out, "repos", renderReposBlock(mig.repos));
+  return eol === "\n" ? out : out.replace(/\n/g, "\r\n");
 }
 
 export interface NewManifestOptions {
