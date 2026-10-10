@@ -35,13 +35,13 @@ front-half of the SDLC and **gates implementation behind planning** — a module
 cannot be coded until it has reached `planned` status. The gate is enforced by a
 hook, not just a prompt, so the discipline holds even when the model forgets.
 
-Everything lives in a single `haren/` directory you can read, diff, and commit.
+Everything lives in a single haren folder (`haren/` by default) you can read, diff, and commit.
 
 ---
 
 ## Requirements
 
-- **[Bun](https://bun.com) ≥ 1.2** — installed and on your `PATH`.
+- **[Bun](https://bun.com) ≥ 1.2.21** — installed and on your `PATH`.
   haren runs on the Bun runtime; Node.js alone is not sufficient.
 - An AI coding agent: **[Claude Code](https://claude.com/claude-code)** or
   **[Cursor](https://cursor.com)** (or both).
@@ -60,17 +60,53 @@ npx @odarino/haren init
 
 ```bash
 cd your-project
-haren init          # scaffold a haren/ workspace (interactive)
+haren init          # scaffold a haren folder (interactive)
 ```
 
-`init` asks a few questions (project name, mode, language, editor) and creates a
-`haren/` workspace plus the editor config your agent reads on every session.
-Then open the project in your editor and say:
+`init` detects your layout (see [Layouts](#layouts)), asks a few questions
+(project name, mode, language, editor), and shows a plan. After you confirm, it
+creates the haren folder plus the editor config your agent reads on every
+session. Then open the project (the workspace root) in your editor and run
+`/haren-onboard`, or say:
 
 > **"what's next?"**
 
-The agent reads `haren/skill.md`, orients itself from `manifest.yaml` and
+The agent reads `skill.md` in the haren folder, orients itself from `manifest.yaml` and
 `progress.json`, and guides you into the right phase.
+
+---
+
+## Layouts
+
+haren supports two project layouts. `haren init` detects which one you have.
+
+**Monorepo** — one git repo. The haren folder lives inside it.
+
+```
+my-app/              (.git)
+├── backend/
+├── frontend/
+├── haren/
+├── CLAUDE.md        # generated, committed with the repo
+└── .claude/
+```
+
+**Multi-repo workspace** — a plain folder (no `.git`) with several git repos.
+haren is its own repo next to the code repos.
+
+```
+workspace/           (no .git)
+├── backend/         (.git)
+├── frontend/        (.git)
+├── cmis_ai_rules/   (.git — the haren repo, any folder name)
+├── CLAUDE.md        # generated per machine, not versioned
+└── .claude/         # generated per machine, not versioned
+```
+
+The haren folder can have any name. haren finds it by the top-level `haren:`
+marker in its `manifest.yaml`, not by its name. Open your editor at the
+**workspace root** (the folder that holds all the repos), so one session sees
+every repo.
 
 ---
 
@@ -78,9 +114,12 @@ The agent reads `haren/skill.md`, orients itself from `manifest.yaml` and
 
 | Command | What it does |
 |---------|--------------|
-| `haren init` | Scaffold a new `haren/` workspace in the current directory. Interactive, or pass flags (below). |
-| `haren upgrade` | Update framework files (agents, skills, templates) in an existing workspace to the installed version. |
+| `haren init` | Set up haren in the current directory: scaffold a new haren folder, or set up a cloned one. Interactive, or pass flags (below). |
+| `haren upgrade` | Update framework files in an existing haren folder to the installed version, and migrate old `manifest.yaml` / `progress.json`. |
 | `haren agent` | Manage the local agent bridge *(experimental — for the in-progress Haren Portal)*. |
+
+`haren agent` works in both layouts. It uses the git remote of the haren repo as
+the Portal project key.
 
 Run `haren` with no arguments for help.
 
@@ -96,7 +135,74 @@ haren init \
   --duration "2 weeks" --start-date 2026-06-08 --demo-day Friday
 ```
 
-Re-running in an existing workspace requires `--force`.
+Layout and folder flags:
+
+| Flag | Effect |
+|------|--------|
+| `--dir <path>` | Run in this directory instead of the current one. |
+| `--layout monorepo\|workspace` | Skip layout detection. |
+| `--haren-dir <name>` | Name of the new haren folder (default `haren`). |
+| `--yes` | Accept the defaults and skip the confirm prompt. Required when there is no terminal. |
+| `--dry-run` | Print the plan and exit. Nothing is written. |
+| `--force` | Re-scaffold an existing haren folder. It keeps the folder name, the layout, and the repos in `manifest.yaml`. |
+
+### The plan preview
+
+`init` writes nothing until you confirm. It prints a plan first:
+
+```
+Plan:
+  /path/to/workspace/
+  ├── cmis_ai_rules/         + create   (git init, own repo)
+  │   ├── manifest.yaml      + create   layout: workspace
+  │   ├── artifacts/         + create
+  │   └── hooks/             + create
+  ├── CLAUDE.md              + create   (generated, not versioned)
+  ├── backend/               = keep
+  └── frontend/              = keep
+
+? Apply this plan? (Y)es / (n)o / (e)dit selection
+```
+
+Markers: `+` create, `~` modify, `=` keep, `↓` clone, `!` warning (for example a
+folder that is not a git repo, or a repo with no remote to clone).
+
+In a workspace, `init` runs `git init` in the new haren folder. It makes no
+commit. The root files (`CLAUDE.md`, `.cursorrules`, `.claude/`, `.cursor/`) are
+generated per machine and are not versioned. If you already have content in
+`CLAUDE.md` or `.cursorrules`, haren keeps it. haren writes only between
+`<!-- haren:begin -->` and `<!-- haren:end -->`.
+
+### Set up a teammate
+
+The haren repo is the source of truth. A teammate does not run a full init.
+
+```bash
+git clone <haren-repo-url> workspace/cmis_ai_rules
+cd workspace/cmis_ai_rules
+haren init
+```
+
+`init` finds the manifest, clones each missing repo from its `remote`, and
+generates the root files in the parent folder. Then open the workspace root in
+the editor and run `/haren-onboard`. If a clone fails, `init` continues with the
+other repos, then exits with code 1. Run `haren init` again to retry only the
+missing repos. If all is in place, `init` prints "Already set up".
+
+### `/haren-onboard`
+
+A skill for a new developer or a new workspace. It does three things:
+
+1. **Analyze repos.** It reads the build files of each repo and proposes `stack`,
+   `test_cmd`, `default_branch`, and `role`. It writes them to `manifest.yaml`
+   only after you approve.
+2. **Health check.** It reports repos that are missing, not git repos, dirty, or
+   on a branch other than `default_branch`.
+3. **Briefing.** It summarizes the current phase, the active modules, and the
+   next step.
+
+It never clones and never changes git state. To clone a missing repo, run
+`haren init`.
 
 ---
 
@@ -121,9 +227,9 @@ Each module progresses through phases **in order** — you can't skip ahead:
 discovered → specified → planned → implementing → evaluating → completed
 ```
 
-A `brainstorm-gate` hook blocks `Edit`/`Write` on any file **outside `haren/`**
+A `brainstorm-gate` hook blocks `Edit`/`Write` on any file **outside the haren folder**
 until at least one module reaches `planned`. Discovery docs and specs are not
-enough — planning must be done first. (Writes *inside* `haren/` are always
+enough — planning must be done first. (Writes *inside* the haren folder are always
 allowed so the planning phases can produce their artifacts.)
 
 ### Agents
@@ -141,11 +247,11 @@ Skills are the procedures the agent follows — `discover` (brainstorming),
 (`create-artifact`, `validate-artifact`, `search-artifact`, `update-tracking`,
 and more).
 
-### The workspace
+### The haren folder
 
 ```
-haren/
-├── manifest.yaml      # project config (mode, language, repos, sources)
+haren/                 # any folder name works
+├── manifest.yaml      # project config (layout, repos, mode, language, sources)
 ├── progress.json      # auto-managed state — phases & module status
 ├── skill.md           # the LLM's operating manual (read every session)
 ├── FEEDBACK.md        # append-only log of framework friction
@@ -159,6 +265,51 @@ haren/
     ├── 04-plans/      ├── 05-implementation/   └── 06-evaluation/
 ```
 
+### manifest.yaml
+
+```yaml
+haren:
+  version: 1.2.0          # the marker; haren finds the folder by this key
+layout: workspace         # monorepo | workspace
+project: shop
+mode: blueprint
+language: English
+
+repos:
+  backend:
+    path: ../backend      # relative to the haren folder
+    remote: git@github.com:acme/shop-backend.git
+    default_branch: main
+    role: backend         # frontend | backend | e2e | other
+    stack: node-express   # role, stack, test_cmd: set by /haren-onboard
+    test_cmd: bun test
+  frontend:
+    path: ../frontend
+    remote: git@github.com:acme/shop-frontend.git
+    default_branch: main
+    role: frontend
+```
+
+In a monorepo, `remote` is empty and each `path` points inside the same repo.
+
+### Git conventions
+
+When a module touches code, haren follows these rules:
+
+- A module uses the branch `feat/<module-slug>` in **every repo it touches**.
+- Code is committed in each code repo. haren files (artifacts, session log,
+  `progress.json`) are committed in the haren repo. In a monorepo, that is a
+  second commit on the same branch.
+- `progress.json` records `branch`, `repos`, and a `lastCommit` per repo key.
+- haren never pushes and never opens a pull request unless you ask.
+
+### E2E tests
+
+The `qa-engineer` agent writes Playwright tests in the UI repo, which is the
+`repos` entry with `role: frontend`. In a workspace, the tests live in
+`<frontend repo>/e2e/<module>/`. In a monorepo, they live in `e2e/` at the repo
+root.
+
 ### Editor integration
 
 `init` wires up whichever editor(s) you choose:
@@ -168,19 +319,30 @@ haren/
 - **Cursor** → `.cursorrules` + `.cursor/rules/haren.mdc` + `.cursor/hooks.json`
   (registers the gate via `beforeFileEdit`/`preToolUse`).
 
-Existing config files are appended to, not overwritten.
+These files go in the workspace root (the parent of the haren folder). Existing
+config files are kept: haren writes only inside its marked block.
 
 ---
 
 ## Upgrading
 
 ```bash
-cd your-project
+cd your-workspace      # or the project root, or the haren folder itself
 haren upgrade
 ```
 
-This refreshes the agents, skills, and templates in `haren/` to match the
-installed CLI version, leaving your artifacts and state untouched.
+This refreshes the agents, skills, templates, and the gate hook in the haren
+folder to match the installed CLI version, leaving your artifacts untouched. It
+also migrates an older project:
+
+- `manifest.yaml` gets the `haren:` marker and `layout`. A `repos` list becomes
+  a map with `remote` values.
+- `progress.json` moves to version 2: `lastCommit` becomes one commit per repo.
+- The root files (`CLAUDE.md`, `.claude/`, `.cursor/`, and so on) are
+  regenerated.
+
+Run `haren upgrade --dry-run` to see every step without writing anything. The
+upgrade needs Bun ≥ 1.2.21.
 
 ---
 
