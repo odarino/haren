@@ -15,6 +15,7 @@
   if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
     Write-Info 'Installing Bun (https://bun.sh)'
     powershell -NoProfile -ExecutionPolicy Bypass -Command "irm bun.sh/install.ps1 | iex"
+    if ($LASTEXITCODE -ne 0) { throw "The Bun installer failed with exit code $LASTEXITCODE. Install Bun from https://bun.sh and run this script again." }
     $bunHome = if ($env:BUN_INSTALL) { $env:BUN_INSTALL } else { "$env:USERPROFILE\.bun" }
     $env:Path = "$bunHome\bin;$env:Path"
   }
@@ -49,7 +50,9 @@
     Write-Info "Add this folder to the start of your user PATH: $bunBin"
   }
 
-  if ($env:CI -or [Console]::IsInputRedirected -or -not [Environment]::UserInteractive) {
+  # CI counts only when it is set to something other than "", false or 0 (any case).
+  $isCI = $env:CI -and $env:CI.Trim() -notmatch '^(false|0)?$'
+  if ($isCI -or [Console]::IsInputRedirected -or -not [Environment]::UserInteractive) {
     Write-Info 'Installed. Next: cd <your workspace>; haren init'
     return
   }
@@ -65,6 +68,8 @@
     $workspace = $HOME
   } elseif ($workspace.StartsWith('~\') -or $workspace.StartsWith('~/')) {
     $workspace = (Join-Path $HOME $workspace.Substring(2)).TrimEnd('\', '/')
+  } elseif ($workspace.StartsWith('~')) {
+    throw "Use a full path, for example C:\Users\$($workspace.Substring(1))"
   }
 
   & $harenCmd.Source init --dir $workspace
