@@ -250,4 +250,50 @@ describe("haren init flow", () => {
     expect(forced.code).toBe(0);
     expect(existsSync(join(ws, "CLAUDE.md"))).toBe(true);
   });
+
+  it("--force from inside the haren folder keeps iterations, the editor, and the root", async () => {
+    await repo("backend", "git@github.com:acme/b.git");
+    const first = await haren([
+      "init",
+      "--yes",
+      "--haren-dir",
+      "rules",
+      "--editor",
+      "cursor",
+      "--iterations",
+      "--duration",
+      "3 weeks",
+    ]);
+    expect(first.code).toBe(0);
+    expect(existsSync(join(ws, "CLAUDE.md"))).toBe(false);
+
+    const r = await haren(["init", "--yes", "--force"], join(ws, "rules"));
+    expect(r.code).toBe(0);
+    expect(r.out).not.toMatch(/Plan:\n\s+\S*\/rules\/\n/);
+    expect(r.out).toMatch(/\.cursorrules\s+= keep/);
+    expect(existsSync(join(ws, "CLAUDE.md"))).toBe(false);
+    expect(existsSync(join(ws, "rules", ".cursorrules"))).toBe(false);
+    const m = parseManifest(await readFile(join(ws, "rules", "manifest.yaml"), "utf-8"));
+    expect(m.iterations).toMatchObject({ enabled: true, duration: "3 weeks" });
+  });
+
+  it("prints errors with the same indent as other init output", async () => {
+    const bad = await haren(["init", "--layout", "poly"]);
+    expect(bad.code).toBe(1);
+    expect(bad.err).toStartWith("  Invalid layout");
+    const home = await haren(["init", "--dir", ws, "--yes"], ws, { HOME: ws });
+    expect(home.code).toBe(1);
+    expect(home.err).toStartWith("  Refusing to set up haren");
+  });
+
+  it("errors when --haren-dir has no path", async () => {
+    for (const args of [
+      ["init", "--haren-dir"],
+      ["init", "--haren-dir", "--yes"],
+    ]) {
+      const r = await haren(args);
+      expect(r.code).toBe(1);
+      expect(r.err).toContain("--haren-dir needs a path");
+    }
+  });
 });
