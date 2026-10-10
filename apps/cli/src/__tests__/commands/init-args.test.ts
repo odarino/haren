@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { parseInitArgs, parseRepoSelection } from "../../commands/init";
+import { parseInitArgs, parseRepoSelection, parseSelectChoice } from "../../commands/init";
 
 describe("parseInitArgs", () => {
   it("parses new flags", () => {
@@ -57,5 +57,24 @@ describe("parseRepoSelection", () => {
     expect(parseRepoSelection("4", 3, [])).toBeNull();
     expect(parseRepoSelection("x", 3, [])).toBeNull();
     expect(parseRepoSelection("0,1", 3, [])).toBeNull();
+  });
+});
+
+describe("parseSelectChoice", () => {
+  const opts = ["workspace", "monorepo"] as const;
+  it("keeps the default on enter", () => {
+    expect(parseSelectChoice("", opts, "workspace")).toBe("workspace");
+  });
+  it("accepts an option name in any case", () => {
+    expect(parseSelectChoice(" Monorepo ", opts, "workspace")).toBe("monorepo");
+  });
+  it("accepts a 1-based number", () => {
+    expect(parseSelectChoice("2", opts, "workspace")).toBe("monorepo");
+    expect(parseSelectChoice("1", opts, "workspace")).toBe("workspace");
+  });
+  it("rejects out-of-range numbers and unknown names", () => {
+    for (const v of ["0", "3", "1.5", "-1", "mono"]) {
+      expect(parseSelectChoice(v, opts, "workspace")).toBeNull();
+    }
   });
 });

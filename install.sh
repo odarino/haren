@@ -5,7 +5,13 @@
 set -euo pipefail
 
 HAREN_VERSION="${HAREN_VERSION:-latest}"
-TTY_DEVICE="${HAREN_INSTALL_TTY:-/dev/tty}"
+# Use the real device (/dev/ttys001): on macOS, Bun hangs reading a stdin that is /dev/tty.
+real_tty() {
+  local t
+  t="/dev/$(ps -o tty= -p $$ 2>/dev/null | tr -d '[:space:]' || true)"
+  [ -c "$t" ] && [ -r "$t" ] && printf '%s' "$t"
+}
+TTY_DEVICE="${HAREN_INSTALL_TTY:-$(real_tty || printf '/dev/tty')}"
 
 info() { printf '\033[36m==>\033[0m %s\n' "$*"; }
 fail() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
