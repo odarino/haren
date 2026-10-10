@@ -16,9 +16,10 @@ afterEach(async () => {
   await rm(ws, { recursive: true, force: true });
 });
 
-async function haren(args: string[], cwd = ws) {
+async function haren(args: string[], cwd = ws, env?: Record<string, string>) {
   const proc = Bun.spawn(["bun", CLI, ...args], {
     cwd,
+    env: env ? { ...process.env, ...env } : undefined,
     stdout: "pipe",
     stderr: "pipe",
     stdin: "ignore",
@@ -236,5 +237,17 @@ describe("haren init flow", () => {
     expect(r.code).toBe(1);
     expect(r.err).toContain("failed to clone: backend");
     expect(existsSync(join(team, "CLAUDE.md"))).toBe(true);
+  });
+
+  it("refuses to set up the home folder unless --force is given", async () => {
+    const args = ["init", "--dir", ws, "--yes", "--project", "p", "--mode", "explore"];
+    const r = await haren(args, ws, { HOME: ws });
+    expect(r.code).toBe(1);
+    expect(r.err).toContain("Refusing to set up haren in your home folder");
+    expect(existsSync(join(ws, "CLAUDE.md"))).toBe(false);
+
+    const forced = await haren([...args, "--force"], ws, { HOME: ws });
+    expect(forced.code).toBe(0);
+    expect(existsSync(join(ws, "CLAUDE.md"))).toBe(true);
   });
 });
