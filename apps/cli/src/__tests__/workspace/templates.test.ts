@@ -18,6 +18,13 @@ describe("templates", () => {
     expect(cursorRuleTemplate).not.toMatch(LITERAL_HAREN_PATH);
   });
 
+  it("does not forbid writing in the manifest repos", () => {
+    expect(editorConfigTemplate).not.toContain("Never write outside");
+    expect(cursorRuleTemplate).not.toContain("Never write outside");
+    expect(renderTemplate(editorConfigTemplate, "haren")).not.toContain("Never write outside");
+    expect(renderTemplate(cursorRuleTemplate, "haren")).not.toContain("Never write outside");
+  });
+
   it("renders a renamed folder", () => {
     const out = renderTemplate(editorConfigTemplate, "haren-rules");
     expect(out).toContain("haren-rules/skill.md");
