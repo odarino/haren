@@ -25,7 +25,7 @@ This workspace uses the Haren agentic SDLC framework.
 3. Read \`{{harenDir}}/manifest.yaml\` and \`{{harenDir}}/progress.json\` before taking any action
 
 All project documentation, specs, plans, and artifacts are managed inside \`{{harenDir}}/\`.
-Never write outside \`{{harenDir}}/\` unless explicitly asked.
+Write outside \`{{harenDir}}/\` only in the repos listed in \`{{harenDir}}/manifest.yaml\`, and only in the implement phase, or when the user explicitly asks.
 
 ## Brainstorming Gate
 
@@ -98,7 +98,7 @@ No exceptions. No rationalizing. STOP means STOP.
 3. Read \`{{harenDir}}/manifest.yaml\` and \`{{harenDir}}/progress.json\` before taking any action
 
 All project documentation, specs, plans, and artifacts are managed inside \`{{harenDir}}/\`.
-Never write outside \`{{harenDir}}/\` unless explicitly asked.
+Write outside \`{{harenDir}}/\` only in the repos listed in \`{{harenDir}}/manifest.yaml\`, and only in the implement phase, or when the user explicitly asks.
 
 ## Phase Progression (MANDATORY)
 
@@ -120,7 +120,7 @@ Key dispatch rules:
 ## Rules
 
 - Always read progress.json before taking action
-- Never write outside the {{harenDir}}/ directory unless user explicitly asks
+- Write outside \`{{harenDir}}/\` only in the repos listed in \`{{harenDir}}/manifest.yaml\`, and only in the implement phase, or when the user explicitly asks.
 - Update progress.json after every phase transition
 - Append to FEEDBACK.md when you encounter framework friction
 `;
