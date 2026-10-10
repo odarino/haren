@@ -14,7 +14,12 @@ import {
   type RepoEntry,
 } from "../workspace/manifest";
 import { migrateProgress } from "../workspace/progress";
-import { MultipleHarenDirsError, type HarenLocation, resolveHarenDir } from "../workspace/resolve";
+import {
+  harenDirFlag,
+  MultipleHarenDirsError,
+  type HarenLocation,
+  resolveHarenDir,
+} from "../workspace/resolve";
 import {
   computeRootFiles,
   detectEditor,
@@ -151,11 +156,10 @@ const FRAMEWORK_DIRS = ["agents", "skills", "templates"] as const;
 const USER_FILES = ["FEEDBACK.md", "artifacts/", "events/"];
 
 export async function upgrade(args: string[]): Promise<void> {
-  const flagIndex = args.indexOf("--haren-dir");
   let location: HarenLocation | null;
   try {
     location = await resolveHarenDir(process.cwd(), {
-      harenDir: flagIndex !== -1 ? args[flagIndex + 1] : undefined,
+      harenDir: harenDirFlag(args),
       env: process.env,
     });
   } catch (err) {

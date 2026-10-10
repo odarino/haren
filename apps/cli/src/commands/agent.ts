@@ -1,7 +1,7 @@
 import { join } from "path";
 import { readAgentConfig, writeAgentConfig, type AgentConfig } from "../agent/config";
 import { detectCLIs } from "../agent/cli-detector";
-import { MultipleHarenDirsError, resolveHarenDir } from "../workspace/resolve";
+import { harenDirFlag, MultipleHarenDirsError, resolveHarenDir } from "../workspace/resolve";
 import { getRemoteUrl } from "../workspace/git";
 
 function readLine(question: string): Promise<string> {
@@ -17,8 +17,34 @@ function readLine(question: string): Promise<string> {
   });
 }
 
+/**
+ * `--haren-dir <path>` can come anywhere. The subcommand is the first arg that
+ * is not a flag and not the value of --haren-dir.
+ */
+export function parseAgentArgs(args: string[]): { subcommand?: string; harenDir?: string } {
+  const harenDir = harenDirFlag(args);
+  let subcommand: string | undefined;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--haren-dir") {
+      i++;
+      continue;
+    }
+    if (args[i].startsWith("-")) continue;
+    subcommand = args[i];
+    break;
+  }
+  return { subcommand, harenDir };
+}
+
 export async function agent(args: string[]): Promise<void> {
-  const subcommand = args[0];
+  let parsed: ReturnType<typeof parseAgentArgs>;
+  try {
+    parsed = parseAgentArgs(args);
+  } catch (err) {
+    console.error((err as Error).message);
+    process.exit(1);
+  }
+  const { subcommand } = parsed;
 
   if (!subcommand || subcommand === "help") {
     console.log("Usage:");
@@ -28,11 +54,10 @@ export async function agent(args: string[]): Promise<void> {
     return;
   }
 
-  const flagIndex = args.indexOf("--haren-dir");
   let harenDir: string;
   try {
     const location = await resolveHarenDir(process.cwd(), {
-      harenDir: flagIndex !== -1 ? args[flagIndex + 1] : undefined,
+      harenDir: parsed.harenDir,
       env: process.env,
     });
     if (!location) {
