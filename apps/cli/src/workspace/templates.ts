@@ -234,7 +234,9 @@ async function main() {
   deny(message);
 }
 
-main().catch((err) => {
+// Top-level await: on Windows, Bun exits early (code 0, no output) if main() is
+// not awaited while it waits on stdin, which would allow every write.
+await main().catch((err) => {
   console.error("brainstorm-gate hook error:", err);
   process.exit(1);
 });
