@@ -1,5 +1,6 @@
 import { mkdir, writeFile, readdir, copyFile, readFile } from "fs/promises";
-import { existsSync } from "fs";
+import { existsSync, realpathSync } from "fs";
+import { homedir } from "os";
 import { basename, join, resolve } from "path";
 import { resolveContentDir } from "../lib/content-dir";
 import { writeGateScript } from "../workspace/templates";
@@ -609,6 +610,14 @@ async function runSetup(location: HarenLocation, opts: InitArgs): Promise<void> 
   }
 }
 
+function realPath(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
 export async function init(args: string[]): Promise<void> {
   let opts: InitArgs;
   try {
@@ -622,6 +631,15 @@ export async function init(args: string[]): Promise<void> {
     opts.dir?.replace(/^~(?=$|\/)/, process.env.HOME ?? "~") ?? process.cwd(),
   );
   // rootDir is created only when the plan is applied (mkdir harenDir below).
+
+  // Pressing Enter in the installer from ~ would scaffold the home folder:
+  // ~/CLAUDE.md, a hook in the global ~/.claude/settings.json, every repo under ~.
+  if (!opts.force && realPath(rootDir) === realPath(homedir())) {
+    console.error(
+      "Refusing to set up haren in your home folder. Choose a project folder, for example ~/my-project (or pass --force).",
+    );
+    process.exit(1);
+  }
 
   printBanner();
 
