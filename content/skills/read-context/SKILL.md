@@ -36,8 +36,8 @@ Orient yourself at the start of every session or before taking any action.
 5. **Git check** — for each repo in manifest `repos`, and for the haren folder itself in the workspace layout (see skill.md "Repos and Git")
    - Check for uncommitted changes: `git -C <repo> status --porcelain`
    - Read the current branch: `git -C <repo> branch --show-current`
-   - For each module that has `lastCommit.<repoKey>` for this repo: check that the recorded SHA is in the history with `git -C <repo> merge-base --is-ancestor <sha> HEAD`
-     - If it is an ancestor and HEAD moved: report "N new commits since last recorded" (`git -C <repo> rev-list --count <sha>..HEAD`)
+   - For each module that has `lastCommit.<repoKey>` for this repo: check that the recorded SHA is in the history with `git -C <repo> merge-base --is-ancestor <sha> <branch>`, where `<branch>` is the module's recorded `branch` (use `HEAD` only if the module has no `branch`)
+     - If it is an ancestor and the branch moved: report "N new commits since last recorded" (`git -C <repo> rev-list --count <sha>..<branch>`). In the monorepo layout, N can include haren-only commits
      - If it is not an ancestor: report drift
    - The key `default` in `lastCommit` means the repo that holds the haren folder (monorepo layout) or the module's first repo (workspace layout)
    - If drift is detected: warn the user. After the user agrees, update `progress.json` via update-tracking skill
@@ -53,6 +53,7 @@ Present to the user:
 Project: {name} ({mode} mode)
 Iteration: {N} of {total} ({status}) ← only if iterations enabled
 Repos: {key: branch, clean | N changed files | missing} for each repo
+Haren repo: {branch, clean | N changed files} ← workspace layout only
 
 ## Baseline Documents
 {list of files in 00-baseline/, or "None"}

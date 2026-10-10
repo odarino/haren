@@ -31,4 +31,8 @@ describe("content: read-context and update-tracking", () => {
       expect(text).toContain("`default`");
     });
   }
+  it("update-tracking tests ancestry and read-context reports the haren repo", () => {
+    expect(read("skills/update-tracking/SKILL.md")).toContain("merge-base --is-ancestor");
+    expect(read("skills/read-context/SKILL.md")).toContain("Haren repo:");
+  });
 });
