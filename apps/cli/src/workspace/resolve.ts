@@ -48,6 +48,17 @@ function location(harenDir: string, legacy: boolean): HarenLocation {
   return { harenDir, workspaceDir: dirname(harenDir), legacy };
 }
 
+/** Read `--haren-dir <path>` from command args. Throws when the path is missing. */
+export function harenDirFlag(args: string[]): string | undefined {
+  const i = args.indexOf("--haren-dir");
+  if (i === -1) return undefined;
+  const value = args[i + 1];
+  if (value === undefined || value === "" || value.startsWith("-")) {
+    throw new Error("--haren-dir needs a path");
+  }
+  return value;
+}
+
 export async function resolveHarenDir(
   cwd: string,
   opts: ResolveOptions = {},
