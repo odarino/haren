@@ -379,7 +379,7 @@ When a skill says "read the master plan" or needs full module context, it means 
 ## Rules
 
 - Always read progress.json before taking action
-- Never write outside this haren folder unless user explicitly asks
+- Write outside this haren folder only in the repos listed in \`manifest.yaml\`, and only in the implement phase (see "Repos and Git"), or when the user explicitly asks
 - Update progress.json after every phase transition
 - Append to FEEDBACK.md when you encounter framework friction
 - Validate artifacts before phase transitions (validate-artifact/ skill)

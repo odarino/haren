@@ -404,5 +404,9 @@ describe("scaffoldWorkspace", () => {
     );
     expect(skillMd).toContain("/haren-onboard");
     expect(skillMd.indexOf("## Repos and Git")).toBeLessThan(skillMd.indexOf("## Rules"));
+    expect(skillMd).toContain(
+      "Write outside this haren folder only in the repos listed in `manifest.yaml`",
+    );
+    expect(skillMd).not.toContain("Never write outside this haren folder");
   });
 });
