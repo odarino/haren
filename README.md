@@ -43,6 +43,7 @@ Everything lives in a single haren folder (`haren/` by default) you can read, di
 
 - **[Bun](https://bun.com) ≥ 1.2.21** — installed and on your `PATH`.
   haren runs on the Bun runtime; Node.js alone is not sufficient.
+  The one-line installer below installs Bun for you if it is missing.
 - An AI coding agent: **[Claude Code](https://claude.com/claude-code)** or
   **[Cursor](https://cursor.com)** (or both).
 
@@ -65,13 +66,16 @@ The script does these steps:
 1. It installs Bun with the official Bun installer if Bun is missing. The Bun
    installer can add Bun to your shell profile or your user `PATH`.
 2. It installs `@odarino/haren` with `bun add -g`.
-3. If `haren` is not on your `PATH`, it prints the line to add.
+3. If `haren` on your `PATH` is missing or is a different copy, it prints the
+   line to add. It always runs the `haren` that Bun installed.
 4. It asks for your workspace folder and runs `haren init --dir <folder>`.
+   It does not use your home folder as the workspace.
 
 Step 4 runs only when a terminal is available and `CI` is not set. In CI, or
 with no terminal, the script only installs and prints the next step.
 
-Pin a version with `HAREN_VERSION`. The default is `latest`.
+Pin a version with `HAREN_VERSION`. The default is `latest`. The `1.2.0`
+example works only after version 1.2.0 is published to npm.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/odarino/haren/main/install.sh | HAREN_VERSION=1.2.0 bash
