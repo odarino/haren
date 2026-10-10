@@ -13,8 +13,12 @@ export function readHarenVersion(candidates?: string[]): string {
   ];
   for (const path of probes) {
     if (!existsSync(path)) continue;
-    const pkg = JSON.parse(readFileSync(path, "utf-8"));
-    if (pkg.name === "@odarino/haren" && typeof pkg.version === "string") return pkg.version;
+    try {
+      const pkg = JSON.parse(readFileSync(path, "utf-8"));
+      if (pkg?.name === "@odarino/haren" && typeof pkg.version === "string") return pkg.version;
+    } catch {
+      continue;
+    }
   }
   return "0.0.0";
 }
