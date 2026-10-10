@@ -12,6 +12,9 @@ export function parseArgs(args: string[]): ParsedCommand {
 
   const command = args[0];
   const rest = args.slice(1);
+  if (rest.includes("--help") || rest.includes("-h")) {
+    return { command: "help", args: [] };
+  }
 
   switch (command) {
     case "--help":
@@ -52,7 +55,7 @@ async function main() {
       console.log(
         "                  --dir <path>  --layout monorepo|workspace  --haren-dir <name>",
       );
-      console.log("                  --yes  --dry-run  --force");
+      console.log("                  --yes|-y  --dry-run  --force");
       console.log(
         "  haren upgrade   Upgrade framework files and migrate manifest/progress (--dry-run)",
       );
@@ -66,6 +69,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err instanceof Error ? err.message : err);
+  const debug = process.env.HAREN_DEBUG === "1";
+  console.error(err instanceof Error ? (debug && err.stack) || err.message : err);
   process.exit(1);
 });
