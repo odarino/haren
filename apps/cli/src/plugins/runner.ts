@@ -36,8 +36,12 @@ async function loadPlannedTasks(
   const tasks = parseTasksFile(await readFile(path, "utf-8"));
   const progressPath = join(harenDir, "progress.json");
   if (typeof input.module !== "string" || !existsSync(progressPath)) return tasks;
-  const mod = (await readProgress(progressPath)).modules[input.module];
-  return mod ? alignTaskKeys(tasks, Object.keys(mod.features)) : tasks;
+  try {
+    const mod = (await readProgress(progressPath)).modules[input.module];
+    return mod ? alignTaskKeys(tasks, Object.keys(mod.features)) : tasks;
+  } catch {
+    return tasks;
+  }
 }
 
 export async function buildPayload(
@@ -211,7 +215,8 @@ export async function runHookAndApply(
   try {
     outcomes = await runHook(hook, input, o);
   } catch (err) {
-    return [`warning: could not run ${hook} hooks: ${(err as Error).message}`];
+    lines.push(`warning: could not run ${hook} hooks: ${(err as Error).message}`);
+    return lines;
   }
   const updates: unknown[] = [];
   for (const out of outcomes) {

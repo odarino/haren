@@ -66,4 +66,8 @@ describe("alignTaskKeys", () => {
     alignTaskKeys(tasks, ["task-2-x"]);
     expect(tasks).toEqual(copy);
   });
+  it("picks the first existing key when several share a task number", () => {
+    const out = alignTaskKeys(tasks, ["task-2-first", "task-2-second"]);
+    expect(out[1]!.key).toBe("task-2-first");
+  });
 });
