@@ -1,0 +1,7 @@
+{
+  "name": "hello",
+  "version": "0.1.0",
+  "harenApi": "1",
+  "hooks": { "session-start": "bun hooks/echo.ts" },
+  "skills": ["skills/greet"]
+}
