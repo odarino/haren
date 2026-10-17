@@ -53,3 +53,29 @@ describe("installPlugin", () => {
     );
   });
 });
+
+describe("installPlugin failure safety", () => {
+  it("leaves no folder when requirements fail", async () => {
+    const c = await ctx(true);
+    await expect(installPlugin(`file:${join(fixtures, "needs-tool")}`, c)).rejects.toThrow();
+    expect(existsSync(join(c.harenDir, ".plugins", "needs-tool"))).toBe(false);
+    expect(existsSync(join(c.harenDir, ".plugins", ".incoming"))).toBe(false);
+    expect((await readPlugins(c.harenDir)).plugins).toEqual({});
+  });
+  it("keeps the old install when a reinstall fails", async () => {
+    const c = await ctx(true);
+    const src = await mkdtemp(join(tmpdir(), "haren-src-"));
+    const manifest = (extra: object) =>
+      JSON.stringify({ name: "flaky", version: "1.0.0", harenApi: "1", ...extra });
+    await Bun.write(join(src, "haren-plugin.json"), manifest({}));
+    await installPlugin(`file:${src}`, c);
+    await Bun.write(
+      join(src, "haren-plugin.json"),
+      JSON.stringify({ name: "flaky", version: "2.0.0", harenApi: "1", setup: ["exit 3"] }),
+    );
+    await expect(installPlugin(`file:${src}`, c)).rejects.toThrow();
+    const kept = await Bun.file(join(c.harenDir, ".plugins", "flaky", "haren-plugin.json")).text();
+    expect(kept).toContain("1.0.0");
+    expect((await readPlugins(c.harenDir)).plugins.flaky.version).toBe("1.0.0");
+  });
+});
