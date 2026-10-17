@@ -123,6 +123,12 @@ The agent reads `skill.md` in the haren folder, orients itself from `manifest.ya
 
 ---
 
+## Plugins
+
+Plugins connect other tools to the haren workflow. Example: `haren init --plugin backlog` syncs haren tasks with a Backlog.md board. See [PLUGINS.md](PLUGINS.md) to install or write a plugin.
+
+---
+
 ## Layouts
 
 haren supports two project layouts. `haren init` detects which one you have.
