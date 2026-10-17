@@ -46,7 +46,16 @@ export function applyUpdates(progress: Progress, updates: unknown[]): ApplyResul
       skipped.push({ update: u, reason: `Unknown status: ${String(status)}` });
       continue;
     }
-    if (current.modules[module]?.features[feature] === status) continue;
+    if (!Object.hasOwn(current.modules, module)) {
+      skipped.push({ update: u, reason: `Unknown module: ${module}` });
+      continue;
+    }
+    const mod = current.modules[module]!;
+    if (!Object.hasOwn(mod.features, feature)) {
+      skipped.push({ update: u, reason: `Unknown feature: ${module}/${feature}` });
+      continue;
+    }
+    if (mod.features[feature] === status) continue;
     try {
       current = updateFeatureStatus(current, module, feature, status as FeatureStatus);
       applied.push({ module, feature, status: status as FeatureStatus });
