@@ -95,6 +95,7 @@ Only proceed to the next artifact after the current one is approved.
 
 1. Validate all three artifacts with validate-artifact skill
 2. Update progress.json — module status to "planned"
+3. If `plugins.json` exists in the haren folder, run `haren plugin run after-plan --payload '{"module":"<module>","tasksFile":"<path of tasks.md relative to the haren folder>"}'` and show its output lines. A warning does not block the plan
 
 ### Step 9: Iteration slicing (only if iterations enabled)
 

@@ -15,6 +15,7 @@ Update module and feature status in progress.json with validated transitions.
 2. Update the feature's status in progress.json
 3. If all features in a module are "passing", suggest module completion review
 4. Append event to events/events.jsonl
+5. If `plugins.json` exists in the haren folder, run `haren plugin run on-task-status --payload '{"module":"<module>","feature":"<feature>","status":"<new status>"}'`. Show its output lines. A warning does not undo the status change
 
 ### Update Module Status
 1. Validate the transition is allowed

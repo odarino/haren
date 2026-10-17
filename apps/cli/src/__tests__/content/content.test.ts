@@ -97,3 +97,11 @@ describe("content: qa-engineer, ideate, module template", () => {
     );
   });
 });
+
+describe("content: plugin extension points", () => {
+  it("skills call the plugin extension points", () => {
+    expect(read("skills/read-context/SKILL.md")).toContain("haren plugin run session-start");
+    expect(read("skills/plan/SKILL.md")).toContain("haren plugin run after-plan");
+    expect(read("skills/update-tracking/SKILL.md")).toContain("haren plugin run on-task-status");
+  });
+});

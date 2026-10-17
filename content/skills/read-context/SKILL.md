@@ -42,7 +42,12 @@ Orient yourself at the start of every session or before taking any action.
    - The key `default` in `lastCommit` means the repo that holds the haren folder (monorepo layout) or the module's first repo (workspace layout)
    - If drift is detected: warn the user. After the user agrees, update `progress.json` via update-tracking skill
 
-6. **Produce orientation summary**
+6. **Plugins** — only if `plugins.json` exists in the haren folder
+   - Run `haren plugin run session-start`
+   - Show each output line in the summary under "Plugins". A line `updated <module>/<feature> → <status>` means a board change was applied to progress.json
+   - A warning line does not stop the session. Suggest `haren plugin doctor`
+
+7. **Produce orientation summary**
 
 ## Output Format
 
@@ -70,6 +75,9 @@ Haren repo: {branch, clean | N changed files} ← workspace layout only
       - Master: ✓ spec.md | ✗ spec.md, ✓ design.md | ✗ design.md
       - Iteration {N}: ✓ spec.md | ✗ spec.md, ✓ design.md | ✗ design.md, ✓ tasks.md | ✗ tasks.md
 - ...
+
+## Plugins
+{output lines of `haren plugin run session-start`, or omit if there is no plugins.json}
 
 ## Suggested Next Action
 {what to do next based on current state}
