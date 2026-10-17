@@ -245,7 +245,9 @@ export async function pluginFiles(harenDir: string): Promise<FrameworkFile[]> {
     const dir = pluginDir(harenDir, plugin);
     let manifest: PluginManifest;
     try {
-      manifest = validateManifest(JSON.parse(await readFile(join(dir, "haren-plugin.json"), "utf-8")));
+      manifest = validateManifest(
+        JSON.parse(await readFile(join(dir, "haren-plugin.json"), "utf-8")),
+      );
     } catch {
       continue;
     }
@@ -268,7 +270,11 @@ export async function pluginFiles(harenDir: string): Promise<FrameworkFile[]> {
       const text = await readOrNull(join(dir, agent));
       if (text === null) continue;
       const name = prefixed(frontmatterName(text) ?? basename(agent, ".md"));
-      files.push({ path: `agents/${name}.md`, content: withFrontmatterName(text, name), group: "agents" });
+      files.push({
+        path: `agents/${name}.md`,
+        content: withFrontmatterName(text, name),
+        group: "agents",
+      });
     }
   }
   return files.sort((x, y) => x.path.localeCompare(y.path));
