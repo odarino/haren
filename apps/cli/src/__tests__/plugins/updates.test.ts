@@ -51,4 +51,21 @@ describe("applyUpdates", () => {
     expect(r.applied).toHaveLength(0);
     expect(r.skipped).toHaveLength(0);
   });
+  it("skips inherited prototype keys without throwing", () => {
+    const r = applyUpdates(progress, [
+      { module: "constructor", feature: "a", status: "pending" },
+      { module: "__proto__", feature: "a", status: "pending" },
+    ]);
+    expect(r.applied).toHaveLength(0);
+    expect(r.skipped).toHaveLength(2);
+    expect(r.skipped[0]!.reason).toContain("Unknown module");
+  });
+  it("skips an unknown feature with a clear reason", () => {
+    const r = applyUpdates(progress, [
+      { module: "checkout", feature: "constructor", status: "pending" },
+      { module: "checkout", feature: "missing", status: "pending" },
+    ]);
+    expect(r.skipped).toHaveLength(2);
+    expect(r.skipped[0]!.reason).toContain("Unknown feature");
+  });
 });
