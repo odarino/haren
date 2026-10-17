@@ -296,4 +296,27 @@ describe("haren init flow", () => {
       expect(r.err).toContain("--haren-dir needs a path");
     }
   });
+
+  it("installs a plugin passed with --plugin", async () => {
+    const hello = resolve(import.meta.dir, "..", "plugins", "fixtures", "hello");
+    const r = await haren([
+      "init",
+      "--yes",
+      "--plugin",
+      `file:${hello}`,
+      "--editor",
+      "claude-code",
+    ]);
+    expect(r.code).toBe(0);
+    const state = JSON.parse(await readFile(join(ws, "haren", "plugins.json"), "utf-8"));
+    expect(state.plugins.hello).toBeDefined();
+    expect(existsSync(join(ws, ".claude", "skills", "hello-greet", "SKILL.md"))).toBe(true);
+  });
+
+  it("keeps going when a plugin fails to install", async () => {
+    const r = await haren(["init", "--yes", "--plugin", "nope"]);
+    expect(r.code).toBe(0);
+    expect(r.err).toContain("plugin nope");
+    expect(existsSync(join(ws, "haren", "manifest.yaml"))).toBe(true);
+  });
 });

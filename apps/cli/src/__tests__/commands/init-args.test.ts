@@ -1,5 +1,11 @@
 import { describe, it, expect } from "bun:test";
-import { parseInitArgs, listRows, moveSelection, parseRepoSelection, parseSelectKeys } from "../../commands/init";
+import {
+  parseInitArgs,
+  listRows,
+  moveSelection,
+  parseRepoSelection,
+  parseSelectKeys,
+} from "../../commands/init";
 
 describe("parseInitArgs", () => {
   it("parses new flags", () => {
@@ -98,5 +104,17 @@ describe("listRows", () => {
   });
   it("assumes no wrap when the width is unknown", () => {
     expect(listRows(["x".repeat(500)], undefined)).toBe(1);
+  });
+
+  it("collects repeated --plugin flags", () => {
+    expect(parseInitArgs(["--plugin", "backlog", "--plugin", "file:./p"]).plugins).toEqual([
+      "backlog",
+      "file:./p",
+    ]);
+    expect(parseInitArgs([]).plugins).toEqual([]);
+  });
+
+  it("rejects --plugin without a value", () => {
+    expect(() => parseInitArgs(["--plugin"])).toThrow("--plugin needs a name or source");
   });
 });
