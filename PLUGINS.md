@@ -58,13 +58,17 @@ my-plugin/
 | `after-plan` | `plan` skill, after the plan is final | `{ "hook", "module", "tasksFile", "tasks": [{ "key", "number", "title", "description", "dependencies" }] }` |
 | `on-task-status` | `update-tracking` skill | `{ "hook", "module", "feature", "status" }` |
 
+`after-plan` sends `tasksFile` as an absolute path.
+
 Rules for a hook:
 
 - Read the payload as JSON from stdin.
 - Print one JSON object to stdout: `{ "messages"?: string[], "updates"?: Update[] }`.
 - Exit with code 0 on success.
 - Finish in 30 seconds. After that, haren stops the hook.
-- Read these environment variables: `HAREN_ROOT`, `HAREN_DIR`, `HAREN_PLUGIN_DIR`, `HAREN_PLUGIN_CONFIG` (JSON).
+- Read these environment variables: `HAREN_ROOT`, `HAREN_DIR`, `HAREN_PLUGIN_DIR`, `HAREN_PLUGIN_DATA`, `HAREN_PLUGIN_CONFIG` (JSON).
+
+`HAREN_PLUGIN_DATA` is a folder for plugin state. haren keeps it when it upgrades or removes the plugin.
 
 haren prints each message as `[<plugin>] <message>`.
 

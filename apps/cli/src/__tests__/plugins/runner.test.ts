@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { existsSync } from "fs";
 import { cp, mkdir, mkdtemp, readFile, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -61,6 +62,8 @@ describe("runHook", () => {
     const lines = await runHookAndApply("session-start", {}, ws);
     expect(lines.join("\n")).toContain('config={"k":1}');
     expect(lines.join("\n")).toContain("hook=session-start");
+    expect(lines.join("\n")).toContain(`data=${join(ws.harenDir, ".plugin-data", "updater")}`);
+    expect(existsSync(join(ws.harenDir, ".plugin-data", "updater"))).toBe(true);
     const progress = JSON.parse(await readFile(join(ws.harenDir, "progress.json"), "utf-8"));
     expect(progress.modules.checkout.features["task-1-add-cart-api"]).toBe("in-progress");
   });

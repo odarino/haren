@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { existsSync } from "fs";
-import { mkdir, mkdtemp } from "fs/promises";
+import { mkdir, mkdtemp, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
@@ -51,6 +51,15 @@ describe("installPlugin", () => {
     await removePlugin("hello", c);
     expect(existsSync(join(c.harenDir, ".plugins", "hello"))).toBe(false);
     expect((await readPlugins(c.harenDir)).plugins).toEqual({});
+  });
+  it("keeps the plugin data folder on remove", async () => {
+    const c = await ctx(true);
+    await installPlugin(`file:${join(fixtures, "hello")}`, c);
+    const data = join(c.harenDir, ".plugin-data", "hello");
+    await mkdir(data, { recursive: true });
+    await writeFile(join(data, "state.json"), "{}");
+    await removePlugin("hello", c);
+    expect(existsSync(join(data, "state.json"))).toBe(true);
   });
   it("fails when a required bin is missing and has no install command", async () => {
     const c = await ctx(true);
@@ -121,6 +130,15 @@ describe("refreshPlugins", () => {
     expect(existsSync(join(c.harenDir, ".plugins", "other"))).toBe(false);
     expect(existsSync(join(c.harenDir, ".plugins", ".incoming"))).toBe(false);
     expect((await readPlugins(c.harenDir)).plugins.renamer.version).toBe("1.0.0");
+  });
+  it("keeps the plugin data folder on refresh", async () => {
+    const c = await ctx(true);
+    await installPlugin(`file:${join(fixtures, "hello")}`, c);
+    const data = join(c.harenDir, ".plugin-data", "hello");
+    await mkdir(data, { recursive: true });
+    await writeFile(join(data, "state.json"), "{}");
+    await refreshPlugins(c);
+    expect(existsSync(join(data, "state.json"))).toBe(true);
   });
 });
 

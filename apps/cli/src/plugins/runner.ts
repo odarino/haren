@@ -1,9 +1,9 @@
 import { existsSync } from "fs";
-import { appendFile, readFile } from "fs/promises";
+import { appendFile, mkdir, readFile } from "fs/promises";
 import { isAbsolute, join } from "path";
 import { readProgress, writeProgress } from "../workspace/progress";
 import { type HookName, validateManifest } from "./manifest";
-import { pluginDir, readPlugins } from "./state";
+import { pluginDataDir, pluginDir, readPlugins } from "./state";
 import { parseTasksFile } from "./tasks";
 import { applyUpdates } from "./updates";
 
@@ -75,6 +75,8 @@ export async function runHook(
     let stderr: string;
     let code: number;
     try {
+      const dataDir = pluginDataDir(o.harenDir, name);
+      await mkdir(dataDir, { recursive: true });
       const proc = Bun.spawn(["sh", "-c", command], {
         cwd: dir,
         stdin: new Blob([payload]),
@@ -86,6 +88,7 @@ export async function runHook(
           HAREN_ROOT: o.workspaceDir,
           HAREN_DIR: o.harenDir,
           HAREN_PLUGIN_DIR: dir,
+          HAREN_PLUGIN_DATA: dataDir,
           HAREN_PLUGIN_CONFIG: JSON.stringify(config),
         },
       });
