@@ -27,6 +27,7 @@ import {
   type Editor,
   writeRootFiles,
 } from "../workspace/root-files";
+import { refreshPlugins } from "../plugins/install";
 import { GATE_SCRIPT_PATH, writeGateScript } from "../workspace/templates";
 
 export interface MigrationPlan {
@@ -277,6 +278,13 @@ export async function upgrade(args: string[]): Promise<void> {
   if (migration.gitignore !== null) {
     await writeFile(join(targetDir, ".gitignore"), migration.gitignore);
   }
+  const pluginWarnings = await refreshPlugins({
+    workspaceDir: location.workspaceDir,
+    harenDir: targetDir,
+    project: "",
+    io: { confirm: async () => false, log: (l) => console.log(`  ${l}`) },
+  });
+  for (const w of pluginWarnings) console.warn(`  \x1b[33m!\x1b[0m ${w}`);
   await writeRootFiles({
     workspaceDir: location.workspaceDir,
     harenDir: targetDir,

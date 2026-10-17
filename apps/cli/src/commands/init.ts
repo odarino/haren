@@ -19,6 +19,8 @@ import { cloneRepo, gitInit, hasGitDir } from "../workspace/git";
 import type { HarenLocation } from "../workspace/resolve";
 import { PROGRESS_VERSION } from "../workspace/progress";
 import { HAREN_VERSION } from "../lib/version";
+import { installPlugin } from "../plugins/install";
+import { REGISTRY } from "../plugins/registry";
 
 type Mode = "blueprint" | "explore" | "inherit" | "undecided";
 
@@ -37,6 +39,8 @@ interface InitOptions {
   editor?: Editor;
   layout?: Layout;
   repos?: Record<string, RepoEntry>;
+  /** Runs after the framework files are copied and before the root files are written. */
+  beforeRootFiles?: () => Promise<void>;
 }
 
 const MODES = ["blueprint", "explore", "inherit", "undecided"] as const;
@@ -142,7 +146,11 @@ async function promptSelect(
         if (key === "enter") return finish(false);
         index = moveSelection(index, key, options.length);
         // Go back to the first option row and draw the list again.
-        const up = listRows(options.map((_, i) => line(i)), out.columns) - 1;
+        const up =
+          listRows(
+            options.map((_, i) => line(i)),
+            out.columns,
+          ) - 1;
         if (up > 0) out.write(`\x1b[${up}A`);
         draw();
       }
@@ -336,6 +344,8 @@ Master registry of all artifacts in this Haren workspace.
   await copyRecursive(join(contentDir, "skills"), join(targetDir, "skills"));
   await copyRecursive(join(contentDir, "templates"), join(targetDir, "templates"));
 
+  await options.beforeRootFiles?.();
+
   await writeRootFiles({
     workspaceDir: resolve(targetDir, ".."),
     harenDir: targetDir,
@@ -471,6 +481,7 @@ export interface InitArgs {
   harenDir?: string;
   yes: boolean;
   dryRun: boolean;
+  plugins: string[];
 }
 
 export function parseInitArgs(args: string[]): InitArgs {
@@ -478,6 +489,7 @@ export function parseInitArgs(args: string[]): InitArgs {
     force: args.includes("--force"),
     yes: args.includes("--yes") || args.includes("-y"),
     dryRun: args.includes("--dry-run"),
+    plugins: [],
   };
   for (let i = 0; i < args.length; i++) {
     const value = args[i + 1];
@@ -499,6 +511,13 @@ export function parseInitArgs(args: string[]): InitArgs {
           throw new Error("--haren-dir needs a path");
         }
         out.harenDir = value;
+        i++;
+        break;
+      case "--plugin":
+        if (value === undefined || value === "" || value.startsWith("-")) {
+          throw new Error("--plugin needs a name or source");
+        }
+        out.plugins.push(value);
         i++;
         break;
       case "--mode":
@@ -565,6 +584,41 @@ export async function applyClones(plan: Plan, rootDir: string): Promise<string[]
 
 function canPrompt(opts: InitArgs): boolean {
   return !opts.yes && process.stdin.isTTY === true;
+}
+
+async function setupPlugins(
+  opts: InitArgs,
+  workspaceDir: string,
+  harenDir: string,
+  project: string,
+): Promise<void> {
+  let refs = opts.plugins;
+  if (refs.length === 0 && canPrompt(opts) && REGISTRY.length > 0) {
+    const picked = await promptMultiSelect(
+      "Install plugins?",
+      REGISTRY.map((e) => `${e.name.padEnd(12)} ${e.description}`),
+      [],
+    );
+    refs = picked.map((i) => REGISTRY[i].name);
+  }
+  for (const ref of refs) {
+    try {
+      await installPlugin(ref, {
+        workspaceDir,
+        harenDir,
+        project,
+        io: {
+          confirm: async (q) => {
+            console.log(`  ${q}`);
+            return opts.yes || (canPrompt(opts) && (await promptConfirm(false)) === "yes");
+          },
+          log: (l) => console.log(`  ${l}`),
+        },
+      });
+    } catch (err) {
+      console.error(`  \x1b[31m✗\x1b[0m plugin ${ref}: ${(err as Error).message}`);
+    }
+  }
 }
 
 async function confirmOrExit(opts: InitArgs, allowEdit: boolean): Promise<"yes" | "no" | "edit"> {
@@ -657,7 +711,7 @@ async function runSetup(location: HarenLocation, opts: InitArgs): Promise<void> 
     editor,
   });
   console.log(`  Found haren folder: ${location.harenDir}`);
-  if (isNoop(plan)) {
+  if (isNoop(plan) && opts.plugins.length === 0) {
     console.log("  Already set up. Run 'haren upgrade' to update framework files.");
     return;
   }
@@ -668,6 +722,7 @@ async function runSetup(location: HarenLocation, opts: InitArgs): Promise<void> 
   if ((await confirmOrExit(opts, false)) === "no") return;
 
   const failed = await applyClones(plan, location.workspaceDir);
+  await setupPlugins(opts, location.workspaceDir, location.harenDir, manifest.project ?? "");
   await writeRootFiles({
     workspaceDir: location.workspaceDir,
     harenDir: location.harenDir,
@@ -887,6 +942,7 @@ export async function init(args: string[]): Promise<void> {
       editor,
       layout,
       repos,
+      beforeRootFiles: () => setupPlugins(opts, rootDir, harenDir, project),
     });
     if (layout === "workspace" && !hasGitDir(harenDir)) {
       const result = await gitInit(harenDir);

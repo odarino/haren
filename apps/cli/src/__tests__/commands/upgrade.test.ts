@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, mkdir, rm, writeFile, readFile } from "fs/promises";
+import { mkdtemp, mkdir, rm, writeFile, readFile, cp } from "fs/promises";
 import { join, resolve } from "path";
 import { tmpdir } from "os";
 import { gitInit, runGit } from "../../workspace/git";
@@ -242,5 +242,24 @@ describe("haren upgrade", () => {
     const proc = Bun.spawn(["bun", CLI, "upgrade"], { cwd: ws, stdout: "pipe", stderr: "pipe" });
     expect(await proc.exited).toBe(0);
     expect(await readFile(gate, "utf-8")).toBe(brainstormGateScript);
+  });
+
+  it("refreshes installed plugins", async () => {
+    const copy = join(ws, "hello-src");
+    await cp(resolve(import.meta.dir, "..", "plugins", "fixtures", "hello"), copy, {
+      recursive: true,
+    });
+    const run = async (args: string[]) => {
+      const proc = Bun.spawn(["bun", CLI, ...args], { cwd: ws, stdout: "pipe", stderr: "pipe" });
+      await new Response(proc.stdout).text();
+      return proc.exited;
+    };
+    expect(await run(["init", "--yes", "--plugin", `file:${copy}`])).toBe(0);
+    const manifestPath = join(copy, "haren-plugin.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf-8"));
+    await writeFile(manifestPath, JSON.stringify({ ...manifest, version: "0.2.0" }));
+    expect(await run(["upgrade"])).toBe(0);
+    const state = JSON.parse(await readFile(join(ws, "haren", "plugins.json"), "utf-8"));
+    expect(state.plugins.hello.version).toBe("0.2.0");
   });
 });
