@@ -1,0 +1,6 @@
+{
+  "name": "planecho",
+  "version": "0.0.1",
+  "harenApi": "1",
+  "hooks": { "after-plan": "bun hook.ts" }
+}

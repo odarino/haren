@@ -40,3 +40,20 @@ export function parseTasksFile(text: string): PlannedTask[] {
     };
   });
 }
+
+/**
+ * Replace each computed task key with an existing feature key that has the same task number
+ * (`task-<N>-...`). The agent may slugify differently than the CLI. Dependencies follow the aligned keys.
+ */
+export function alignTaskKeys(tasks: PlannedTask[], existing: string[]): PlannedTask[] {
+  const aligned = new Map<string, string>();
+  for (const t of tasks) {
+    const found = existing.find((k) => k.startsWith(`task-${t.number}-`));
+    aligned.set(t.key, found ?? t.key);
+  }
+  return tasks.map((t) => ({
+    ...t,
+    key: aligned.get(t.key)!,
+    dependencies: t.dependencies.map((d) => aligned.get(d) ?? d),
+  }));
+}

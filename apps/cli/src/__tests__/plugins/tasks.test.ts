@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { parseTasksFile, slugify } from "../../plugins/tasks";
+import { alignTaskKeys, parseTasksFile, slugify } from "../../plugins/tasks";
 
 const text = `---
 module: checkout
@@ -42,5 +42,28 @@ describe("parseTasksFile", () => {
         dependencies: ["task-1-add-cart-api"],
       },
     ]);
+  });
+});
+
+describe("alignTaskKeys", () => {
+  const tasks = parseTasksFile(text);
+  it("keeps computed keys when nothing exists", () => {
+    expect(alignTaskKeys(tasks, [])).toEqual(tasks);
+  });
+  it("uses the existing key with the same task number and fixes dependencies", () => {
+    const out = alignTaskKeys(tasks, ["task-1-add-the-cart-api", "task-2-cart-ui-and-totals"]);
+    expect(out.map((t) => t.key)).toEqual(["task-1-add-the-cart-api", "task-2-cart-ui-and-totals"]);
+    expect(out[1]!.dependencies).toEqual(["task-1-add-the-cart-api"]);
+  });
+  it("does not match task-1 against task-10", () => {
+    expect(alignTaskKeys(tasks, ["task-10-other"]).map((t) => t.key)).toEqual([
+      "task-1-add-cart-api",
+      "task-2-cart-ui-totals",
+    ]);
+  });
+  it("does not mutate the input", () => {
+    const copy = structuredClone(tasks);
+    alignTaskKeys(tasks, ["task-2-x"]);
+    expect(tasks).toEqual(copy);
   });
 });

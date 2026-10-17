@@ -41,7 +41,9 @@ async function workspace(names: string[]): Promise<{ workspaceDir: string; haren
 describe("runHook", () => {
   it("returns no outcomes without plugins.json", async () => {
     const dir = await mkdtemp(join(tmpdir(), "haren-run-"));
-    expect(await runHook("session-start", {}, { workspaceDir: dir, harenDir: join(dir, "haren") })).toEqual([]);
+    expect(
+      await runHook("session-start", {}, { workspaceDir: dir, harenDir: join(dir, "haren") }),
+    ).toEqual([]);
   });
   it("reports a failing, slow, and bad-json hook without throwing", async () => {
     const ws = await workspace(["fail", "slow", "badjson"]);
@@ -71,7 +73,9 @@ describe("runHook", () => {
     const ws = await workspace(["updater"]);
     await writePlugins(ws.harenDir, {
       version: 1,
-      plugins: { updater: { source: "file:updater", version: "0.0.1", enabled: false, config: {} } },
+      plugins: {
+        updater: { source: "file:updater", version: "0.0.1", enabled: false, config: {} },
+      },
     });
     expect(await runHook("session-start", {}, ws)).toEqual([]);
   });
@@ -88,5 +92,42 @@ describe("runHook", () => {
     await writeFile(join(ws.harenDir, "progress.json"), "{not json");
     const lines = await runHookAndApply("session-start", {}, ws);
     expect(lines.join("\n")).toContain("warning: could not apply plugin updates:");
+  });
+  describe("after-plan key alignment", () => {
+    const tasksMd =
+      "## Task 1: Add cart API\n\n**Description:** a\n**Dependencies:** none\n\n## Task 2: Cart UI & totals\n\n**Description:** b\n**Dependencies:** Task 1\n\n## Task 3: Pay\n\n**Description:** c\n**Dependencies:** Task 2\n";
+    it("uses the existing feature key and adds missing tasks as pending", async () => {
+      const ws = await workspace(["planecho"]);
+      const pPath = join(ws.harenDir, "progress.json");
+      const prog = JSON.parse(await readFile(pPath, "utf-8"));
+      prog.modules.checkout.features = {
+        "task-1-add-cart-api": "passing",
+        "task-2-cart-ui-and-totals": "in-progress",
+      };
+      await writeFile(pPath, JSON.stringify(prog));
+      await mkdir(join(ws.harenDir, "plans"), { recursive: true });
+      await writeFile(join(ws.harenDir, "plans", "tasks.md"), tasksMd);
+      const lines = await runHookAndApply(
+        "after-plan",
+        { module: "checkout", tasksFile: "plans/tasks.md" },
+        ws,
+      );
+      expect(lines.join("\n")).toContain(
+        "keys=task-1-add-cart-api,task-2-cart-ui-and-totals,task-3-pay",
+      );
+      const after = JSON.parse(await readFile(pPath, "utf-8"));
+      expect(after.modules.checkout.features).toEqual({
+        "task-1-add-cart-api": "passing",
+        "task-2-cart-ui-and-totals": "in-progress",
+        "task-3-pay": "pending",
+      });
+    });
+    it("never creates a module", async () => {
+      const ws = await workspace(["planecho"]);
+      await writeFile(join(ws.harenDir, "tasks.md"), tasksMd);
+      await runHookAndApply("after-plan", { module: "ghost", tasksFile: "tasks.md" }, ws);
+      const after = JSON.parse(await readFile(join(ws.harenDir, "progress.json"), "utf-8"));
+      expect(Object.keys(after.modules)).toEqual(["checkout"]);
+    });
   });
 });

@@ -38,27 +38,31 @@ my-plugin/
 
 ## `haren-plugin.json`
 
-| Field | Required | Notes |
-|---|---|---|
-| `name` | yes | kebab-case |
-| `version` | git and file: yes. npm: no | npm takes the version from `package.json`. A different value fails. |
-| `harenApi` | yes | `"1"` |
-| `description` | no | |
-| `requires` | no | `[{ "bin", "version"?: semver range, "install"?: command }]` |
-| `setup` | no | Commands that run once in the project root. `{{project}}` is the project name. |
-| `hooks` | no | `{ "<hook>": "<command>" }`. The command runs in the plugin folder. |
-| `config` | no | Default values. Users override them in `haren/plugins.json`. |
-| `skills`, `agents` | no | Paths. haren copies them to `.claude/` and `.cursor/` with the prefix `<name>-`. |
+| Field              | Required                   | Notes                                                                            |
+| ------------------ | -------------------------- | -------------------------------------------------------------------------------- |
+| `name`             | yes                        | kebab-case                                                                       |
+| `version`          | git and file: yes. npm: no | npm takes the version from `package.json`. A different value fails.              |
+| `harenApi`         | yes                        | `"1"`                                                                            |
+| `description`      | no                         |                                                                                  |
+| `requires`         | no                         | `[{ "bin", "version"?: semver range, "install"?: command }]`                     |
+| `setup`            | no                         | Commands that run once in the project root. `{{project}}` is the project name.   |
+| `hooks`            | no                         | `{ "<hook>": "<command>" }`. The command runs in the plugin folder.              |
+| `config`           | no                         | Default values. Users override them in `haren/plugins.json`.                     |
+| `skills`, `agents` | no                         | Paths. haren copies them to `.claude/` and `.cursor/` with the prefix `<name>-`. |
 
 ## Hooks
 
-| Hook | When | Payload |
-|---|---|---|
-| `session-start` | `read-context` skill | `{ "hook" }` |
-| `after-plan` | `plan` skill, after the plan is final | `{ "hook", "module", "tasksFile", "tasks": [{ "key", "number", "title", "description", "dependencies" }] }` |
-| `on-task-status` | `update-tracking` skill | `{ "hook", "module", "feature", "status" }` |
+| Hook             | When                                  | Payload                                                                                                     |
+| ---------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `session-start`  | `read-context` skill                  | `{ "hook" }`                                                                                                |
+| `after-plan`     | `plan` skill, after the plan is final | `{ "hook", "module", "tasksFile", "tasks": [{ "key", "number", "title", "description", "dependencies" }] }` |
+| `on-task-status` | `update-tracking` skill               | `{ "hook", "module", "feature", "status" }`                                                                 |
 
 `after-plan` sends `tasksFile` as an absolute path.
+
+The task `key` is the feature key in `progress.json`. Use it in `on-task-status` updates.
+If the module has a feature with the same task number, haren sends that key.
+haren adds each missing task to `progress.json` as `pending` before it runs the hooks.
 
 Rules for a hook:
 
