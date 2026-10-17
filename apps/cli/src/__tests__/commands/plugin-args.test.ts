@@ -26,3 +26,21 @@ describe("parsePluginArgs", () => {
     );
   });
 });
+
+describe("haren plugin run outside a haren folder", () => {
+  it("exits 0 with a warning", async () => {
+    const { mkdtemp } = await import("fs/promises");
+    const { tmpdir } = await import("os");
+    const { join } = await import("path");
+    const cwd = await mkdtemp(join(tmpdir(), "haren-run-"));
+    const env = { ...process.env };
+    delete env.HAREN_DIR;
+    const proc = Bun.spawn(
+      ["bun", join(import.meta.dir, "../../index.ts"), "plugin", "run", "session-start"],
+      { cwd, env, stdout: "pipe", stderr: "pipe" },
+    );
+    const out = await new Response(proc.stdout).text();
+    expect(await proc.exited).toBe(0);
+    expect(out).toContain("warning: plugin hook session-start skipped");
+  });
+});

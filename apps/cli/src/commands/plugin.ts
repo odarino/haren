@@ -71,6 +71,25 @@ export async function plugin(args: string[]): Promise<void> {
     console.error(`  ${(err as Error).message}`);
     process.exit(1);
   }
+  if (opts.sub === "run") {
+    // run never fails the caller: any setup problem becomes a warning.
+    try {
+      const loc = await resolveHarenDir(process.cwd(), {
+        harenDir: harenDirFlag(args),
+        env: process.env,
+      });
+      if (!loc) throw new Error("No haren folder found");
+      for (const line of await runHookAndApply(opts.target as HookName, opts.payload, {
+        workspaceDir: loc.workspaceDir,
+        harenDir: loc.harenDir,
+      })) {
+        console.log(`  ${line}`);
+      }
+    } catch (err) {
+      console.log(`  warning: plugin hook ${opts.target} skipped: ${(err as Error).message}`);
+    }
+    return;
+  }
   let location;
   try {
     location = await resolveHarenDir(process.cwd(), {
@@ -121,18 +140,6 @@ export async function plugin(args: string[]): Promise<void> {
       }
       return;
     }
-    case "run":
-      try {
-        for (const line of await runHookAndApply(opts.target as HookName, opts.payload, {
-          workspaceDir,
-          harenDir,
-        })) {
-          console.log(`  ${line}`);
-        }
-      } catch (err) {
-        console.log(`  warning: plugin hook ${opts.target} failed: ${(err as Error).message}`);
-      }
-      return; // always exit 0
     case "doctor": {
       const state = await readPlugins(harenDir);
       for (const name of Object.keys(state.plugins)) {

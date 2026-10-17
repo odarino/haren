@@ -27,16 +27,26 @@ async function sh(command: string, cwd: string): Promise<void> {
     throw new Error(`"${command}" failed: ${stderr.trim().split("\n").pop() ?? `exit ${code}`}`);
 }
 
+const incomingDir = (ctx: InstallContext) => pluginDir(ctx.harenDir, ".incoming");
+
+async function stage(source: string, ctx: InstallContext): Promise<PluginManifest> {
+  await rm(incomingDir(ctx), { recursive: true, force: true });
+  return fetchPlugin(source, incomingDir(ctx), ctx.workspaceDir);
+}
+
+async function commit(manifest: PluginManifest, ctx: InstallContext): Promise<void> {
+  const dest = pluginDir(ctx.harenDir, manifest.name);
+  await rm(dest, { recursive: true, force: true });
+  await rename(incomingDir(ctx), dest);
+}
+
 async function fetchInto(source: string, ctx: InstallContext): Promise<PluginManifest> {
-  const incoming = pluginDir(ctx.harenDir, ".incoming");
   try {
-    const manifest = await fetchPlugin(source, incoming, ctx.workspaceDir);
-    const dest = pluginDir(ctx.harenDir, manifest.name);
-    await rm(dest, { recursive: true, force: true });
-    await rename(incoming, dest);
+    const manifest = await stage(source, ctx);
+    await commit(manifest, ctx);
     return manifest;
   } finally {
-    await rm(incoming, { recursive: true, force: true });
+    await rm(incomingDir(ctx), { recursive: true, force: true });
   }
 }
 
@@ -48,19 +58,24 @@ export async function installPlugin(ref: string, ctx: InstallContext): Promise<P
     );
     if (!(await ctx.io.confirm("Install it?"))) throw new Error("Plugin install cancelled");
   }
-  const manifest = await fetchInto(source, ctx);
-
-  for (const req of manifest.requires) {
-    let status = await checkRequirement(req, ctx.env);
-    if (!status.ok && req.install && (await ctx.io.confirm(`Run "${req.install}"?`))) {
-      await sh(req.install, ctx.workspaceDir);
-      status = await checkRequirement(req, ctx.env);
+  const manifest = await stage(source, ctx);
+  try {
+    for (const req of manifest.requires) {
+      let status = await checkRequirement(req, ctx.env);
+      if (!status.ok && req.install && (await ctx.io.confirm(`Run "${req.install}"?`))) {
+        await sh(req.install, ctx.workspaceDir);
+        status = await checkRequirement(req, ctx.env);
+      }
+      if (!status.ok) throw new Error(`${req.bin} is required: ${status.reason}`);
     }
-    if (!status.ok) throw new Error(`${req.bin} is required: ${status.reason}`);
-  }
 
-  for (const command of manifest.setup) {
-    await sh(command.replaceAll("{{project}}", ctx.project), ctx.workspaceDir);
+    for (const command of manifest.setup) {
+      await sh(command.replaceAll("{{project}}", ctx.project), ctx.workspaceDir);
+    }
+
+    await commit(manifest, ctx);
+  } finally {
+    await rm(incomingDir(ctx), { recursive: true, force: true });
   }
 
   const state = await readPlugins(ctx.harenDir);
