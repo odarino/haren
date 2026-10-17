@@ -22,6 +22,10 @@ export function pluginDir(harenDir: string, name: string): string {
   return join(harenDir, ".plugins", name);
 }
 
+export function pluginDataDir(harenDir: string, name: string): string {
+  return join(harenDir, ".plugin-data", name);
+}
+
 export async function readPlugins(harenDir: string): Promise<PluginsFile> {
   const path = pluginsPath(harenDir);
   if (!existsSync(path)) return { version: 1, plugins: {} };
