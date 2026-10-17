@@ -123,3 +123,21 @@ describe("refreshPlugins", () => {
     expect((await readPlugins(c.harenDir)).plugins.renamer.version).toBe("1.0.0");
   });
 });
+
+describe("removeEditorCopies containment", () => {
+  it("does not delete outside the editor group folder", async () => {
+    const c = await ctx(true);
+    const victim = join(c.workspaceDir, ".claude", "keep.txt");
+    await mkdir(join(c.workspaceDir, ".claude"), { recursive: true });
+    await Bun.write(victim, "x");
+    const outer = join(c.workspaceDir, "..", "outside-victim.md");
+    await Bun.write(outer, "x");
+    await removeEditorCopies(c.workspaceDir, [
+      { path: "agents/../../keep.txt" },
+      { path: "agents/../../../outside-victim.md" },
+      { path: "skills/../../keep.txt/SKILL.md" },
+    ]);
+    expect(existsSync(victim)).toBe(true);
+    expect(existsSync(outer)).toBe(true);
+  });
+});

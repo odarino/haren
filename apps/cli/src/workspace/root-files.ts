@@ -1,6 +1,6 @@
 import { existsSync } from "fs";
 import { mkdir, readdir, readFile, writeFile } from "fs/promises";
-import { basename, dirname, join, relative, sep } from "path";
+import { basename, dirname, join, relative, resolve, sep } from "path";
 import { resolveContentDir } from "../lib/content-dir";
 import { type PluginManifest, validateManifest } from "../plugins/manifest";
 import { pluginDir, readPlugins } from "../plugins/state";
@@ -252,11 +252,13 @@ export async function pluginFiles(harenDir: string, only?: string): Promise<Fram
       continue;
     }
     const prefixed = (n: string) => (n.startsWith(`${plugin}-`) ? n : `${plugin}-${n}`);
+    const safeName = (n: string) => /^[A-Za-z0-9._-]+$/.test(n) && !n.includes("..");
     for (const skill of manifest.skills) {
       const skillDir = join(dir, skill);
       const main = await readOrNull(join(skillDir, "SKILL.md"));
       if (main === null) continue;
       const name = prefixed(frontmatterName(main) ?? basename(skillDir));
+      if (!safeName(name)) continue;
       for (const rel of await listFiles(skillDir)) {
         const text = await readFile(join(skillDir, rel), "utf-8");
         files.push({
@@ -270,6 +272,7 @@ export async function pluginFiles(harenDir: string, only?: string): Promise<Fram
       const text = await readOrNull(join(dir, agent));
       if (text === null) continue;
       const name = prefixed(frontmatterName(text) ?? basename(agent, ".md"));
+      if (!safeName(name)) continue;
       files.push({
         path: `agents/${name}.md`,
         content: withFrontmatterName(text, name),
@@ -368,10 +371,22 @@ export function summarizeRootFiles(files: RootFile[]): (RootFile & { count?: num
   return out;
 }
 
+/** True when `path` (relative to the workspace) stays inside .claude, .cursor, or is a known root file. */
+export function isSafeRootPath(workspaceDir: string, path: string): boolean {
+  const abs = resolve(workspaceDir, path);
+  const root = resolve(workspaceDir);
+  if (abs === join(root, "CLAUDE.md") || abs === join(root, ".cursorrules")) return true;
+  return [".claude", ".cursor"].some((d) => abs.startsWith(join(root, d) + sep));
+}
+
 export async function writeRootFiles(o: RootFilesOptions): Promise<RootFile[]> {
   const files = await computeRootFiles(o);
   for (const file of files) {
     if (!file.changed) continue;
+    if (!isSafeRootPath(o.workspaceDir, file.path)) {
+      console.warn(`  skipped unsafe path: ${file.path}`);
+      continue;
+    }
     const abs = join(o.workspaceDir, file.path);
     await mkdir(dirname(abs), { recursive: true });
     await writeFile(abs, file.content);

@@ -1,5 +1,5 @@
 import { rename, rm } from "fs/promises";
-import { join } from "path";
+import { join, resolve, sep } from "path";
 import type { PluginManifest } from "./manifest";
 import { resolvePluginRef } from "./registry";
 import { checkRequirement } from "./requires";
@@ -100,7 +100,10 @@ export async function removeEditorCopies(
   }
   for (const editor of [".claude", ".cursor"]) {
     for (const t of targets) {
-      await rm(join(workspaceDir, editor, t), { recursive: true, force: true });
+      const group = t.split("/")[0]!;
+      const abs = resolve(workspaceDir, editor, t);
+      if (!abs.startsWith(resolve(workspaceDir, editor, group) + sep)) continue;
+      await rm(abs, { recursive: true, force: true });
     }
   }
 }
