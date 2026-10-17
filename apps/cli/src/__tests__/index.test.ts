@@ -62,6 +62,10 @@ describe("parseArgs", () => {
     });
   });
 
+  it("routes plugin", () => {
+    expect(parseArgs(["plugin", "list"])).toEqual({ command: "plugin", args: ["list"] });
+  });
+
   it("returns help for <command> --help or -h", () => {
     expect(parseArgs(["init", "--help"])).toEqual({ command: "help", args: [] });
     expect(parseArgs(["upgrade", "-h"])).toEqual({ command: "help", args: [] });

@@ -1,0 +1,7 @@
+{
+  "name": "needs-tool",
+  "version": "0.0.1",
+  "harenApi": "1",
+  "requires": [{ "bin": "haren-test-missing-bin" }],
+  "setup": ["echo {{project}} > setup.txt"]
+}

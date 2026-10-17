@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 interface ParsedCommand {
-  command: "init" | "upgrade" | "agent" | "help" | "unknown";
+  command: "init" | "upgrade" | "agent" | "plugin" | "help" | "unknown";
   args: string[];
 }
 
@@ -23,6 +23,7 @@ export function parseArgs(args: string[]): ParsedCommand {
     case "init":
     case "upgrade":
     case "agent":
+    case "plugin":
       return { command, args: rest };
     default:
       return { command: "unknown", args };
@@ -49,6 +50,11 @@ async function main() {
       await agent(parsed.args);
       break;
     }
+    case "plugin": {
+      const { plugin } = await import("./commands/plugin");
+      await plugin(parsed.args);
+      break;
+    }
     case "help":
       console.log("Usage:");
       console.log("  haren init      Set up haren (detects monorepo or multi-repo workspace)");
@@ -56,10 +62,12 @@ async function main() {
         "                  --dir <path>  --layout monorepo|workspace  --haren-dir <name>",
       );
       console.log("                  --yes|-y  --dry-run  --force");
+      console.log("                  --plugin <name|source>  (repeatable)");
       console.log(
         "  haren upgrade   Upgrade framework files and migrate manifest/progress (--dry-run)",
       );
       console.log("  haren agent     Manage local agent (start, stop, status)");
+      console.log("  haren plugin    Manage plugins (add, remove, list, run, doctor)");
       break;
     case "unknown":
       console.error(`Unknown command: ${parsed.args[0]}`);
