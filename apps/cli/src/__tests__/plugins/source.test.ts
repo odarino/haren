@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { parseSource } from "../../plugins/source";
-import { resolvePluginRef } from "../../plugins/registry";
+import { npmPackageName, resolvePluginRef } from "../../plugins/registry";
 
 describe("parseSource", () => {
   it("parses npm, git and file sources", () => {
@@ -32,17 +32,31 @@ describe("parseSource", () => {
 describe("resolvePluginRef", () => {
   it("maps a registry name to its source", () => {
     expect(resolvePluginRef("backlog")).toEqual({
-      source: "npm:@odarino/haren-plugin-backlog",
+      source: "npm:@odarino/backlog.md",
       official: true,
     });
   });
   it("passes a source through as unofficial", () => {
     expect(resolvePluginRef("file:./p")).toEqual({ source: "file:./p", official: false });
   });
-  it("marks a source that equals a registry source as official", () => {
-    expect(resolvePluginRef("npm:@odarino/haren-plugin-backlog").official).toBe(true);
+  it("treats any version or tag of an official npm package as official", () => {
+    expect(resolvePluginRef("npm:@odarino/backlog.md").official).toBe(true);
+    expect(resolvePluginRef("npm:@odarino/backlog.md@next").official).toBe(true);
+    expect(resolvePluginRef("npm:@odarino/backlog.md@1.57.0-next.0").official).toBe(true);
+    expect(resolvePluginRef("npm:@odarino/backlog.md-evil").official).toBe(false);
+    expect(resolvePluginRef("git:https://github.com/odarino/Backlog.md").official).toBe(false);
   });
   it("rejects an unknown bare name", () => {
     expect(() => resolvePluginRef("nope")).toThrow("Unknown plugin: nope");
+  });
+});
+
+describe("npmPackageName", () => {
+  it("strips the version or tag", () => {
+    expect(npmPackageName("@a/b@1.2.3")).toBe("@a/b");
+    expect(npmPackageName("@a/b@next")).toBe("@a/b");
+    expect(npmPackageName("@a/b")).toBe("@a/b");
+    expect(npmPackageName("pkg@1")).toBe("pkg");
+    expect(npmPackageName("pkg")).toBe("pkg");
   });
 });
