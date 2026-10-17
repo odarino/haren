@@ -4,7 +4,7 @@ import { isAbsolute, join } from "path";
 import { readProgress, writeProgress } from "../workspace/progress";
 import { type HookName, validateManifest } from "./manifest";
 import { pluginDataDir, pluginDir, readPlugins } from "./state";
-import { parseTasksFile } from "./tasks";
+import { type PlannedTask, alignTaskKeys, parseTasksFile } from "./tasks";
 import { applyUpdates } from "./updates";
 
 export interface HookOutcome {
@@ -21,22 +21,62 @@ export interface RunHookOptions {
   timeoutMs?: number;
 }
 
+function tasksPath(input: Record<string, unknown>, harenDir: string): string | undefined {
+  if (typeof input.tasksFile !== "string") return undefined;
+  return isAbsolute(input.tasksFile) ? input.tasksFile : join(harenDir, input.tasksFile);
+}
+
+/** Parse the planned tasks and align their keys with the features already in progress.json. */
+async function loadPlannedTasks(
+  input: Record<string, unknown>,
+  harenDir: string,
+): Promise<PlannedTask[]> {
+  const path = tasksPath(input, harenDir);
+  if (!path || !existsSync(path)) return [];
+  const tasks = parseTasksFile(await readFile(path, "utf-8"));
+  const progressPath = join(harenDir, "progress.json");
+  if (typeof input.module !== "string" || !existsSync(progressPath)) return tasks;
+  const mod = (await readProgress(progressPath)).modules[input.module];
+  return mod ? alignTaskKeys(tasks, Object.keys(mod.features)) : tasks;
+}
+
 export async function buildPayload(
   hook: HookName,
   input: Record<string, unknown>,
   harenDir: string,
 ): Promise<Record<string, unknown>> {
   const payload: Record<string, unknown> = { ...input, hook };
-  if (hook === "after-plan" && typeof input.tasksFile === "string") {
-    const path = isAbsolute(input.tasksFile) ? input.tasksFile : join(harenDir, input.tasksFile);
+  const path = tasksPath(input, harenDir);
+  if (hook === "after-plan" && path) {
     payload.tasksFile = path;
-    payload.tasks = existsSync(path) ? parseTasksFile(await readFile(path, "utf-8")) : [];
+    payload.tasks = await loadPlannedTasks(input, harenDir);
   }
   return payload;
 }
 
+/** Add planned tasks that have no feature yet to progress.json as pending. Never creates a module. */
+async function addPlannedFeatures(input: Record<string, unknown>, harenDir: string): Promise<void> {
+  const progressPath = join(harenDir, "progress.json");
+  if (typeof input.module !== "string" || !existsSync(progressPath)) return;
+  const tasks = await loadPlannedTasks(input, harenDir);
+  const progress = await readProgress(progressPath);
+  const mod = progress.modules[input.module];
+  if (!mod) return;
+  let changed = false;
+  for (const t of tasks) {
+    if (!(t.key in mod.features)) {
+      mod.features[t.key] = "pending";
+      changed = true;
+    }
+  }
+  if (changed) await writeProgress(progressPath, progress);
+}
+
 async function logError(dir: string, hook: HookName, error: string): Promise<void> {
-  await appendFile(join(dir, "errors.log"), `${new Date().toISOString()} ${hook}: ${error}\n`).catch(() => {});
+  await appendFile(
+    join(dir, "errors.log"),
+    `${new Date().toISOString()} ${hook}: ${error}\n`,
+  ).catch(() => {});
 }
 
 export async function runHook(
@@ -59,7 +99,9 @@ export async function runHook(
     let command: string | undefined;
     let config: Record<string, unknown> = {};
     try {
-      const manifest = validateManifest(JSON.parse(await readFile(join(dir, "haren-plugin.json"), "utf-8")));
+      const manifest = validateManifest(
+        JSON.parse(await readFile(join(dir, "haren-plugin.json"), "utf-8")),
+      );
       command = manifest.hooks[hook];
       config = { ...manifest.config, ...entry.config };
     } catch (err) {
@@ -159,6 +201,13 @@ export async function runHookAndApply(
 ): Promise<string[]> {
   const lines: string[] = [];
   let outcomes: HookOutcome[];
+  if (hook === "after-plan") {
+    try {
+      await addPlannedFeatures(input, o.harenDir);
+    } catch (err) {
+      lines.push(`warning: could not add planned features: ${(err as Error).message}`);
+    }
+  }
   try {
     outcomes = await runHook(hook, input, o);
   } catch (err) {
@@ -176,7 +225,8 @@ export async function runHookAndApply(
       const result = applyUpdates(await readProgress(progressPath), updates);
       if (result.applied.length > 0) await writeProgress(progressPath, result.progress);
       for (const u of result.applied) lines.push(`updated ${u.module}/${u.feature} → ${u.status}`);
-      for (const s of result.skipped) lines.push(`skipped update ${JSON.stringify(s.update)}: ${s.reason}`);
+      for (const s of result.skipped)
+        lines.push(`skipped update ${JSON.stringify(s.update)}: ${s.reason}`);
     }
   } catch (err) {
     lines.push(`warning: could not apply plugin updates: ${(err as Error).message}`);
