@@ -1,7 +1,9 @@
 import { existsSync } from "fs";
 import { mkdir, readdir, readFile, writeFile } from "fs/promises";
-import { dirname, join, relative, sep } from "path";
+import { basename, dirname, join, relative, sep } from "path";
 import { resolveContentDir } from "../lib/content-dir";
+import { type PluginManifest, validateManifest } from "../plugins/manifest";
+import { pluginDir, readPlugins } from "../plugins/state";
 import { cursorRuleTemplate, editorConfigTemplate, gateCommand, renderTemplate } from "./templates";
 
 export type Editor = "claude-code" | "cursor" | "both";
@@ -225,6 +227,48 @@ export async function frameworkFiles(
         content: withFrontmatterName(text, name),
         group: "agents",
       });
+    }
+  }
+  files.push(...(await pluginFiles(harenDir)));
+  return files.sort((x, y) => x.path.localeCompare(y.path));
+}
+
+/**
+ * Skills and agents of enabled plugins, renamed with a "<plugin>-" prefix.
+ * A broken plugin is skipped; `haren plugin doctor` reports it.
+ */
+export async function pluginFiles(harenDir: string): Promise<FrameworkFile[]> {
+  const files: FrameworkFile[] = [];
+  const state = await readPlugins(harenDir);
+  for (const [plugin, entry] of Object.entries(state.plugins)) {
+    if (!entry.enabled) continue;
+    const dir = pluginDir(harenDir, plugin);
+    let manifest: PluginManifest;
+    try {
+      manifest = validateManifest(JSON.parse(await readFile(join(dir, "haren-plugin.json"), "utf-8")));
+    } catch {
+      continue;
+    }
+    const prefixed = (n: string) => (n.startsWith(`${plugin}-`) ? n : `${plugin}-${n}`);
+    for (const skill of manifest.skills) {
+      const skillDir = join(dir, skill);
+      const main = await readOrNull(join(skillDir, "SKILL.md"));
+      if (main === null) continue;
+      const name = prefixed(frontmatterName(main) ?? basename(skillDir));
+      for (const rel of await listFiles(skillDir)) {
+        const text = await readFile(join(skillDir, rel), "utf-8");
+        files.push({
+          path: `skills/${name}/${rel}`,
+          content: rel === "SKILL.md" ? withFrontmatterName(text, name) : text,
+          group: "skills",
+        });
+      }
+    }
+    for (const agent of manifest.agents) {
+      const text = await readOrNull(join(dir, agent));
+      if (text === null) continue;
+      const name = prefixed(frontmatterName(text) ?? basename(agent, ".md"));
+      files.push({ path: `agents/${name}.md`, content: withFrontmatterName(text, name), group: "agents" });
     }
   }
   return files.sort((x, y) => x.path.localeCompare(y.path));

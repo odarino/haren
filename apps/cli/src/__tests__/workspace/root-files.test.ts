@@ -12,10 +12,12 @@ import {
   mergeCursorHooks,
   computeRootFiles,
   frameworkFiles,
+  pluginFiles,
   summarizeRootFiles,
   writeRootFiles,
   detectEditor,
 } from "../../workspace/root-files";
+import { writePlugins } from "../../plugins/state";
 
 describe("upsertBlock", () => {
   it("creates a new file with a block", () => {
@@ -294,5 +296,43 @@ describe("summarizeRootFiles", () => {
       ["CLAUDE.md", true, false, undefined],
       [".claude/skills/", true, true, 2],
     ]);
+  });
+});
+
+describe("pluginFiles", () => {
+  it("copies enabled plugin skills and agents with the plugin prefix", async () => {
+    const harenDir = await mkdtemp(join(tmpdir(), "haren-pf-"));
+    const dir = join(harenDir, ".plugins", "backlog");
+    await mkdir(join(dir, "skills", "board"), { recursive: true });
+    await mkdir(join(dir, "agents"), { recursive: true });
+    await writeFile(
+      join(dir, "haren-plugin.json"),
+      JSON.stringify({
+        name: "backlog",
+        version: "1.0.0",
+        harenApi: "1",
+        skills: ["skills/board"],
+        agents: ["agents/syncer.md"],
+      }),
+    );
+    await writeFile(
+      join(dir, "skills", "board", "SKILL.md"),
+      "---\nname: board\ndescription: d\n---\n# Board\n",
+    );
+    await writeFile(join(dir, "agents", "syncer.md"), "---\nname: syncer\n---\nSync\n");
+    await writePlugins(harenDir, {
+      version: 1,
+      plugins: { backlog: { source: "file:x", version: "1.0.0", enabled: true, config: {} } },
+    });
+
+    const files = await pluginFiles(harenDir);
+    expect(files.map((f) => f.path)).toEqual([
+      "agents/backlog-syncer.md",
+      "skills/backlog-board/SKILL.md",
+    ]);
+    expect(files[1]!.content).toContain("name: backlog-board");
+  });
+  it("returns nothing without plugins.json", async () => {
+    expect(await pluginFiles(await mkdtemp(join(tmpdir(), "haren-pf-")))).toEqual([]);
   });
 });
