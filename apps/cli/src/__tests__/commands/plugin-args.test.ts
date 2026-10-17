@@ -44,3 +44,31 @@ describe("haren plugin run outside a haren folder", () => {
     expect(out).toContain("warning: plugin hook session-start skipped");
   });
 });
+
+describe("plugin remove of an unknown plugin", () => {
+  it("prints the message and exits 1 without a stack trace", async () => {
+    const { mkdtemp, mkdir } = await import("fs/promises");
+    const { tmpdir } = await import("os");
+    const { join } = await import("path");
+    const ws = await mkdtemp(join(tmpdir(), "haren-rm-"));
+    await mkdir(join(ws, "haren"));
+    await Bun.write(join(ws, "haren", "manifest.yaml"), "project: shop\n");
+    await Bun.write(join(ws, "haren", "skill.md"), "x\n");
+    const proc = Bun.spawn(
+      [
+        "bun",
+        join(import.meta.dir, "../../index.ts"),
+        "plugin",
+        "remove",
+        "nope",
+        "--haren-dir",
+        join(ws, "haren"),
+      ],
+      { cwd: ws, stdout: "pipe", stderr: "pipe" },
+    );
+    const [err, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
+    expect(code).toBe(1);
+    expect(err).toContain("Plugin nope is not installed");
+    expect(err).not.toContain("    at ");
+  });
+});

@@ -1,3 +1,5 @@
+import { isAbsolute } from "path";
+
 export const HAREN_API = "1";
 export const HOOK_NAMES = ["session-start", "after-plan", "on-task-status"] as const;
 export type HookName = (typeof HOOK_NAMES)[number];
@@ -29,6 +31,21 @@ function stringList(value: unknown, field: string): string[] {
     throw new Error(`Plugin manifest: ${field} must be a list of strings`);
   }
   return value;
+}
+
+function relativePathList(value: unknown, field: string): string[] {
+  const list = stringList(value, field);
+  for (const p of list) {
+    if (
+      isAbsolute(p) ||
+      p.startsWith("/") ||
+      /^[A-Za-z]:/.test(p) ||
+      p.split(/[\\/]/).includes("..")
+    ) {
+      throw new Error(`Plugin manifest: ${field} path must stay inside the plugin: ${p}`);
+    }
+  }
+  return list;
 }
 
 /** Validate a parsed haren-plugin.json. `packageVersion` comes from the plugin's package.json (npm source). */
@@ -105,7 +122,7 @@ export function validateManifest(raw: unknown, packageVersion?: string): PluginM
     setup: stringList(m.setup, "setup"),
     hooks,
     config: config as Record<string, unknown>,
-    skills: stringList(m.skills, "skills"),
-    agents: stringList(m.agents, "agents"),
+    skills: relativePathList(m.skills, "skills"),
+    agents: relativePathList(m.agents, "agents"),
   };
 }

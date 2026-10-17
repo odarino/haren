@@ -237,11 +237,11 @@ export async function frameworkFiles(
  * Skills and agents of enabled plugins, renamed with a "<plugin>-" prefix.
  * A broken plugin is skipped; `haren plugin doctor` reports it.
  */
-export async function pluginFiles(harenDir: string): Promise<FrameworkFile[]> {
+export async function pluginFiles(harenDir: string, only?: string): Promise<FrameworkFile[]> {
   const files: FrameworkFile[] = [];
   const state = await readPlugins(harenDir);
   for (const [plugin, entry] of Object.entries(state.plugins)) {
-    if (!entry.enabled) continue;
+    if (only !== undefined ? plugin !== only : !entry.enabled) continue;
     const dir = pluginDir(harenDir, plugin);
     let manifest: PluginManifest;
     try {

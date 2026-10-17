@@ -48,3 +48,17 @@ describe("validateManifest", () => {
     );
   });
 });
+
+describe("validateManifest path containment", () => {
+  it("rejects absolute and parent-relative skills/agents paths", () => {
+    for (const bad of ["../../..", "/etc", "a/../../b", "..\\x", "C:\\x"]) {
+      expect(() => validateManifest({ ...base, skills: [bad] })).toThrow(
+        `Plugin manifest: skills path must stay inside the plugin: ${bad}`,
+      );
+    }
+    expect(() => validateManifest({ ...base, agents: ["../a.md"] })).toThrow(
+      "Plugin manifest: agents path must stay inside the plugin: ../a.md",
+    );
+    expect(validateManifest({ ...base, skills: ["skills/x"] }).skills).toEqual(["skills/x"]);
+  });
+});
