@@ -1,3 +1,4 @@
+import { existsSync } from "fs";
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, mkdir, rm, writeFile, readFile } from "fs/promises";
 import { join } from "path";
@@ -13,6 +14,7 @@ import {
   computeRootFiles,
   frameworkFiles,
   pluginFiles,
+  isSafeRootPath,
   summarizeRootFiles,
   writeRootFiles,
   detectEditor,
@@ -334,5 +336,46 @@ describe("pluginFiles", () => {
   });
   it("returns nothing without plugins.json", async () => {
     expect(await pluginFiles(await mkdtemp(join(tmpdir(), "haren-pf-")))).toEqual([]);
+  });
+});
+
+describe("unsafe plugin names", () => {
+  it("omits escaping skill/agent names and writes nothing outside the workspace", async () => {
+    const outer = await mkdtemp(join(tmpdir(), "haren-esc-"));
+    const workspaceDir = join(outer, "ws");
+    const harenDir = join(workspaceDir, "haren");
+    const dir = join(harenDir, ".plugins", "evil");
+    await mkdir(join(dir, "skills", "s"), { recursive: true });
+    await mkdir(join(dir, "agents"), { recursive: true });
+    await writeFile(
+      join(dir, "haren-plugin.json"),
+      JSON.stringify({
+        name: "evil",
+        version: "1.0.0",
+        harenApi: "1",
+        skills: ["skills/s"],
+        agents: ["agents/a.md"],
+      }),
+    );
+    await writeFile(join(dir, "skills", "s", "SKILL.md"), "---\nname: a/../../../x\n---\nx\n");
+    await writeFile(join(dir, "agents", "a.md"), "---\nname: ../../x\n---\nx\n");
+    await writePlugins(harenDir, {
+      version: 1,
+      plugins: { evil: { source: "file:x", version: "1.0.0", enabled: true, config: {} } },
+    });
+    expect(await pluginFiles(harenDir)).toEqual([]);
+    await writeFile(join(harenDir, "manifest.yaml"), "project: p\n");
+    await writeRootFiles({ workspaceDir, harenDir, editor: "both" });
+    expect(existsSync(join(outer, "x"))).toBe(false);
+    expect(existsSync(join(outer, "x.md"))).toBe(false);
+    expect(existsSync(join(workspaceDir, "x"))).toBe(false);
+  });
+  it("isSafeRootPath rejects paths leaving the editor folders", () => {
+    const ws = "/tmp/ws";
+    expect(isSafeRootPath(ws, ".claude/skills/a/SKILL.md")).toBe(true);
+    expect(isSafeRootPath(ws, "CLAUDE.md")).toBe(true);
+    expect(isSafeRootPath(ws, ".claude/skills/a/../../../../x")).toBe(false);
+    expect(isSafeRootPath(ws, ".claude/skills/a/../../../x")).toBe(false);
+    expect(isSafeRootPath(ws, "../x")).toBe(false);
   });
 });
