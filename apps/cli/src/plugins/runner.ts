@@ -68,33 +68,63 @@ export async function runHook(
     }
     if (!command) continue;
 
-    const proc = Bun.spawn(["sh", "-c", command], {
-      cwd: dir,
-      stdin: new Blob([payload]),
-      stdout: "pipe",
-      stderr: "pipe",
-      env: {
-        ...process.env,
-        HAREN_ROOT: o.workspaceDir,
-        HAREN_DIR: o.harenDir,
-        HAREN_PLUGIN_DIR: dir,
-        HAREN_PLUGIN_CONFIG: JSON.stringify(config),
-      },
-    });
+    const limit = o.timeoutMs ?? 30_000;
     let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      proc.kill();
-    }, o.timeoutMs ?? 30_000);
-    const [stdout, stderr, code] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ]);
-    clearTimeout(timer);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stdout: string;
+    let stderr: string;
+    let code: number;
+    try {
+      const proc = Bun.spawn(["sh", "-c", command], {
+        cwd: dir,
+        stdin: new Blob([payload]),
+        stdout: "pipe",
+        stderr: "pipe",
+        detached: true,
+        env: {
+          ...process.env,
+          HAREN_ROOT: o.workspaceDir,
+          HAREN_DIR: o.harenDir,
+          HAREN_PLUGIN_DIR: dir,
+          HAREN_PLUGIN_CONFIG: JSON.stringify(config),
+        },
+      });
+      const collected = Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
+      collected.catch(() => {});
+      const expired = new Promise<null>((resolve) => {
+        timer = setTimeout(() => {
+          timedOut = true;
+          // Kill the whole process group so grandchildren release the pipes.
+          try {
+            process.kill(-proc.pid, "SIGKILL");
+          } catch {
+            try {
+              proc.kill("SIGKILL");
+            } catch {}
+          }
+          // Do not wait for pipes that a stray descendant may still hold open.
+          setTimeout(() => resolve(null), 500);
+        }, limit);
+      });
+      const res = await Promise.race([collected, expired]);
+      clearTimeout(timer);
+      if (res === null) {
+        await fail(`timed out after ${limit} ms`);
+        continue;
+      }
+      [stdout, stderr, code] = res;
+    } catch (err) {
+      clearTimeout(timer);
+      await fail(`could not start hook: ${(err as Error).message}`);
+      continue;
+    }
 
     if (timedOut) {
-      await fail(`timed out after ${o.timeoutMs ?? 30_000} ms`);
+      await fail(`timed out after ${limit} ms`);
       continue;
     }
     if (code !== 0) {
@@ -124,20 +154,29 @@ export async function runHookAndApply(
   input: Record<string, unknown>,
   o: RunHookOptions,
 ): Promise<string[]> {
-  const outcomes = await runHook(hook, input, o);
   const lines: string[] = [];
+  let outcomes: HookOutcome[];
+  try {
+    outcomes = await runHook(hook, input, o);
+  } catch (err) {
+    return [`warning: could not run ${hook} hooks: ${(err as Error).message}`];
+  }
   const updates: unknown[] = [];
   for (const out of outcomes) {
     for (const m of out.messages) lines.push(`[${out.plugin}] ${m}`);
     if (!out.ok) lines.push(`[${out.plugin}] warning: ${hook} failed: ${out.error}`);
     updates.push(...out.updates);
   }
-  const progressPath = join(o.harenDir, "progress.json");
-  if (updates.length > 0 && existsSync(progressPath)) {
-    const result = applyUpdates(await readProgress(progressPath), updates);
-    if (result.applied.length > 0) await writeProgress(progressPath, result.progress);
-    for (const u of result.applied) lines.push(`updated ${u.module}/${u.feature} → ${u.status}`);
-    for (const s of result.skipped) lines.push(`skipped update ${JSON.stringify(s.update)}: ${s.reason}`);
+  try {
+    const progressPath = join(o.harenDir, "progress.json");
+    if (updates.length > 0 && existsSync(progressPath)) {
+      const result = applyUpdates(await readProgress(progressPath), updates);
+      if (result.applied.length > 0) await writeProgress(progressPath, result.progress);
+      for (const u of result.applied) lines.push(`updated ${u.module}/${u.feature} → ${u.status}`);
+      for (const s of result.skipped) lines.push(`skipped update ${JSON.stringify(s.update)}: ${s.reason}`);
+    }
+  } catch (err) {
+    lines.push(`warning: could not apply plugin updates: ${(err as Error).message}`);
   }
   return lines;
 }

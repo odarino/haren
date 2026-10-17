@@ -72,4 +72,18 @@ describe("runHook", () => {
     });
     expect(await runHook("session-start", {}, ws)).toEqual([]);
   });
+  it("times out a compound command and does not hang on grandchildren", async () => {
+    const ws = await workspace(["compound"]);
+    const start = Date.now();
+    const out = await runHook("session-start", {}, { ...ws, timeoutMs: 500 });
+    expect(Date.now() - start).toBeLessThan(2500);
+    expect(out[0]!.ok).toBe(false);
+    expect(out[0]!.error).toContain("timed out");
+  });
+  it("turns a corrupt progress.json into a warning line", async () => {
+    const ws = await workspace(["updater"]);
+    await writeFile(join(ws.harenDir, "progress.json"), "{not json");
+    const lines = await runHookAndApply("session-start", {}, ws);
+    expect(lines.join("\n")).toContain("warning: could not apply plugin updates:");
+  });
 });
