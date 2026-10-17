@@ -62,6 +62,7 @@ my-plugin/
 
 The task `key` is the feature key in `progress.json`. Use it in `on-task-status` updates.
 If the module has a feature with the same task number, haren sends that key.
+If many features have the same task number, haren uses the first one.
 haren adds each missing task to `progress.json` as `pending` before it runs the hooks.
 
 Rules for a hook:

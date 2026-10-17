@@ -122,6 +122,47 @@ describe("runHook", () => {
         "task-3-pay": "pending",
       });
     });
+    it("uses aligned keys in dependencies", async () => {
+      const ws = await workspace(["planecho"]);
+      const pPath = join(ws.harenDir, "progress.json");
+      const prog = JSON.parse(await readFile(pPath, "utf-8"));
+      prog.modules.checkout.features = { "task-2-cart-ui-and-totals": "pending" };
+      await writeFile(pPath, JSON.stringify(prog));
+      await writeFile(join(ws.harenDir, "tasks.md"), tasksMd);
+      const lines = await runHookAndApply(
+        "after-plan",
+        { module: "checkout", tasksFile: "tasks.md" },
+        ws,
+      );
+      expect(lines.join("\n")).toContain("deps=,task-1-add-cart-api,task-2-cart-ui-and-totals");
+    });
+    it("leaves progress.json byte-identical when nothing is added", async () => {
+      const ws = await workspace(["planecho"]);
+      const pPath = join(ws.harenDir, "progress.json");
+      const prog = JSON.parse(await readFile(pPath, "utf-8"));
+      prog.modules.checkout.features = { "task-1-add-cart-api": "pending" };
+      const raw = JSON.stringify(prog);
+      await writeFile(pPath, raw);
+      await writeFile(
+        join(ws.harenDir, "tasks.md"),
+        "## Task 1: Add cart API\n\n**Description:** a\n",
+      );
+      await runHookAndApply("after-plan", { module: "checkout", tasksFile: "tasks.md" }, ws);
+      expect(await readFile(pPath, "utf-8")).toBe(raw);
+    });
+    it("still runs the hook with computed keys when progress.json is corrupt", async () => {
+      const ws = await workspace(["planecho"]);
+      await writeFile(join(ws.harenDir, "progress.json"), "{not json");
+      await writeFile(join(ws.harenDir, "tasks.md"), tasksMd);
+      const lines = await runHookAndApply(
+        "after-plan",
+        { module: "checkout", tasksFile: "tasks.md" },
+        ws,
+      );
+      expect(lines.join("\n")).toContain(
+        "keys=task-1-add-cart-api,task-2-cart-ui-totals,task-3-pay",
+      );
+    });
     it("never creates a module", async () => {
       const ws = await workspace(["planecho"]);
       await writeFile(join(ws.harenDir, "tasks.md"), tasksMd);
