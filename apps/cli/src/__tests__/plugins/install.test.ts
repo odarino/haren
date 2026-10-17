@@ -3,7 +3,13 @@ import { existsSync } from "fs";
 import { mkdir, mkdtemp } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import { installPlugin, removePlugin } from "../../plugins/install";
+import {
+  installPlugin,
+  refreshPlugins,
+  removeEditorCopies,
+  removePlugin,
+} from "../../plugins/install";
+import { pluginFiles } from "../../workspace/root-files";
 import { readPlugins } from "../../plugins/state";
 
 const fixtures = join(import.meta.dir, "fixtures");
@@ -77,5 +83,43 @@ describe("installPlugin failure safety", () => {
     const kept = await Bun.file(join(c.harenDir, ".plugins", "flaky", "haren-plugin.json")).text();
     expect(kept).toContain("1.0.0");
     expect((await readPlugins(c.harenDir)).plugins.flaky.version).toBe("1.0.0");
+  });
+});
+
+describe("removeEditorCopies", () => {
+  it("deletes only the removed plugin's own copies", async () => {
+    const c = await ctx(true);
+    await installPlugin(`file:${join(fixtures, "hello")}`, c);
+    const own = join(c.workspaceDir, ".claude", "skills", "hello-greet");
+    const mine = join(c.workspaceDir, ".cursor", "skills", "hello-greet");
+    const user = join(c.workspaceDir, ".claude", "skills", "hello-custom");
+    for (const d of [own, mine, user]) {
+      await mkdir(d, { recursive: true });
+      await Bun.write(join(d, "SKILL.md"), "x");
+    }
+    const copies = await pluginFiles(c.harenDir, "hello");
+    expect(copies.map((f) => f.path)).toEqual(["skills/hello-greet/SKILL.md"]);
+    await removePlugin("hello", c);
+    await removeEditorCopies(c.workspaceDir, copies);
+    expect(existsSync(own)).toBe(false);
+    expect(existsSync(mine)).toBe(false);
+    expect(existsSync(user)).toBe(true);
+  });
+});
+
+describe("refreshPlugins", () => {
+  it("keeps the old copy when the manifest name changes", async () => {
+    const c = await ctx(true);
+    const src = await mkdtemp(join(tmpdir(), "haren-src-"));
+    const write = (name: string, version: string) =>
+      Bun.write(join(src, "haren-plugin.json"), JSON.stringify({ name, version, harenApi: "1" }));
+    await write("renamer", "1.0.0");
+    await installPlugin(`file:${src}`, c);
+    await write("other", "2.0.0");
+    const warnings = await refreshPlugins(c);
+    expect(warnings).toEqual(["plugin renamer: kept 1.0.0: manifest name changed to other"]);
+    expect(existsSync(join(c.harenDir, ".plugins", "other"))).toBe(false);
+    expect(existsSync(join(c.harenDir, ".plugins", ".incoming"))).toBe(false);
+    expect((await readPlugins(c.harenDir)).plugins.renamer.version).toBe("1.0.0");
   });
 });

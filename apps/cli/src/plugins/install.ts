@@ -1,5 +1,4 @@
-import { existsSync } from "fs";
-import { readdir, rename, rm } from "fs/promises";
+import { rename, rm } from "fs/promises";
 import { join } from "path";
 import type { PluginManifest } from "./manifest";
 import { resolvePluginRef } from "./registry";
@@ -38,16 +37,6 @@ async function commit(manifest: PluginManifest, ctx: InstallContext): Promise<vo
   const dest = pluginDir(ctx.harenDir, manifest.name);
   await rm(dest, { recursive: true, force: true });
   await rename(incomingDir(ctx), dest);
-}
-
-async function fetchInto(source: string, ctx: InstallContext): Promise<PluginManifest> {
-  try {
-    const manifest = await stage(source, ctx);
-    await commit(manifest, ctx);
-    return manifest;
-  } finally {
-    await rm(incomingDir(ctx), { recursive: true, force: true });
-  }
 }
 
 export async function installPlugin(ref: string, ctx: InstallContext): Promise<PluginManifest> {
@@ -98,16 +87,20 @@ export async function removePlugin(name: string, ctx: InstallContext): Promise<v
   await rm(pluginDir(ctx.harenDir, name), { recursive: true, force: true });
 }
 
-/** Delete editor copies of a removed plugin's skills and agents. */
-export async function removeEditorCopies(workspaceDir: string, name: string): Promise<void> {
+/** Delete exactly the editor copies that `files` (one plugin's pluginFiles) produced. */
+export async function removeEditorCopies(
+  workspaceDir: string,
+  files: { path: string }[],
+): Promise<void> {
+  const targets = new Set<string>();
+  for (const f of files) {
+    const [group, name] = f.path.split("/");
+    if (!name) continue;
+    targets.add(`${group}/${group === "skills" ? name : f.path.slice(group!.length + 1)}`);
+  }
   for (const editor of [".claude", ".cursor"]) {
-    for (const group of ["skills", "agents"]) {
-      const dir = join(workspaceDir, editor, group);
-      if (!existsSync(dir)) continue;
-      for (const entry of await readdir(dir)) {
-        if (entry.startsWith(`${name}-`))
-          await rm(join(dir, entry), { recursive: true, force: true });
-      }
+    for (const t of targets) {
+      await rm(join(workspaceDir, editor, t), { recursive: true, force: true });
     }
   }
 }
@@ -118,10 +111,19 @@ export async function refreshPlugins(ctx: InstallContext): Promise<string[]> {
   for (const [name, entry] of Object.entries(state.plugins)) {
     if (!entry.enabled) continue;
     try {
-      const manifest = await fetchInto(entry.source, ctx);
+      const manifest = await stage(entry.source, ctx);
+      if (manifest.name !== name) {
+        warnings.push(
+          `plugin ${name}: kept ${entry.version}: manifest name changed to ${manifest.name}`,
+        );
+        continue;
+      }
+      await commit(manifest, ctx);
       entry.version = manifest.version;
     } catch (err) {
       warnings.push(`plugin ${name}: kept ${entry.version}: ${(err as Error).message}`);
+    } finally {
+      await rm(incomingDir(ctx), { recursive: true, force: true });
     }
   }
   await writePlugins(ctx.harenDir, state);

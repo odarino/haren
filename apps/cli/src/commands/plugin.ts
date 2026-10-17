@@ -11,7 +11,7 @@ import { checkRequirement } from "../plugins/requires";
 import { runHookAndApply } from "../plugins/runner";
 import { pluginDir, readPlugins } from "../plugins/state";
 import { parseManifest } from "../workspace/manifest";
-import { detectEditor, writeRootFiles } from "../workspace/root-files";
+import { detectEditor, pluginFiles, writeRootFiles } from "../workspace/root-files";
 import { harenDirFlag, MultipleHarenDirsError, resolveHarenDir } from "../workspace/resolve";
 
 export type PluginSub = "add" | "remove" | "list" | "run" | "doctor";
@@ -126,8 +126,14 @@ export async function plugin(args: string[]): Promise<void> {
       await syncEditors();
       return;
     case "remove":
-      await removePlugin(opts.target!, ctx);
-      await removeEditorCopies(workspaceDir, opts.target!);
+      try {
+        const copies = await pluginFiles(harenDir, opts.target!);
+        await removePlugin(opts.target!, ctx);
+        await removeEditorCopies(workspaceDir, copies);
+      } catch (err) {
+        console.error(`  ${(err as Error).message}`);
+        process.exit(1);
+      }
       await syncEditors();
       console.log(`  Removed plugin ${opts.target}. Tool data in the project stays.`);
       return;

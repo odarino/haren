@@ -23,6 +23,10 @@ describe("parseSource", () => {
     expect(() => parseSource("http://x")).toThrow("npm:, git:, or file:");
     expect(() => parseSource("npm:")).toThrow("empty");
   });
+  it("rejects git urls and npm specs that look like options", () => {
+    expect(() => parseSource("git:--upload-pack=touch /tmp/x")).toThrow('must not start with "-"');
+    expect(() => parseSource("npm:--foo")).toThrow('must not start with "-"');
+  });
 });
 
 describe("resolvePluginRef", () => {

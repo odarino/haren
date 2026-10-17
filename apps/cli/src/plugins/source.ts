@@ -14,6 +14,8 @@ export function parseSource(text: string): PluginSource {
   if (!match) throw new Error(`Plugin source must start with npm:, git:, or file: — got ${text}`);
   const [, kind, rest] = match as unknown as [string, "npm" | "git" | "file", string];
   if (!rest) throw new Error(`Plugin source is empty: ${text}`);
+  if (kind !== "file" && rest.startsWith("-"))
+    throw new Error(`Plugin source must not start with "-": ${text}`);
   if (kind === "npm") return { kind, spec: rest };
   if (kind === "file") return { kind, path: rest };
   const hash = rest.lastIndexOf("#");
@@ -29,7 +31,11 @@ async function run(cmd: string[], cwd?: string): Promise<void> {
 }
 
 /** Fetch a plugin into `destDir` (replaced) and return its validated manifest. */
-export async function fetchPlugin(source: string, destDir: string, cwd: string): Promise<PluginManifest> {
+export async function fetchPlugin(
+  source: string,
+  destDir: string,
+  cwd: string,
+): Promise<PluginManifest> {
   const parsed = parseSource(source);
   const work = await mkdtemp(join(tmpdir(), "haren-plugin-"));
   let root: string;
@@ -39,11 +45,11 @@ export async function fetchPlugin(source: string, destDir: string, cwd: string):
     } else if (parsed.kind === "git") {
       root = join(work, "repo");
       const ref = parsed.ref ? ["--branch", parsed.ref] : [];
-      await run(["git", "clone", "--depth", "1", "-q", ...ref, parsed.url, root]);
+      await run(["git", "clone", "--depth", "1", "-q", ...ref, "--", parsed.url, root]);
       await rm(join(root, ".git"), { recursive: true, force: true });
     } else {
       // npm pack never runs lifecycle scripts.
-      await run(["npm", "pack", parsed.spec, "--silent", "--pack-destination", work], work);
+      await run(["npm", "pack", "--silent", "--pack-destination", work, "--", parsed.spec], work);
       const tgz = (await Array.fromAsync(new Bun.Glob("*.tgz").scan(work)))[0];
       if (!tgz) throw new Error(`npm pack ${parsed.spec} produced no archive`);
       await run(["tar", "-xzf", tgz], work);
