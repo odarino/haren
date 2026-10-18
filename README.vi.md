@@ -115,7 +115,7 @@ Thư mục haren có thể đặt tên bất kỳ. haren tìm nó bằng marker 
 🛠️ **Các lệnh**
 
 • `haren init` — Thiết lập haren trong thư mục hiện tại: dựng thư mục haren mới, hoặc set up một thư mục haren đã clone. Tương tác, hoặc truyền flag (xem bên dưới).
-• `haren upgrade` — Cập nhật các file framework trong thư mục haren lên phiên bản đã cài, và migrate `manifest.yaml` / `progress.json` cũ.
+• `haren upgrade` — Cập nhật các file framework trong thư mục haren lên phiên bản đã cài, và migrate `manifest.yaml` / `progress.json` cũ. Lệnh này cũng cài lại các plugin còn thiếu trong `plugins.json`. Dùng `--yes` để chấp nhận plugin từ nguồn không chính thức.
 • `haren plugin` — Quản lý plugin: `add <name|source>`, `remove <name>`, `list`, `doctor`, `run <hook>`. Xem [PLUGINS.md](PLUGINS.md).
 • `haren agent` — Quản lý cầu nối agent cục bộ *(thử nghiệm — dành cho Haren Portal đang phát triển)*. Chạy được ở cả hai layout, dùng git remote của repo haren làm project key của Portal.
 

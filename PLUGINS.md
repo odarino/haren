@@ -68,6 +68,8 @@ The board is in `<haren folder>/backlog/`. The config location depends on the la
 | monorepo  | `backlog.config.yml` at project root  | the project repo | any folder in the project |
 | workspace | `<haren folder>/backlog/config.yml`   | the haren repo   | the haren folder          |
 
+In both layouts, run `haren` commands (for example `haren plugin run`) from the workspace root. The plugin finds the board in the root or in the haren folder.
+
 Sync goes in two directions:
 
 - haren owns the title, the description, and the dependencies. After `plan`, haren writes them to the board.
