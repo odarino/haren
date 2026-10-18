@@ -1,5 +1,5 @@
 import { rename, rm } from "fs/promises";
-import { join, resolve, sep } from "path";
+import { join, relative, resolve, sep } from "path";
 import type { PluginManifest } from "./manifest";
 import { resolvePluginRef } from "./registry";
 import { checkRequirement } from "./requires";
@@ -58,8 +58,12 @@ export async function installPlugin(ref: string, ctx: InstallContext): Promise<P
       if (!status.ok) throw new Error(`${req.bin} is required: ${status.reason}`);
     }
 
+    const harenRel = relative(ctx.workspaceDir, ctx.harenDir).split(sep).join("/");
     for (const command of manifest.setup) {
-      await sh(command.replaceAll("{{project}}", ctx.project), ctx.workspaceDir);
+      await sh(
+        command.replaceAll("{{project}}", ctx.project).replaceAll("{{harenDir}}", harenRel),
+        ctx.workspaceDir,
+      );
     }
 
     await commit(manifest, ctx);
