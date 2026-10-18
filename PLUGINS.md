@@ -52,7 +52,7 @@ Rule for plugin authors: `setup` must be idempotent. haren runs it again on each
 
 ## Backlog plugin
 
-The `backlog` plugin syncs haren tasks with a [Backlog.md](https://github.com/MrLesk/Backlog.md) board.
+The `backlog` plugin syncs haren tasks with a [Backlog.md](https://github.com/odarino/Backlog.md) board.
 
 Install it with one of these commands:
 
