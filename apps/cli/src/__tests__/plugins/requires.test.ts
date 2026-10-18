@@ -16,6 +16,7 @@ describe("extractVersion", () => {
   it("finds the first semver in the text", () => {
     expect(extractVersion("backlog v1.56.1\n")).toBe("1.56.1");
     expect(extractVersion("no version")).toBeUndefined();
+    expect(extractVersion("1.57.0-next.0\n")).toBe("1.57.0-next.0");
   });
 });
 
