@@ -180,7 +180,7 @@ every repo.
 | Command | What it does |
 |---------|--------------|
 | `haren init` | Set up haren in the current directory: scaffold a new haren folder, or set up a cloned one. Interactive, or pass flags (below). |
-| `haren upgrade` | Update framework files in an existing haren folder to the installed version, and migrate old `manifest.yaml` / `progress.json`. |
+| `haren upgrade` | Update framework files in an existing haren folder to the installed version, and migrate old `manifest.yaml` / `progress.json`. It also restores missing plugins from `plugins.json`. Use `--yes` to accept plugins from unofficial sources. |
 | `haren plugin` | Manage plugins: `add <name\|source>`, `remove <name>`, `list`, `doctor`, `run <hook>`. See [PLUGINS.md](PLUGINS.md). |
 | `haren agent` | Manage the local agent bridge *(experimental — for the in-progress Haren Portal)*. |
 
