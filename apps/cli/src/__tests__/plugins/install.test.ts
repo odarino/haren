@@ -69,6 +69,17 @@ describe("installPlugin", () => {
   });
 });
 
+describe("installPlugin setup placeholders", () => {
+  it("replaces {{project}} and {{harenDir}} in setup commands", async () => {
+    const c = await ctx(true);
+    const harenDir = join(c.workspaceDir, "rules");
+    await mkdir(harenDir);
+    await installPlugin(`file:${join(fixtures, "setupvars")}`, { ...c, harenDir });
+    const out = await Bun.file(join(c.workspaceDir, "setup-vars.txt")).text();
+    expect(out.trim()).toBe("shop|rules");
+  });
+});
+
 describe("installPlugin failure safety", () => {
   it("leaves no folder when requirements fail", async () => {
     const c = await ctx(true);

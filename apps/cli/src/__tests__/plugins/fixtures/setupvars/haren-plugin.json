@@ -1,0 +1,6 @@
+{
+  "name": "setupvars",
+  "version": "0.0.1",
+  "harenApi": "1",
+  "setup": ["echo '{{project}}|{{harenDir}}' > setup-vars.txt"]
+}

@@ -38,17 +38,17 @@ my-plugin/
 
 ## `haren-plugin.json`
 
-| Field              | Required                   | Notes                                                                            |
-| ------------------ | -------------------------- | -------------------------------------------------------------------------------- |
-| `name`             | yes                        | kebab-case                                                                       |
-| `version`          | git and file: yes. npm: no | npm takes the version from `package.json`. A different value fails.              |
-| `harenApi`         | yes                        | `"1"`                                                                            |
-| `description`      | no                         |                                                                                  |
-| `requires`         | no                         | `[{ "bin", "version"?: semver range, "install"?: command }]`                     |
-| `setup`            | no                         | Commands that run once in the project root. `{{project}}` is the project name.   |
-| `hooks`            | no                         | `{ "<hook>": "<command>" }`. The command runs in the plugin folder.              |
-| `config`           | no                         | Default values. Users override them in `haren/plugins.json`.                     |
-| `skills`, `agents` | no                         | Paths. haren copies them to `.claude/` and `.cursor/` with the prefix `<name>-`. |
+| Field              | Required                   | Notes                                                                                                                                                                                       |
+| ------------------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`             | yes                        | kebab-case                                                                                                                                                                                  |
+| `version`          | git and file: yes. npm: no | npm takes the version from `package.json`. A different value fails.                                                                                                                         |
+| `harenApi`         | yes                        | `"1"`                                                                                                                                                                                       |
+| `description`      | no                         |                                                                                                                                                                                             |
+| `requires`         | no                         | `[{ "bin", "version"?: semver range, "install"?: command }]`                                                                                                                                |
+| `setup`            | no                         | Commands that run once in the project root. `{{project}}` is the project name. `{{harenDir}}` is the haren folder path from the project root. It uses forward slashes, for example `haren`. |
+| `hooks`            | no                         | `{ "<hook>": "<command>" }`. The command runs in the plugin folder.                                                                                                                         |
+| `config`           | no                         | Default values. Users override them in `haren/plugins.json`.                                                                                                                                |
+| `skills`, `agents` | no                         | Paths. haren copies them to `.claude/` and `.cursor/` with the prefix `<name>-`.                                                                                                            |
 
 ## Hooks
 
