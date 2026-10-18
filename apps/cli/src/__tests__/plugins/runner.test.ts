@@ -69,6 +69,13 @@ describe("runHook", () => {
     const progress = JSON.parse(await readFile(join(ws.harenDir, "progress.json"), "utf-8"));
     expect(progress.modules.checkout.features["task-1-add-cart-api"]).toBe("in-progress");
   });
+  it("runs the hook of an npm-style plugin whose version lives in package.json", async () => {
+    const ws = await workspace(["npmlike"]);
+    const out = await runHook("session-start", {}, ws);
+    expect(out[0]!.error).toBeUndefined();
+    expect(out[0]!.ok).toBe(true);
+    expect(out[0]!.messages).toEqual(["ok"]);
+  });
   it("skips disabled plugins", async () => {
     const ws = await workspace(["updater"]);
     await writePlugins(ws.harenDir, {

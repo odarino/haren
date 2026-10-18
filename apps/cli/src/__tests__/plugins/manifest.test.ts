@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { validateManifest } from "../../plugins/manifest";
+import { mkdtemp, writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
+import { readInstalledManifest, validateManifest } from "../../plugins/manifest";
 
 const base = {
   name: "backlog",
@@ -60,5 +63,33 @@ describe("validateManifest path containment", () => {
       "Plugin manifest: agents path must stay inside the plugin: ../a.md",
     );
     expect(validateManifest({ ...base, skills: ["skills/x"] }).skills).toEqual(["skills/x"]);
+  });
+});
+
+describe("readInstalledManifest", () => {
+  const { version: _v, ...noVersion } = base;
+  async function plugin(manifest: unknown, pkg?: unknown): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), "haren-rim-"));
+    await writeFile(join(dir, "haren-plugin.json"), JSON.stringify(manifest));
+    if (pkg !== undefined) await writeFile(join(dir, "package.json"), JSON.stringify(pkg));
+    return dir;
+  }
+  it("takes the version from package.json when the manifest has none", async () => {
+    const m = await readInstalledManifest(await plugin(noVersion, { version: "2.3.4" }));
+    expect(m.version).toBe("2.3.4");
+  });
+  it("keeps the manifest version when present", async () => {
+    const m = await readInstalledManifest(await plugin(base, { version: "9.9.9" }));
+    expect(m.version).toBe("1.0.0");
+  });
+  it("throws when there is neither a version nor a package.json", async () => {
+    await expect(readInstalledManifest(await plugin(noVersion))).rejects.toThrow(
+      "version is required",
+    );
+  });
+  it("throws when package.json has no string version", async () => {
+    await expect(readInstalledManifest(await plugin(noVersion, { version: 3 }))).rejects.toThrow(
+      "version is required",
+    );
   });
 });
