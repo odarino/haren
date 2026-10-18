@@ -1,6 +1,6 @@
 import { existsSync } from "fs";
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, mkdir, rm, writeFile, readFile } from "fs/promises";
+import { cp, mkdtemp, mkdir, rm, writeFile, readFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { resolveContentDir } from "../../lib/content-dir";
@@ -333,6 +333,20 @@ describe("pluginFiles", () => {
       "skills/backlog-board/SKILL.md",
     ]);
     expect(files[1]!.content).toContain("name: backlog-board");
+  });
+  it("reads the version of an npm-style plugin from package.json", async () => {
+    const harenDir = await mkdtemp(join(tmpdir(), "haren-pf-"));
+    await cp(
+      join(import.meta.dir, "..", "plugins", "fixtures", "npmlike"),
+      join(harenDir, ".plugins", "npmlike"),
+      { recursive: true },
+    );
+    await writePlugins(harenDir, {
+      version: 1,
+      plugins: { npmlike: { source: "npm:x", version: "2.3.4", enabled: true, config: {} } },
+    });
+    const files = await pluginFiles(harenDir);
+    expect(files.map((f) => f.path)).toEqual(["skills/npmlike-x/SKILL.md"]);
   });
   it("returns nothing without plugins.json", async () => {
     expect(await pluginFiles(await mkdtemp(join(tmpdir(), "haren-pf-")))).toEqual([]);

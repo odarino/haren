@@ -2,7 +2,7 @@ import { existsSync } from "fs";
 import { mkdir, readdir, readFile, writeFile } from "fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "path";
 import { resolveContentDir } from "../lib/content-dir";
-import { type PluginManifest, validateManifest } from "../plugins/manifest";
+import { type PluginManifest, readInstalledManifest } from "../plugins/manifest";
 import { pluginDir, readPlugins } from "../plugins/state";
 import { cursorRuleTemplate, editorConfigTemplate, gateCommand, renderTemplate } from "./templates";
 
@@ -245,9 +245,7 @@ export async function pluginFiles(harenDir: string, only?: string): Promise<Fram
     const dir = pluginDir(harenDir, plugin);
     let manifest: PluginManifest;
     try {
-      manifest = validateManifest(
-        JSON.parse(await readFile(join(dir, "haren-plugin.json"), "utf-8")),
-      );
+      manifest = await readInstalledManifest(dir);
     } catch {
       continue;
     }

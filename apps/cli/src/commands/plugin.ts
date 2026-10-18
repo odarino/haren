@@ -1,6 +1,6 @@
 import { readFile } from "fs/promises";
 import { join } from "path";
-import { HOOK_NAMES, type HookName, validateManifest } from "../plugins/manifest";
+import { HOOK_NAMES, type HookName, readInstalledManifest } from "../plugins/manifest";
 import {
   installPlugin,
   removeEditorCopies,
@@ -151,9 +151,7 @@ export async function plugin(args: string[]): Promise<void> {
       for (const name of Object.keys(state.plugins)) {
         const dir = pluginDir(harenDir, name);
         try {
-          const m = validateManifest(
-            JSON.parse(await readFile(join(dir, "haren-plugin.json"), "utf-8")),
-          );
+          const m = await readInstalledManifest(dir);
           console.log(`  ${name}: manifest ok (${m.version})`);
           for (const req of m.requires) {
             const s = await checkRequirement(req);

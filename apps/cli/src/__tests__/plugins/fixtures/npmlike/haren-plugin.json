@@ -1,0 +1,6 @@
+{
+  "name": "npmlike",
+  "harenApi": "1",
+  "hooks": { "session-start": "bun hook.ts" },
+  "skills": ["skills/x"]
+}

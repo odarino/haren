@@ -1,4 +1,6 @@
-import { isAbsolute } from "path";
+import { existsSync } from "fs";
+import { readFile } from "fs/promises";
+import { isAbsolute, join } from "path";
 
 export const HAREN_API = "1";
 export const HOOK_NAMES = ["session-start", "after-plan", "on-task-status"] as const;
@@ -125,4 +127,24 @@ export function validateManifest(raw: unknown, packageVersion?: string): PluginM
     skills: relativePathList(m.skills, "skills"),
     agents: relativePathList(m.agents, "agents"),
   };
+}
+
+/**
+ * Read the manifest of an INSTALLED plugin. An npm plugin has no `version` in
+ * haren-plugin.json, so fall back to the version in its package.json.
+ */
+export async function readInstalledManifest(dir: string): Promise<PluginManifest> {
+  const raw = JSON.parse(await readFile(join(dir, "haren-plugin.json"), "utf-8"));
+  let packageVersion: string | undefined;
+  const hasVersion = raw && typeof raw === "object" && raw.version !== undefined;
+  const pkgPath = join(dir, "package.json");
+  if (!hasVersion && existsSync(pkgPath)) {
+    try {
+      const v = JSON.parse(await readFile(pkgPath, "utf-8"))?.version;
+      if (typeof v === "string") packageVersion = v;
+    } catch {
+      // unreadable package.json: validateManifest reports the missing version
+    }
+  }
+  return validateManifest(raw, packageVersion);
 }

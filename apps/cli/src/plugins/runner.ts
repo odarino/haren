@@ -2,7 +2,7 @@ import { existsSync } from "fs";
 import { appendFile, mkdir, readFile } from "fs/promises";
 import { isAbsolute, join } from "path";
 import { readProgress, writeProgress } from "../workspace/progress";
-import { type HookName, validateManifest } from "./manifest";
+import { type HookName, readInstalledManifest } from "./manifest";
 import { pluginDataDir, pluginDir, readPlugins } from "./state";
 import { type PlannedTask, alignTaskKeys, parseTasksFile } from "./tasks";
 import { applyUpdates } from "./updates";
@@ -103,9 +103,7 @@ export async function runHook(
     let command: string | undefined;
     let config: Record<string, unknown> = {};
     try {
-      const manifest = validateManifest(
-        JSON.parse(await readFile(join(dir, "haren-plugin.json"), "utf-8")),
-      );
+      const manifest = await readInstalledManifest(dir);
       command = manifest.hooks[hook];
       config = { ...manifest.config, ...entry.config };
     } catch (err) {
