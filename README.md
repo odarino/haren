@@ -125,7 +125,19 @@ The agent reads `skill.md` in the haren folder, orients itself from `manifest.ya
 
 ## Plugins
 
-Plugins connect other tools to the haren workflow. Example: `haren init --plugin backlog` syncs haren tasks with a Backlog.md board. See [PLUGINS.md](PLUGINS.md) to install or write a plugin.
+Plugins connect other tools to the haren workflow. A plugin installs a tool, sets it up in the project, and reacts to haren hooks.
+
+```bash
+haren init --plugin backlog      # install during init
+haren plugin add backlog         # install later
+haren plugin list | remove <name> | doctor
+```
+
+Example: the `backlog` plugin syncs haren tasks with a Backlog.md board in `<haren folder>/backlog/`.
+
+**In a team:** commit `plugins.json` and `.plugin-data/`. haren adds `.plugins/` (the fetched code) to `.gitignore`. A teammate clones the haren folder and runs `haren init` or `haren upgrade`. haren then installs each missing plugin again.
+
+See [PLUGINS.md](PLUGINS.md) for the details, the backlog plugin, and how to write a plugin.
 
 ---
 
@@ -169,6 +181,7 @@ every repo.
 |---------|--------------|
 | `haren init` | Set up haren in the current directory: scaffold a new haren folder, or set up a cloned one. Interactive, or pass flags (below). |
 | `haren upgrade` | Update framework files in an existing haren folder to the installed version, and migrate old `manifest.yaml` / `progress.json`. |
+| `haren plugin` | Manage plugins: `add <name\|source>`, `remove <name>`, `list`, `doctor`, `run <hook>`. See [PLUGINS.md](PLUGINS.md). |
 | `haren agent` | Manage the local agent bridge *(experimental — for the in-progress Haren Portal)*. |
 
 `haren agent` works in both layouts. It uses the git remote of the haren repo as
@@ -197,6 +210,7 @@ Layout and folder flags:
 | `--haren-dir <name>` | Name of the new haren folder (default `haren`). |
 | `--yes` | Accept the defaults and skip the confirm prompt. Required when there is no terminal. |
 | `--dry-run` | Print the plan and exit. Nothing is written. |
+| `--plugin <name\|source>` | Install a plugin. Repeat the flag for more plugins. |
 | `--force` | Re-scaffold an existing haren folder. It keeps the folder name, the layout, and the repos in `manifest.yaml`. |
 
 ### The plan preview
