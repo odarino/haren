@@ -6,7 +6,7 @@ export type RequirementStatus =
   | { ok: false; reason: "outdated"; version: string };
 
 export function extractVersion(text: string): string | undefined {
-  return /(\d+\.\d+\.\d+)/.exec(text)?.[1];
+  return /(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/.exec(text)?.[1];
 }
 
 export async function checkRequirement(
