@@ -25,6 +25,57 @@ haren installs in this order:
 
 If a step fails, haren does not register the plugin.
 
+## Plugins in a team
+
+A team shares one haren folder through git. Some plugin files go into git. Other files stay on each machine.
+
+| Path                            | In git | Content                                                     |
+| ------------------------------- | ------ | ----------------------------------------------------------- |
+| `<haren folder>/plugins.json`   | yes    | The list of plugins, with source, version, and config.     |
+| `<haren folder>/.plugin-data/`  | yes    | Plugin state. The team shares this state.                   |
+| `<haren folder>/.plugins/`      | no     | The fetched plugin code. Each machine fetches its own copy. |
+
+`haren init` and `haren upgrade` add `.plugins/` to `<haren folder>/.gitignore`. They keep your other lines.
+
+A teammate gets the plugins with these steps:
+
+1. Clone the haren folder (monorepo: the project repo; workspace: the haren repo).
+2. Run `haren init` or `haren upgrade`.
+
+haren reads `plugins.json`. For each enabled plugin without a `.plugins/<name>/` folder, haren runs the normal install from the recorded `source`. haren checks `requires` and runs `setup` again. Then haren writes the editor copies of the plugin skills and agents.
+
+- An official source installs with no question.
+- Other sources need a confirmation. Without a terminal, use `--yes`. If haren cannot ask, it skips the plugin and prints a warning.
+- If a plugin fails, haren prints an error. `init` and `upgrade` continue.
+
+Rule for plugin authors: `setup` must be idempotent. haren runs it again on each new machine. A second run must not break the project or delete the shared state.
+
+## Backlog plugin
+
+The `backlog` plugin syncs haren tasks with a [Backlog.md](https://github.com/MrLesk/Backlog.md) board.
+
+Install it with one of these commands:
+
+```bash
+haren init --plugin backlog
+haren plugin add backlog
+```
+
+The board is in `<haren folder>/backlog/`. The config location depends on the layout:
+
+| Layout    | Config file                           | Committed with   | Run `backlog` from        |
+| --------- | ------------------------------------- | ---------------- | ------------------------- |
+| monorepo  | `backlog.config.yml` at project root  | the project repo | any folder in the project |
+| workspace | `<haren folder>/backlog/config.yml`   | the haren repo   | the haren folder          |
+
+Sync goes in two directions:
+
+- haren owns the title, the description, and the dependencies. After `plan`, haren writes them to the board.
+- The board owns the status. When you move a task on the board, haren updates the feature status.
+- haren checks the feature transition rules. It skips an invalid transition and prints a message.
+
+Each board task has the label `haren:<module>/<feature>`. Do not change this label. haren uses it to find the feature.
+
 ## Package layout
 
 ```
@@ -45,7 +96,7 @@ my-plugin/
 | `harenApi`         | yes                        | `"1"`                                                                                                                                                                                       |
 | `description`      | no                         |                                                                                                                                                                                             |
 | `requires`         | no                         | `[{ "bin", "version"?: semver range, "install"?: command }]`                                                                                                                                |
-| `setup`            | no                         | Commands that run once in the project root. `{{project}}` is the project name. `{{harenDir}}` is the haren folder path from the project root. It uses forward slashes, for example `haren`. |
+| `setup`            | no                         | Commands that run once in the project root. `{{project}}` is the project name. `{{harenDir}}` is the haren folder path from the project root. It uses forward slashes, for example `haren`. `{{layout}}` is `monorepo` or `workspace`. Setup must be idempotent. |
 | `hooks`            | no                         | `{ "<hook>": "<command>" }`. The command runs in the plugin folder.                                                                                                                         |
 | `config`           | no                         | Default values. Users override them in `haren/plugins.json`.                                                                                                                                |
 | `skills`, `agents` | no                         | Paths. haren copies them to `.claude/` and `.cursor/` with the prefix `<name>-`.                                                                                                            |

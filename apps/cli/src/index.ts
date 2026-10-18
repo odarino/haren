@@ -64,7 +64,7 @@ async function main() {
       console.log("                  --yes|-y  --dry-run  --force");
       console.log("                  --plugin <name|source>  (repeatable)");
       console.log(
-        "  haren upgrade   Upgrade framework files and migrate manifest/progress (--dry-run)",
+        "  haren upgrade   Upgrade framework files and migrate manifest/progress (--dry-run, --yes)",
       );
       console.log("  haren agent     Manage local agent (start, stop, status)");
       console.log("  haren plugin    Manage plugins (add, remove, list, run, doctor)");

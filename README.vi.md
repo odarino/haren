@@ -116,6 +116,7 @@ Thư mục haren có thể đặt tên bất kỳ. haren tìm nó bằng marker 
 
 • `haren init` — Thiết lập haren trong thư mục hiện tại: dựng thư mục haren mới, hoặc set up một thư mục haren đã clone. Tương tác, hoặc truyền flag (xem bên dưới).
 • `haren upgrade` — Cập nhật các file framework trong thư mục haren lên phiên bản đã cài, và migrate `manifest.yaml` / `progress.json` cũ.
+• `haren plugin` — Quản lý plugin: `add <name|source>`, `remove <name>`, `list`, `doctor`, `run <hook>`. Xem [PLUGINS.md](PLUGINS.md).
 • `haren agent` — Quản lý cầu nối agent cục bộ *(thử nghiệm — dành cho Haren Portal đang phát triển)*. Chạy được ở cả hai layout, dùng git remote của repo haren làm project key của Portal.
 
 Chạy `haren` không kèm tham số để xem trợ giúp.
@@ -138,6 +139,7 @@ Flag về layout và thư mục:
 • `--haren-dir <name>` — Tên thư mục haren mới (mặc định `haren`).
 • `--yes` (`-y`) — Nhận mặc định và bỏ qua bước xác nhận. Bắt buộc khi không có terminal.
 • `--dry-run` — In plan rồi thoát, không ghi gì.
+• `--plugin <name|source>` — Cài một plugin. Lặp lại flag để cài nhiều plugin.
 • `--force` — Dựng lại thư mục haren có sẵn (giữ tên thư mục, layout và repos trong `manifest.yaml`). Cũng cần để chạy ở thư mục home.
 
 `init` từ chối chạy ở thư mục home trừ khi có `--force`.
@@ -171,6 +173,20 @@ haren init
 ```
 
 `init` tìm manifest, clone từng repo còn thiếu từ `remote`, và sinh các file root ở thư mục cha. Sau đó mở workspace root trong editor và chạy `/haren-onboard`. Nếu một lần clone lỗi, `init` vẫn tiếp tục với các repo khác rồi thoát với mã 1; chạy lại `haren init` để thử lại đúng các repo còn thiếu. Nếu mọi thứ đã đủ, `init` in "Already set up".
+
+**Plugins** — plugin kết nối công cụ khác vào quy trình haren. Plugin cài công cụ, thiết lập nó trong project và phản hồi các hook của haren.
+
+```bash
+haren init --plugin backlog      # cài lúc init
+haren plugin add backlog         # cài sau
+haren plugin list | remove <name> | doctor
+```
+
+Ví dụ: plugin `backlog` đồng bộ task của haren với board Backlog.md trong `<thư mục haren>/backlog/`.
+
+**Plugin khi làm việc nhóm:** commit `plugins.json` và `.plugin-data/` (trạng thái dùng chung cho cả team). haren thêm `.plugins/` (mã plugin đã tải về) vào `.gitignore`. Đồng đội clone thư mục haren rồi chạy `haren init` hoặc `haren upgrade`; haren sẽ cài lại mỗi plugin còn thiếu. Với nguồn không chính thức, cần xác nhận (hoặc `--yes`); nếu một plugin lỗi, haren in lỗi và vẫn chạy tiếp.
+
+Xem [PLUGINS.md](PLUGINS.md) để biết chi tiết, plugin backlog và cách viết plugin.
 
 **`/haren-onboard`** — skill cho developer mới hoặc workspace mới:
 • **Analyze repos** — đọc build file của từng repo, đề xuất `stack`, `test_cmd`, `default_branch`, `role`; chỉ ghi vào `manifest.yaml` sau khi bạn duyệt.
