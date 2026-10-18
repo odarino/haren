@@ -76,7 +76,16 @@ describe("installPlugin setup placeholders", () => {
     await mkdir(harenDir);
     await installPlugin(`file:${join(fixtures, "setupvars")}`, { ...c, harenDir });
     const out = await Bun.file(join(c.workspaceDir, "setup-vars.txt")).text();
-    expect(out.trim()).toBe("shop|rules");
+    expect(out.trim()).toBe("shop|rules|workspace");
+  });
+  it("replaces {{layout}} with the manifest layout", async () => {
+    for (const layout of ["monorepo", "workspace"]) {
+      const c = await ctx(true);
+      await writeFile(join(c.harenDir, "manifest.yaml"), `project: shop\nlayout: ${layout}\n`);
+      await installPlugin(`file:${join(fixtures, "setupvars")}`, c);
+      const out = await Bun.file(join(c.workspaceDir, "setup-vars.txt")).text();
+      expect(out.trim()).toBe(`shop|haren|${layout}`);
+    }
   });
 });
 

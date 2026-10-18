@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, mkdir, rm, writeFile, readFile, cp } from "fs/promises";
 import { join, resolve } from "path";
 import { tmpdir } from "os";
+import { existsSync } from "fs";
 import { gitInit, runGit } from "../../workspace/git";
 import { parseManifest, normalizeRepos, hasMarker } from "../../workspace/manifest";
 import { planMigration } from "../../commands/upgrade";
@@ -153,9 +154,11 @@ describe("upgrade .gitignore", () => {
   it("creates .gitignore with the agent files as a migration step", async () => {
     const haren = await legacyWorkspace();
     const plan = await planMigration({ harenDir: haren, workspaceDir: ws, legacy: true });
-    expect(plan.steps).toContain(".gitignore: add .agent.json, .agent.pid");
+    expect(plan.steps).toContain(".gitignore: add .agent.json, .agent.pid, .plugins/");
     expect(await runUpgrade()).toBe(0);
-    expect(await readFile(join(haren, ".gitignore"), "utf-8")).toBe(".agent.json\n.agent.pid\n");
+    expect(await readFile(join(haren, ".gitignore"), "utf-8")).toBe(
+      ".agent.json\n.agent.pid\n.plugins/\n",
+    );
   });
 
   it("appends only the missing lines to an existing .gitignore", async () => {
@@ -163,7 +166,7 @@ describe("upgrade .gitignore", () => {
     await writeFile(join(haren, ".gitignore"), "node_modules\n.agent.json");
     expect(await runUpgrade()).toBe(0);
     expect(await readFile(join(haren, ".gitignore"), "utf-8")).toBe(
-      "node_modules\n.agent.json\n.agent.pid\n",
+      "node_modules\n.agent.json\n.agent.pid\n.plugins/\n",
     );
   });
 
@@ -172,13 +175,13 @@ describe("upgrade .gitignore", () => {
     await writeFile(join(haren, ".gitignore"), "node_modules\r\n");
     expect(await runUpgrade()).toBe(0);
     expect(await readFile(join(haren, ".gitignore"), "utf-8")).toBe(
-      "node_modules\r\n.agent.json\r\n.agent.pid\r\n",
+      "node_modules\r\n.agent.json\r\n.agent.pid\r\n.plugins/\r\n",
     );
   });
 
-  it("adds no step when .gitignore already lists both files", async () => {
+  it("adds no step when .gitignore already lists every entry", async () => {
     const haren = await legacyWorkspace();
-    await writeFile(join(haren, ".gitignore"), ".agent.pid\n.agent.json\n");
+    await writeFile(join(haren, ".gitignore"), ".agent.pid\n.plugins/\n.agent.json\n");
     const plan = await planMigration({ harenDir: haren, workspaceDir: ws, legacy: true });
     expect(plan.steps.some((s) => s.startsWith(".gitignore"))).toBe(false);
   });
@@ -261,5 +264,37 @@ describe("haren upgrade", () => {
     expect(await run(["upgrade"])).toBe(0);
     const state = JSON.parse(await readFile(join(ws, "haren", "plugins.json"), "utf-8"));
     expect(state.plugins.hello.version).toBe("0.2.0");
+  });
+
+  it("adds .plugins/ to .gitignore once and keeps user lines", async () => {
+    const haren = await legacyWorkspace();
+    await writeFile(join(haren, ".gitignore"), "mine.txt\n");
+    expect(await runUpgrade()).toBe(0);
+    expect(await runUpgrade()).toBe(0);
+    const lines = (await readFile(join(haren, ".gitignore"), "utf-8")).split("\n");
+    expect(lines).toContain("mine.txt");
+    expect(lines.filter((l) => l === ".plugins/")).toHaveLength(1);
+  });
+
+  it("restores a missing plugin folder and does not restore a present one", async () => {
+    const hello = resolve(import.meta.dir, "..", "plugins", "fixtures", "hello");
+    const run = async (args: string[]) => {
+      const proc = Bun.spawn(["bun", CLI, ...args], { cwd: ws, stdout: "pipe", stderr: "pipe" });
+      const out = await new Response(proc.stdout).text();
+      return { code: await proc.exited, out };
+    };
+    expect((await run(["init", "--yes", "--plugin", `file:${hello}`])).code).toBe(0);
+    const present = await run(["upgrade", "--yes"]);
+    expect(present.code).toBe(0);
+    expect(present.out).not.toContain("Restoring plugin");
+
+    await rm(join(ws, "haren", ".plugins"), { recursive: true, force: true });
+    await rm(join(ws, ".claude", "skills", "hello-greet"), { recursive: true, force: true });
+    const r = await run(["upgrade", "--yes"]);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("Restoring plugin hello");
+    expect(r.out).not.toContain("Installed plugin hello 0.1.0\n  Installed plugin hello");
+    expect(existsSync(join(ws, "haren", ".plugins", "hello", "haren-plugin.json"))).toBe(true);
+    expect(existsSync(join(ws, ".claude", "skills", "hello-greet", "SKILL.md"))).toBe(true);
   });
 });

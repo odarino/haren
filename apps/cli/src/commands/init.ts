@@ -19,7 +19,7 @@ import { cloneRepo, gitInit, hasGitDir } from "../workspace/git";
 import type { HarenLocation } from "../workspace/resolve";
 import { PROGRESS_VERSION } from "../workspace/progress";
 import { HAREN_VERSION } from "../lib/version";
-import { installPlugin } from "../plugins/install";
+import { installPlugin, missingPlugins, restorePlugins } from "../plugins/install";
 import { REGISTRY } from "../plugins/registry";
 
 type Mode = "blueprint" | "explore" | "inherit" | "undecided";
@@ -330,7 +330,7 @@ Master registry of all artifacts in this Haren workspace.
 
   // Keep agent state (team code, user id) out of the haren repo
   const gitignore = join(targetDir, ".gitignore");
-  if (!existsSync(gitignore)) await writeFile(gitignore, ".agent.json\n.agent.pid\n");
+  if (!existsSync(gitignore)) await writeFile(gitignore, ".agent.json\n.agent.pid\n.plugins/\n");
 
   // Write brainstorm-gate hook script (works with both Claude Code and Cursor)
   await writeGateScript(targetDir);
@@ -621,6 +621,32 @@ async function setupPlugins(
   }
 }
 
+/** Install plugins listed in plugins.json whose .plugins/<name>/ folder is missing. */
+async function restoreMissing(
+  opts: InitArgs,
+  location: HarenLocation,
+  project: string,
+): Promise<void> {
+  await restorePlugins(
+    {
+      workspaceDir: location.workspaceDir,
+      harenDir: location.harenDir,
+      project,
+      io: {
+        confirm: async (q) => {
+          console.log(`  ${q}`);
+          return opts.yes || (canPrompt(opts) && (await promptConfirm(false)) === "yes");
+        },
+        log: (l) => console.log(`  ${l}`),
+      },
+    },
+    {
+      warn: (l) => console.warn(`  \x1b[33m!\x1b[0m ${l}`),
+      error: (l) => console.error(`  \x1b[31m✗\x1b[0m ${l}`),
+    },
+  );
+}
+
 async function confirmOrExit(opts: InitArgs, allowEdit: boolean): Promise<"yes" | "no" | "edit"> {
   if (opts.yes) return "yes";
   if (!process.stdin.isTTY) {
@@ -711,8 +737,22 @@ async function runSetup(location: HarenLocation, opts: InitArgs): Promise<void> 
     editor,
   });
   console.log(`  Found haren folder: ${location.harenDir}`);
+  const missing = await missingPlugins(location.harenDir);
   if (isNoop(plan) && opts.plugins.length === 0) {
-    console.log("  Already set up. Run 'haren upgrade' to update framework files.");
+    if (missing.length === 0) {
+      console.log("  Already set up. Run 'haren upgrade' to update framework files.");
+      return;
+    }
+    if (opts.dryRun) {
+      console.log(`  Plugins to restore: ${missing.join(", ")}`);
+      return;
+    }
+    await restoreMissing(opts, location, manifest.project ?? "");
+    await writeRootFiles({
+      workspaceDir: location.workspaceDir,
+      harenDir: location.harenDir,
+      editor,
+    });
     return;
   }
   console.log("");
@@ -722,6 +762,7 @@ async function runSetup(location: HarenLocation, opts: InitArgs): Promise<void> 
   if ((await confirmOrExit(opts, false)) === "no") return;
 
   const failed = await applyClones(plan, location.workspaceDir);
+  await restoreMissing(opts, location, manifest.project ?? "");
   await setupPlugins(opts, location.workspaceDir, location.harenDir, manifest.project ?? "");
   await writeRootFiles({
     workspaceDir: location.workspaceDir,
