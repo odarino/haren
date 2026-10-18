@@ -27,7 +27,7 @@ import {
   type Editor,
   writeRootFiles,
 } from "../workspace/root-files";
-import { refreshPlugins } from "../plugins/install";
+import { refreshPlugins, restorePlugins } from "../plugins/install";
 import { GATE_SCRIPT_PATH, writeGateScript } from "../workspace/templates";
 
 export interface MigrationPlan {
@@ -115,7 +115,7 @@ export async function planMigration(location: HarenLocation): Promise<MigrationP
   }
 
   const gitignore = await planGitignore(harenDir);
-  if (gitignore !== null) steps.push(`.gitignore: add ${AGENT_FILES.join(", ")}`);
+  if (gitignore !== null) steps.push(`.gitignore: add ${IGNORED.join(", ")}`);
 
   const editor = detectEditor(workspaceDir) ?? "claude-code";
   const rootFiles = await computeRootFiles({ workspaceDir, harenDir, editor });
@@ -134,15 +134,16 @@ export async function planMigration(location: HarenLocation): Promise<MigrationP
   };
 }
 
-// Agent state (team code, user id, pid) must stay out of the haren repo.
-const AGENT_FILES = [".agent.json", ".agent.pid"];
+// Agent state (team code, user id, pid) and fetched plugin code must stay out of
+// the haren repo. plugins.json and .plugin-data/ stay committed.
+export const IGNORED = [".agent.json", ".agent.pid", ".plugins/"];
 
-/** Returns the new .gitignore text, or null when it already lists the agent files. */
+/** Returns the new .gitignore text, or null when it already lists every IGNORED entry. */
 async function planGitignore(harenDir: string): Promise<string | null> {
   const path = join(harenDir, ".gitignore");
   const before = existsSync(path) ? await readFile(path, "utf-8") : "";
   const lines = new Set(before.split(/\r?\n/).map((l) => l.trim()));
-  const missing = AGENT_FILES.filter((f) => !lines.has(f));
+  const missing = IGNORED.filter((f) => !lines.has(f));
   if (missing.length === 0) return null;
   const eol = before.includes("\r\n") ? "\r\n" : "\n";
   const base = before === "" || before.endsWith("\n") ? before : `${before}${eol}`;
@@ -278,12 +279,21 @@ export async function upgrade(args: string[]): Promise<void> {
   if (migration.gitignore !== null) {
     await writeFile(join(targetDir, ".gitignore"), migration.gitignore);
   }
-  const pluginWarnings = await refreshPlugins({
+  const yes = args.includes("--yes") || args.includes("-y");
+  const pluginCtx = {
     workspaceDir: location.workspaceDir,
     harenDir: targetDir,
-    project: "",
-    io: { confirm: async () => false, log: (l) => console.log(`  ${l}`) },
+    project: String(parseManifest(migration.manifest.after).project ?? ""),
+    io: { confirm: async () => yes, log: (l: string) => console.log(`  ${l}`) },
+  };
+  const restored = await restorePlugins(pluginCtx, {
+    warn: (l) => console.warn(`  \x1b[33m!\x1b[0m ${l}`),
+    error: (l) => console.error(`  \x1b[31m✗\x1b[0m ${l}`),
   });
+  const pluginWarnings = await refreshPlugins(
+    { ...pluginCtx, io: { ...pluginCtx.io, confirm: async () => false } },
+    restored,
+  );
   for (const w of pluginWarnings) console.warn(`  \x1b[33m!\x1b[0m ${w}`);
   await writeRootFiles({
     workspaceDir: location.workspaceDir,

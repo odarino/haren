@@ -1,10 +1,12 @@
-import { rename, rm } from "fs/promises";
+import { existsSync } from "fs";
+import { readFile, rename, rm } from "fs/promises";
 import { join, relative, resolve, sep } from "path";
 import type { PluginManifest } from "./manifest";
 import { resolvePluginRef } from "./registry";
 import { checkRequirement } from "./requires";
 import { fetchPlugin } from "./source";
 import { pluginDir, readPlugins, writePlugins } from "./state";
+import { parseManifest } from "../workspace/manifest";
 
 export interface InstallIO {
   confirm(question: string): Promise<boolean>;
@@ -24,6 +26,17 @@ async function sh(command: string, cwd: string): Promise<void> {
   const [stderr, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
   if (code !== 0)
     throw new Error(`"${command}" failed: ${stderr.trim().split("\n").pop() ?? `exit ${code}`}`);
+}
+
+/** The haren manifest layout. Defaults to workspace, like the rest of the CLI. */
+async function harenLayout(harenDir: string): Promise<string> {
+  const path = join(harenDir, "manifest.yaml");
+  if (!existsSync(path)) return "workspace";
+  try {
+    return parseManifest(await readFile(path, "utf-8")).layout ?? "workspace";
+  } catch {
+    return "workspace";
+  }
 }
 
 const incomingDir = (ctx: InstallContext) => pluginDir(ctx.harenDir, ".incoming");
@@ -59,9 +72,13 @@ export async function installPlugin(ref: string, ctx: InstallContext): Promise<P
     }
 
     const harenRel = relative(ctx.workspaceDir, ctx.harenDir).split(sep).join("/");
+    const layout = await harenLayout(ctx.harenDir);
     for (const command of manifest.setup) {
       await sh(
-        command.replaceAll("{{project}}", ctx.project).replaceAll("{{harenDir}}", harenRel),
+        command
+          .replaceAll("{{project}}", ctx.project)
+          .replaceAll("{{harenDir}}", harenRel)
+          .replaceAll("{{layout}}", layout),
         ctx.workspaceDir,
       );
     }
@@ -112,11 +129,57 @@ export async function removeEditorCopies(
   }
 }
 
-export async function refreshPlugins(ctx: InstallContext): Promise<string[]> {
+/** Enabled plugins in plugins.json whose fetched code is missing (for example, after a clone). */
+export async function missingPlugins(harenDir: string): Promise<string[]> {
+  const state = await readPlugins(harenDir);
+  return Object.entries(state.plugins)
+    .filter(
+      ([name, e]) => e.enabled && !existsSync(join(pluginDir(harenDir, name), "haren-plugin.json")),
+    )
+    .map(([name]) => name);
+}
+
+export interface RestoreReport {
+  warn(line: string): void;
+  error(line: string): void;
+}
+
+/**
+ * Install every enabled plugin whose `.plugins/<name>/` folder is missing, from its
+ * recorded source. A failure is reported and never thrown. Returns the restored names.
+ */
+export async function restorePlugins(
+  ctx: InstallContext,
+  report: RestoreReport,
+): Promise<string[]> {
+  const restored: string[] = [];
+  const state = await readPlugins(ctx.harenDir);
+  for (const name of await missingPlugins(ctx.harenDir)) {
+    const source = state.plugins[name]!.source;
+    ctx.io.log(`Restoring plugin ${name} from ${source}`);
+    try {
+      const manifest = await installPlugin(source, ctx);
+      if (manifest.name !== name) {
+        report.warn(`plugin ${name}: source now installs ${manifest.name}`);
+      }
+      restored.push(manifest.name);
+    } catch (err) {
+      const message = (err as Error).message;
+      if (message === "Plugin install cancelled") {
+        report.warn(`plugin ${name}: skipped, not confirmed. Run again with --yes to install it.`);
+      } else {
+        report.error(`plugin ${name}: ${message}`);
+      }
+    }
+  }
+  return restored;
+}
+
+export async function refreshPlugins(ctx: InstallContext, skip: string[] = []): Promise<string[]> {
   const warnings: string[] = [];
   const state = await readPlugins(ctx.harenDir);
   for (const [name, entry] of Object.entries(state.plugins)) {
-    if (!entry.enabled) continue;
+    if (!entry.enabled || skip.includes(name)) continue;
     try {
       const manifest = await stage(entry.source, ctx);
       if (manifest.name !== name) {

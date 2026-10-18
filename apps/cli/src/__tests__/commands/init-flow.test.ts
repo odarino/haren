@@ -313,6 +313,37 @@ describe("haren init flow", () => {
     expect(existsSync(join(ws, ".claude", "skills", "hello-greet", "SKILL.md"))).toBe(true);
   });
 
+  it("ignores .plugins/ in a new haren folder", async () => {
+    expect((await haren(["init", "--yes"])).code).toBe(0);
+    const lines = (await readFile(join(ws, "haren", ".gitignore"), "utf-8")).split("\n");
+    expect(lines).toContain(".plugins/");
+  });
+
+  it("restores a missing plugin folder in setup mode", async () => {
+    const hello = resolve(import.meta.dir, "..", "plugins", "fixtures", "hello");
+    const args = ["init", "--yes", "--plugin", `file:${hello}`, "--editor", "claude-code"];
+    expect((await haren(args)).code).toBe(0);
+    const pluginFolder = join(ws, "haren", ".plugins", "hello");
+    const skill = join(ws, ".claude", "skills", "hello-greet", "SKILL.md");
+    await rm(pluginFolder, { recursive: true, force: true });
+    await rm(join(ws, ".claude", "skills", "hello-greet"), { recursive: true, force: true });
+
+    const noYes = await haren(["init"]);
+    expect(noYes.code).toBe(0);
+    expect(noYes.err + noYes.out).toContain("plugin hello");
+    expect(existsSync(join(pluginFolder, "haren-plugin.json"))).toBe(false);
+
+    const r = await haren(["init", "--yes"]);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("Restoring plugin hello");
+    expect(existsSync(join(pluginFolder, "haren-plugin.json"))).toBe(true);
+    expect(existsSync(skill)).toBe(true);
+
+    const again = await haren(["init", "--yes"]);
+    expect(again.code).toBe(0);
+    expect(again.out).not.toContain("Restoring plugin");
+  });
+
   it("keeps going when a plugin fails to install", async () => {
     const r = await haren(["init", "--yes", "--plugin", "nope"]);
     expect(r.code).toBe(0);
