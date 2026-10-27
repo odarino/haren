@@ -47,7 +47,19 @@ These decisions affect ALL modules and must be resolved first.
    - `artifacts/03-modules/module-map.md` (use create-artifact skill)
    - `artifacts/03-modules/{module}/module.md` for each module (use create-artifact skill) — each module gets its own folder so that `spec.md` (BA-owned) can sit alongside it later
 9. Validate with validate-artifact skill (checks for cycles, missing interfaces)
-10. Update progress.json — each module gets "decomposed" status
+10. Update progress.json — each module gets "decomposed" status. Write every module with this shape:
+    ```json
+    "<module>": {
+      "status": "decomposed",
+      "currentPhase": "decompose",
+      "features": {},
+      "lastCommit": {},
+      "branch": "feat/<module>",
+      "repos": ["<repo key from manifest>"],
+      "lastUpdated": "<ISO 8601 timestamp>"
+    }
+    ```
+    `features` stays `{}` until the plan phase adds tasks. `branch` and `repos` are optional. Without `branch`, haren uses `feat/<module>`.
 
 ## Module Map Format
 
