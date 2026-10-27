@@ -23,6 +23,21 @@ describe("progress", () => {
     await rm(testDir, { recursive: true, force: true });
   });
 
+  it("defaults missing features and lastCommit maps on read", async () => {
+    await writeFile(
+      progressPath,
+      JSON.stringify({
+        project: "test",
+        version: 1,
+        modules: { core: { status: "decomposed", repos: ["api"] } },
+        dependencies: {},
+      }),
+    );
+    const progress = await readProgress(progressPath);
+    expect(progress.modules.core!.features).toEqual({});
+    expect(progress.modules.core!.lastCommit).toEqual({});
+  });
+
   it("reads progress.json", async () => {
     const data: Progress = {
       project: "test",

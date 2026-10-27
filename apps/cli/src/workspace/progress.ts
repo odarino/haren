@@ -68,7 +68,18 @@ const VALID_FEATURE_TRANSITIONS: Record<FeatureStatus, FeatureStatus[]> = {
 
 export async function readProgress(path: string): Promise<Progress> {
   const raw = await readFile(path, "utf-8");
-  return JSON.parse(raw) as Progress;
+  const progress = JSON.parse(raw) as Progress;
+  progress.modules ??= {};
+  // Agents write modules by hand, so fill the maps that callers index into.
+  for (const mod of Object.values(progress.modules)) {
+    if (!isObject(mod.features)) mod.features = {};
+    if (!isObject(mod.lastCommit)) mod.lastCommit = {};
+  }
+  return progress;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export async function writeProgress(path: string, progress: Progress): Promise<void> {
