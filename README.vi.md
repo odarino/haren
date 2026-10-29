@@ -297,6 +297,13 @@ Chạy `haren upgrade --dry-run` để xem từng bước mà không ghi gì. Up
 
 Triết lý workflow của haren chịu ảnh hưởng lớn từ **Superpowers** (https://github.com/obra/superpowers) của Jesse Vincent — kỷ luật *brainstorm → viết plan → thực thi với subagent mới → review*, hướng tiếp cận test-driven và YAGNI, cùng ý tưởng chặn implement sau một design đã duyệt đều bắt nguồn từ đó. haren đóng gói một triết lý tương tự thành một SDLC theo giai đoạn, dựa trên artifact, cho các product team. Xin chân thành cảm ơn.
 
+☕ **Ủng hộ**
+
+Nếu haren giúp bạn tiết kiệm thời gian, bạn có thể ủng hộ dự án:
+
+- [GitHub Sponsors](https://github.com/sponsors/odarino)
+- [Buy Me a Coffee](https://buymeacoffee.com/odarino)
+
 📄 **License**
 
 MIT — xem [LICENSE](./LICENSE).
