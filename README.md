@@ -435,7 +435,7 @@ philosophy into a phased, artifact-driven SDLC for product teams. Many thanks.
 If haren saves you time, you can support its development:
 
 - [GitHub Sponsors](https://github.com/sponsors/odarino)
-- [Buy Me a Coffee](https://buymeacoffee.com/odarino)
+- [Ko-fi](https://ko-fi.com/odarino)
 
 ---
 

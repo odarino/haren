@@ -302,7 +302,7 @@ Triết lý workflow của haren chịu ảnh hưởng lớn từ **Superpowers*
 Nếu haren giúp bạn tiết kiệm thời gian, bạn có thể ủng hộ dự án:
 
 - [GitHub Sponsors](https://github.com/sponsors/odarino)
-- [Buy Me a Coffee](https://buymeacoffee.com/odarino)
+- [Ko-fi](https://ko-fi.com/odarino)
 
 📄 **License**
 
