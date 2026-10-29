@@ -6,6 +6,16 @@
   "license": "MIT",
   "author": "Phung Vu",
   "homepage": "https://github.com/odarino/haren#readme",
+  "funding": [
+    {
+      "type": "github",
+      "url": "https://github.com/sponsors/odarino"
+    },
+    {
+      "type": "buymeacoffee",
+      "url": "https://buymeacoffee.com/odarino"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/odarino/haren.git"
