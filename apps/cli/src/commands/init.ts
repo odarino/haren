@@ -398,7 +398,9 @@ You are operating within the Haren agentic SDLC framework.
 | Evaluate a module | evaluate/ | Reviewer |
 | Check project status | read-context/ | — |
 | Search artifacts | search-artifact/ | — |
-| Draw a UI wireframe | generate-mockup/ | — |
+| Release completed modules | release/ | Architect |
+| Draw a UI wireframe or compare screen options | generate-mockup/ | — |
+| Update status, artifacts, events | update-tracking/ (\`haren track\`) | — |
 | Onboard to the project / check the workspace | onboard/ (\`/haren-onboard\`) | — |
 
 ## How to dispatch
@@ -411,7 +413,18 @@ You are operating within the Haren agentic SDLC framework.
 - User says "status" or "where are we?" → read-context/ skill
 - User says "start" or "init" → discover/ skill
 - User asks about an artifact → search-artifact/ skill
+- User says "release", "deploy" or "ship {module}" → release/ skill (plans the order; never deploys by itself)
 - User runs \`/haren-onboard\`, is new to the project, or asks "is my workspace set up?" → onboard/ skill
+
+## Phases
+
+\`ideate\` → \`discover\` → \`research\` → \`decompose\` → \`plan\` → \`implement\` → \`evaluate\` → \`release\`. A module that is stuck is in \`blocked\`. These are also the allowed \`phase\` values in \`events/events.jsonl\`.
+
+Module status: \`discovered → decomposed → planned → implementing → evaluating → completed → released\`.
+
+## Tracking
+
+Change \`progress.json\`, \`events/events.jsonl\` and \`artifacts/_registry/artifact-index.md\` only with \`haren track\` (see update-tracking/ skill). Never edit them by hand, with sed or with jq.
 
 ## Artifact Ownership
 
@@ -458,11 +471,21 @@ When a skill says "read the master plan" or needs full module context, it means 
 - **lastCommit:** \`modules.<module>.lastCommit\` maps a repo key to the last commit SHA that haren recorded, for example \`{ "backend": "abc1234" }\`. It is never a plain string. The key \`default\` comes from an old progress file. In the monorepo layout, it means the repo that holds this haren folder. In the workspace layout, it means the module's first repo.
 - Never push. Never create pull requests unless the user asks. Never clone repos — tell the user to run \`haren init\`.
 
+### Dependent modules
+
+The decompose skill records module dependencies in \`progress.json\` \`dependencies\` (for example \`"web": ["api"]\`). If module B depends on module A:
+
+- **A is merged:** create \`feat/<B>\` from the default branch as usual.
+- **A is not merged yet:** create \`feat/<B>\` from \`feat/<A>\`. Record the base in the session log, for example "baseBranch: feat/<A>". Merge A into the default branch first. Then rebase or merge B onto the default branch, and only then merge B.
+- **Monorepo layout:** both modules share one repository. When possible, merge A before you start B, so that B starts from the default branch.
+- Never merge B before A.
+
 ## Rules
 
 - Always read progress.json before taking action
-- Write outside this haren folder only in the module's repos (see "Repos and Git"), only from the \`planned\` status on (implement phase) or when qa-engineer writes tests in \`$E2E\`, or when the user explicitly asks
-- Update progress.json after every phase transition
+- Write outside this haren folder only in the module's repos (see "Repos and Git"), only from the \`planned\` status on (implement phase) or when qa-engineer writes tests in \`$E2E\`, or when the user explicitly asks. For a user request outside the module flow (for example a hotfix), first run \`haren track override on --reason "<what the user asked>"\`, and run \`haren track override off\` when the change is done
+- The code gate allows code only inside the repos of modules at \`planned\` or later. Do not edit other repos without the override
+- Update progress.json after every phase transition with \`haren track status\`
 - Append to FEEDBACK.md when you encounter framework friction
 - Validate artifacts before phase transitions (validate-artifact/ skill)
 `,

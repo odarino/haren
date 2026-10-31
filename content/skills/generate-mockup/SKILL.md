@@ -1,6 +1,6 @@
 ---
 name: generate-mockup
-description: Generate ASCII wireframe mockups for screens during design phase
+description: Generate ASCII wireframe mockups for screens, as one wireframe or as 2-3 options to compare
 type: utility
 ---
 
@@ -10,7 +10,7 @@ Generate ASCII wireframes for UI screens described in specs or designs. Output i
 
 ## When to Use
 
-- During the **plan** phase when designing screens for a module
+- During the **plan** phase, for each screen the module adds or changes (options mode)
 - When the user asks to visualize a UI layout
 - When the spec references screens that need visual definition
 
@@ -19,6 +19,21 @@ Generate ASCII wireframes for UI screens described in specs or designs. Output i
 - Screen name and purpose
 - Key UI elements (components, fields, actions)
 - Layout hints (sidebar, modal, table, form, tabs, etc.)
+
+## Modes
+
+- **Single** (default): one wireframe for one screen
+- **Options**: 2-3 labeled variants of one screen, for the user to compare and pick. The plan skill uses this mode
+
+### Options mode
+
+1. Make 2-3 variants of the same screen. Label them `Option A`, `Option B`, `Option C`. Each variant must differ in a real decision (layout, grouping, navigation, density), not only in style
+2. Under each variant, write one line: `Trade-off: {gain} — {cost}`
+3. Mark one variant as recommended and say why in one sentence
+4. Show the variants side by side in one message (see Output Format). If the terminal is narrow, show them one under the other
+5. Ask the user to pick one. Do not continue to the next screen before the pick
+6. Optional browser view: if the user asks, or if the screens are hard to read as ASCII, write `artifacts/04-plans/{module}/mockups/{screen-slug}.html`. The file shows the options side by side in columns, with the label and the trade-off over each. Use plain HTML and inline CSS only, with no external scripts. Tell the user the file path to open in a browser
+7. Use only synthetic data in mockups (for example "Alex Sample", `user@example.com`). Never copy real third-party personal data
 
 ## ASCII Wireframe Conventions
 
@@ -129,12 +144,28 @@ Place wireframes in the design.md under the relevant screen:
 \```
 ```
 
+### Options mode output
+
+```markdown
+### Screen: {Screen Name} — options
+
+Option A                         Option B
+┌──────────────────────┐         ┌──────────────────────┐
+│ ...                  │         │ ...                  │
+└──────────────────────┘         └──────────────────────┘
+Trade-off: {gain} — {cost}       Trade-off: {gain} — {cost}
+
+Recommended: B, because {reason}.
+```
+
+After the pick, put the chosen wireframe and the option table in the `## Screens` section of design.md (see `templates/design.md`).
+
 ## Rules
 
 - Keep wireframes simple — communicate layout, not pixel-perfect design
 - Use placeholder text: `[Field Label]`, `[Button Text]`, `Row data`
 - Show realistic column counts and proportions
-- Max width: 60 characters for wireframe content
+- Max width: 60 characters for wireframe content (30 characters per option when options are side by side)
 - If a screen has tabs or states, show the primary state unless asked
 - **Ask the user** if the layout looks right before moving to the next screen
-- Wireframes go into `design.md`, not a separate file
+- Wireframes go into `design.md`. The only separate file is the optional HTML view in options mode

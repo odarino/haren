@@ -22,7 +22,7 @@ Any time during the project lifecycle when a question needs investigation before
 2. **Resolve ID**: Use resolve-next-id skill to get next RESEARCH ID
 3. **Conduct research**: Investigate using available tools (web search, code reading, docs)
 4. **Document findings**: Write structured research artifact
-5. **Update registry**: Use create-artifact skill to write file and update artifact-index.md
+5. **Update registry**: Use create-artifact skill to write the file. It registers the file with `haren track artifact`
 
 ## Output Format
 

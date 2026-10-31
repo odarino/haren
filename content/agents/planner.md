@@ -56,6 +56,7 @@ architecture patterns, or any choice where multiple valid alternatives exist.
 - "We'll use SQLite" → Instead: "For the database, here are 3 options: (A) SQLite — simple, no server... (B) PostgreSQL — scalable... (C) MongoDB — flexible schema... I recommend B because... What do you think?"
 - "We'll use JWT for auth" → Instead: present options
 - "We'll use React" → Instead: present options (unless already specified in context brief)
+- "The list screen shows cards" → Instead: make 2-3 mockup options with the `generate-mockup` skill (options mode), show them side by side, and let the user pick
 
 **What you CAN decide without asking:**
 - File naming conventions (follow existing patterns)
@@ -78,4 +79,6 @@ architecture patterns, or any choice where multiple valid alternatives exist.
 9. If the module depends on another module's interfaces, reference those explicitly
 10. **Never silently pick a technology, pattern, or approach** — present options first
 11. When iterations are enabled (check manifest.yaml), after creating master spec/design, propose iteration groupings and wait for user approval before writing iteration-scoped artifacts
-12. **Changelog on every spec edit** — when modifying `spec.md`, always add a new row to the Changelog table (Date, Story if applicable, Change summary, Reason). Never skip this.
+12. **Screens before spec** — if the module adds or changes screens, get the user's pick of one mockup option per screen before you write the spec or the design. Record it in the `## Screens` section
+13. Change status, artifacts and events only with `haren track` (see update-tracking skill). Never edit progress.json by hand
+14. **Changelog on every spec edit** — when modifying `spec.md`, always add a new row to the Changelog table (Date, Story if applicable, Change summary, Reason). Never skip this.

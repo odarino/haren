@@ -23,10 +23,16 @@ Create a complete, actionable plan for implementing a single module.
 <HARD-GATE>
 Before writing any artifact, identify all decision points in the module and
 resolve them with the user. Do NOT write spec.md or design.md with assumptions.
+Decision points include technical decisions (database, framework, auth, APIs)
+and UI/UX decisions (screen layout, navigation, empty and error states, how
+content is grouped). If the module adds or changes screens, the user picks one
+mockup option per changed screen before you write the spec or the design.
 </HARD-GATE>
 
 **Decision gathering process:**
-1. List all technical decisions this module requires (database, framework, auth, APIs, etc.)
+1. List all decisions this module requires:
+   - Technical: database, framework, auth, APIs, etc.
+   - UI/UX: one decision for each screen that the module adds or changes
 2. For each decision, check if it's already resolved:
    - Specified in context-brief.md → use it, no need to ask
    - Specified in module definition → use it, no need to ask
@@ -38,6 +44,13 @@ resolve them with the user. Do NOT write spec.md or design.md with assumptions.
    - Your recommendation and why
 4. **One question at a time** — don't dump all decisions in one message
 5. Document each decision in the design artifact with rationale
+
+**UI decisions (only if the module adds or changes screens):**
+1. List the changed screens from the spec, the module definition and the stories
+2. For each screen, use the `generate-mockup` skill in options mode. Make 2-3 labeled options (A, B, C). Give each option a one-line trade-off and mark your recommendation
+3. Show the options side by side in one message. If the user wants a browser view, also write the HTML file that the skill describes
+4. Ask the user to pick one option. One screen at a time
+5. Record the chosen option and the rejected options with the reason in the `## Screens` section of the design. Add the same to the `## Screens` section of the spec, and add a Changelog row for that spec edit
 
 **Example flow:**
 ```
@@ -51,6 +64,13 @@ You: "For the auth module, I need to decide on a few things.
 User: "go with A"
 
 You: "Got it, PostgreSQL. Next: for authentication strategy..."
+
+You: "The module changes the Post detail screen. Here are 3 options:
+     A) One long text — simple, but long posts are hard to scan
+     B) Parts as separate cards — clear parts, more scrolling
+     C) Parts joined by a connector line — shows the thread, more work
+     [mockups A, B, C side by side]
+     I'd recommend B because [reason]. Which one?"
 ```
 
 ### Step 6: Write artifacts (after all decisions are resolved)
@@ -73,6 +93,7 @@ Using `templates/design.md`:
 - Architecture overview
 - Data model
 - **Key technical decisions with rationale** (from step 5 — include what was chosen and why)
+- **Screens** (if the module adds or changes screens): the chosen mockup per screen and the rejected options with the reason
 - File structure plan
 - External dependencies
 
@@ -88,14 +109,19 @@ Using `templates/tasks.md`:
 
 ### Step 7: Review with user
 
-Present each artifact section by section. Ask "does this look right?" after each.
+**Small module:** the module has 3 tasks or fewer, each task changes about 30 lines or fewer, it adds no new external dependency and it has no schema migration. For a small module, show the design and the tasks in one message and ask for one approval. Write "Size: small" in the design. The implement skill then uses its fast path.
+
+**Other modules:** present each artifact section by section. Ask "does this look right?" after each.
 Only proceed to the next artifact after the current one is approved.
+
+The user can always ask for the full path. Then review section by section.
 
 ### Step 8: Finalize
 
 1. Validate all three artifacts with validate-artifact skill
-2. Update progress.json — module status to "planned"
-3. If `plugins.json` exists in the haren folder, run `haren plugin run after-plan --payload '{"module":"<module>","tasksFile":"<path of tasks.md relative to the haren folder>"}'` and show its output lines. A warning does not block the plan. The CLI adds the missing features to progress.json, so do not add them yourself
+2. Register each new artifact: `haren track artifact <id> --type <type> --path <path> --module <module>`
+3. Set the module status: `haren track status <module> planned`. Never edit progress.json by hand
+4. If `plugins.json` exists in the haren folder, run `haren plugin run after-plan --payload '{"module":"<module>","tasksFile":"<path of tasks.md relative to the haren folder>"}'` and show its output lines. A warning does not block the plan. The CLI adds the missing features to progress.json, so do not add them yourself
 
 ### Step 9: Iteration slicing (only if iterations enabled)
 
@@ -130,6 +156,7 @@ After creating the master spec and design, and after all tasks are defined:
 ## Rules
 
 - **Never silently pick a technology** — present options, let the user choose
+- **Never silently pick a screen layout** — show 2-3 mockup options, let the user choose
 - **One question at a time** — don't overwhelm with multiple decisions
 - The spec is the contract the evaluator checks against — be precise and testable
 - Tasks should reference exact file paths in the target repo

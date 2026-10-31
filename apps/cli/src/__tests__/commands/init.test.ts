@@ -382,7 +382,7 @@ describe("scaffoldWorkspace", () => {
     });
     const hookScript = await readFile(join(testDir, "hooks", "brainstorm-gate.ts"), "utf-8");
     expect(hookScript).toContain("progress.json");
-    expect(hookScript).toContain("implementablePhases");
+    expect(hookScript).toContain("IMPLEMENTABLE");
   });
 
   it("writes a .gitignore for agent state files", async () => {
