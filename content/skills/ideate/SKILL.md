@@ -126,7 +126,7 @@ Review research findings for significant problems:
          type: concept-brief
          generated_by: ideate
      ```
-5. Update `progress.json` with ideate phase status:
+5. Record the ideate result with `haren track event ideate-complete --phase ideate --data '<json>'`, where `<json>` holds these fields. Never edit `progress.json` by hand:
    ```json
    {
      "ideate": {
@@ -144,7 +144,7 @@ Review research findings for significant problems:
 - Research artifacts: `artifacts/01-research/RESEARCH-{NNN}-{slug}.md` (1-3 per ideation)
 - Concept brief: `artifacts/00-baseline/concept-brief.md`
 - Updated `manifest.yaml` with mode and sources
-- Updated `progress.json` with ideate status
-- Updated `artifacts/_registry/artifact-index.md`
+- An `ideate-complete` event in `events/events.jsonl`
+- New rows in `artifacts/_registry/artifact-index.md`, added with `haren track artifact`
 
 After completion, the Discover phase picks up the concept brief as a baseline doc in blueprint mode. No manual handoff required.

@@ -40,7 +40,7 @@ Before starting discovery, determine the intent:
 3. Follow the strategy to produce a context brief
 4. Write output using create-artifact skill: `artifacts/02-discovery/context-brief.md`
 5. Validate output with validate-artifact skill
-6. Update progress.json — project moves past discovery
+6. Register the context brief: `haren track artifact <id> --type context-brief --path artifacts/02-discovery/context-brief.md`. Append the phase event: `haren track event discover-complete --phase discover`
 
 ## Output
 
@@ -49,6 +49,7 @@ A single `context-brief.md` that contains:
 - Key requirements (functional and non-functional)
 - Constraints and assumptions
 - Identified risks
+- Screens: the main screens that users see, as a list with one line each. Do not draw them here. The plan phase makes 2-3 mockup options per changed screen with the `generate-mockup` skill
 - Suggested module boundaries (high-level, refined in Decompose)
 
 All three modes produce the same output format — the strategy only changes how the information is gathered.

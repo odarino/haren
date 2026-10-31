@@ -26,7 +26,7 @@ Iteration file (07-iterations) | Link to iteration-scoped designs in 04-plans
 2. For each referenced artifact:
    - Open it
    - Add a link back to the new artifact in its "Related Artifacts" section
-3. Update artifact-index.md if link relationships changed
+3. If link relationships changed, update the index row with `haren track artifact <id> --type <type> --path <path>`. Never edit artifact-index.md by hand
 
 ## Rules
 
