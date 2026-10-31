@@ -1,0 +1,19 @@
+haren:
+  version: "1.3.3"
+layout: monorepo
+project: haren
+mode: undecided
+language: English
+
+repos:
+  # Add repos here. Paths are relative to this folder.
+  # backend:
+  #   path: ../backend
+
+sources:
+  # Mode-specific inputs
+  # docs: ./artifacts/00-baseline/requirements.pdf
+
+hooks:
+  # on-phase-complete:
+  #   - echo "Module ${MODULE} completed ${PHASE}"
