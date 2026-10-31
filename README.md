@@ -22,7 +22,7 @@ research → discover → decompose → plan → implement → evaluate
 
 Instead of letting an LLM jump straight to code, haren enforces a phased
 workflow: brainstorm and research first, decompose into modules, write a plan,
-*then* implement. The result is fewer wasted tokens, fewer half-built features,
+_then_ implement. The result is fewer wasted tokens, fewer half-built features,
 and a paper trail of decisions you can actually review.
 
 ---
@@ -30,7 +30,7 @@ and a paper trail of decisions you can actually review.
 ## Why
 
 LLM coding agents are eager. Ask for a feature and they'll start writing files
-before anyone has agreed on *what* is being built. haren adds the missing
+before anyone has agreed on _what_ is being built. haren adds the missing
 front-half of the SDLC and **gates implementation behind planning** — a module
 cannot be coded until it has reached `planned` status. The gate is enforced by a
 hook, not just a prompt, so the discipline holds even when the model forgets.
@@ -177,12 +177,12 @@ every repo.
 
 ## Commands
 
-| Command | What it does |
-|---------|--------------|
-| `haren init` | Set up haren in the current directory: scaffold a new haren folder, or set up a cloned one. Interactive, or pass flags (below). |
+| Command         | What it does                                                                                                                                                                                                                                 |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `haren init`    | Set up haren in the current directory: scaffold a new haren folder, or set up a cloned one. Interactive, or pass flags (below).                                                                                                              |
 | `haren upgrade` | Update framework files in an existing haren folder to the installed version, and migrate old `manifest.yaml` / `progress.json`. It also restores missing plugins from `plugins.json`. Use `--yes` to accept plugins from unofficial sources. |
-| `haren plugin` | Manage plugins: `add <name\|source>`, `remove <name>`, `list`, `doctor`, `run <hook>`. See [PLUGINS.md](PLUGINS.md). |
-| `haren agent` | Manage the local agent bridge *(experimental — for the in-progress Haren Portal)*. |
+| `haren plugin`  | Manage plugins: `add <name\|source>`, `remove <name>`, `list`, `doctor`, `run <hook>`. See [PLUGINS.md](PLUGINS.md).                                                                                                                         |
+| `haren agent`   | Manage the local agent bridge _(experimental — for the in-progress Haren Portal)_.                                                                                                                                                           |
 
 `haren agent` works in both layouts. It uses the git remote of the haren repo as
 the Portal project key.
@@ -203,15 +203,15 @@ haren init \
 
 Layout and folder flags:
 
-| Flag | Effect |
-|------|--------|
-| `--dir <path>` | Run in this directory instead of the current one. |
-| `--layout monorepo\|workspace` | Skip layout detection. |
-| `--haren-dir <name>` | Name of the new haren folder (default `haren`). |
-| `--yes` | Accept the defaults and skip the confirm prompt. Required when there is no terminal. |
-| `--dry-run` | Print the plan and exit. Nothing is written. |
-| `--plugin <name\|source>` | Install a plugin. Repeat the flag for more plugins. |
-| `--force` | Re-scaffold an existing haren folder. It keeps the folder name, the layout, and the repos in `manifest.yaml`. |
+| Flag                           | Effect                                                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `--dir <path>`                 | Run in this directory instead of the current one.                                                             |
+| `--layout monorepo\|workspace` | Skip layout detection.                                                                                        |
+| `--haren-dir <name>`           | Name of the new haren folder (default `haren`).                                                               |
+| `--yes`                        | Accept the defaults and skip the confirm prompt. Required when there is no terminal.                          |
+| `--dry-run`                    | Print the plan and exit. Nothing is written.                                                                  |
+| `--plugin <name\|source>`      | Install a plugin. Repeat the flag for more plugins.                                                           |
+| `--force`                      | Re-scaffold an existing haren folder. It keeps the folder name, the layout, and the repos in `manifest.yaml`. |
 
 ### The plan preview
 
@@ -271,6 +271,84 @@ A skill for a new developer or a new workspace. It does three things:
 It never clones and never changes git state. To clone a missing repo, run
 `haren init`.
 
+### `haren track`
+
+Use `haren track` to update `progress.json`, the artifact index, and
+`events/events.jsonl`. Do not edit these files by hand with `jq` or `sed`.
+The command finds the haren folder from the current folder. Use `--haren-dir <path>`
+or `HAREN_DIR` to choose one. It keeps all other keys in `progress.json`.
+
+```bash
+haren track status <module> <status>
+haren track feature <module> <feature> [status]
+haren track commit <module> <repoKey> <sha>
+haren track artifact <id> --type <type> --path <path> [--module <m>] [--status <s>]
+haren track event <type> [--module m] [--phase p] [--feature f] [--data '<json object>']
+haren track override on --reason "<text>" [--hours <n>]
+haren track override off
+```
+
+- `status` checks the module transition. It creates a missing module only at
+  `discovered` or `decomposed`. Transitions:
+  `discovered → decomposed → planned → implementing → evaluating → completed → released`.
+  `implementing` and `evaluating` can go to `blocked`. `blocked` goes back to
+  `implementing` or `planned`.
+- `feature` without a status adds the feature as `pending`. With a status it checks
+  the transition: `pending → in-progress → evaluating → passing | fixing | blocked`,
+  `fixing → evaluating`, `blocked → in-progress`.
+- `commit` sets `lastCommit[repoKey]`, adds `repoKey` to the module `repos`, and
+  sets `branch` to `feat/<module>` if it has no value.
+- `artifact` adds or updates the row with this ID in
+  `artifacts/_registry/artifact-index.md`. `--type` is free text. `--status`
+  defaults to `draft`.
+- `override on` lets the code gate allow all writes for a fix that the user asked
+  for. It sets `gateOverride: { reason, until }` in `progress.json`. `--hours`
+  defaults to 2. After the time ends, the gate ignores the override. Run
+  `override off` when the fix is done. `HAREN_GATE=off` has the same effect for
+  one process.
+
+The command exits with code 1 and a message for an invalid transition, an unknown
+module, or a bad option.
+
+#### Code gate
+
+The `brainstorm-gate` hook allows a write outside the haren folder only inside
+the repos of a module at `planned`, `implementing`, `evaluating`, `completed`, or
+`released` (the keys in the module `repos`). A repo with `role: e2e` is allowed
+when any module is at `planned` or later. A module with no `repos`, or with the
+key `default`, allows all files. Files outside the workspace folder follow the
+same "any planned module" rule. An active override allows all writes.
+
+#### `events/events.jsonl`
+
+One JSON object per line. Fields:
+
+| Field       | Value                                         |
+| ----------- | --------------------------------------------- |
+| `type`      | Event type (required)                         |
+| `timestamp` | ISO time (required, `haren track` sets it)    |
+| `module`    | Module name                                   |
+| `phase`     | One of the phase values below                 |
+| `feature`   | Feature name                                  |
+| other       | Data for the event type (see below, `--data`) |
+
+Phase values: `ideate`, `discover`, `research`, `decompose`, `plan`, `implement`,
+`evaluate`, `release`, `blocked`.
+
+Event types that `haren track` writes:
+
+| Type             | Written by       | Other fields                                        |
+| ---------------- | ---------------- | --------------------------------------------------- |
+| `module-status`  | `track status`   | `from` (null for a new module), `to`, `phase`       |
+| `feature-status` | `track feature`  | `feature`, `from` (null for a new feature), `to`    |
+| `commit`         | `track commit`   | `repo`, `sha`                                       |
+| `artifact`       | `track artifact` | `id`, `artifactType`, `path`, `status`              |
+| `gate-override`  | `track override` | `action` (`on` or `off`), `reason` and `until` (on) |
+
+Skills also write these types with `haren track event`: `ideate-complete`,
+`discover-complete`, `feature-ready`, `escalate-human`, `iteration-complete`,
+`release-step`. Any other type is accepted.
+
 ---
 
 ## How it works
@@ -279,12 +357,12 @@ It never clones and never changes git state. To clone a missing repo, run
 
 You pick a mode at init that matches where your project stands:
 
-| Mode | When |
-|------|------|
+| Mode        | When                                                         |
+| ----------- | ------------------------------------------------------------ |
 | `blueprint` | Greenfield project that already has docs/specs to work from. |
-| `explore` | Greenfield project starting from just an idea. |
-| `inherit` | Brownfield project with an existing codebase. |
-| `undecided` | Let the agent help you choose on first session. |
+| `explore`   | Greenfield project starting from just an idea.               |
+| `inherit`   | Brownfield project with an existing codebase.                |
+| `undecided` | Let the agent help you choose on first session.              |
 
 ### Phases & the code gate
 
@@ -296,7 +374,7 @@ discovered → specified → planned → implementing → evaluating → complet
 
 A `brainstorm-gate` hook blocks `Edit`/`Write` on any file **outside the haren folder**
 until at least one module reaches `planned`. Discovery docs and specs are not
-enough — planning must be done first. (Writes *inside* the haren folder are always
+enough — planning must be done first. (Writes _inside_ the haren folder are always
 allowed so the planning phases can produce their artifacts.)
 
 ### Agents
@@ -336,19 +414,19 @@ haren/                 # any folder name works
 
 ```yaml
 haren:
-  version: 1.2.0          # the marker; haren finds the folder by this key
-layout: workspace         # monorepo | workspace
+  version: 1.2.0 # the marker; haren finds the folder by this key
+layout: workspace # monorepo | workspace
 project: shop
 mode: blueprint
 language: English
 
 repos:
   backend:
-    path: ../backend      # relative to the haren folder
+    path: ../backend # relative to the haren folder
     remote: git@github.com:acme/shop-backend.git
     default_branch: main
-    role: backend         # frontend | backend | e2e | other
-    stack: node-express   # role, stack, test_cmd, default_branch: set by /haren-onboard
+    role: backend # frontend | backend | e2e | other
+    stack: node-express # role, stack, test_cmd, default_branch: set by /haren-onboard
     test_cmd: bun test
   frontend:
     path: ../frontend
@@ -423,7 +501,7 @@ upgrade needs Bun ≥ 1.2.21.
 
 haren's workflow philosophy is heavily inspired by
 **[Superpowers](https://github.com/obra/superpowers)** by Jesse Vincent — the
-discipline of *brainstorm → write a plan → execute with fresh subagents → review*,
+discipline of _brainstorm → write a plan → execute with fresh subagents → review_,
 the test-driven and YAGNI-minded approach, and the idea of gating implementation
 behind an approved design all trace back to that work. haren packages a similar
 philosophy into a phased, artifact-driven SDLC for product teams. Many thanks.
