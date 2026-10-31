@@ -195,6 +195,31 @@ Xem [PLUGINS.md](PLUGINS.md) để biết chi tiết, plugin backlog và cách v
 
 Skill này không bao giờ clone và không đổi trạng thái git. Muốn clone repo thiếu, chạy `haren init`.
 
+**`haren track`** — cập nhật `progress.json`, artifact index và `events/events.jsonl`. Không sửa các file này bằng tay với `jq` hay `sed`. Lệnh tự tìm thư mục haren từ thư mục hiện tại; dùng `--haren-dir <path>` hoặc `HAREN_DIR` để chọn. Các key khác trong `progress.json` được giữ nguyên.
+
+```bash
+haren track status <module> <status>
+haren track feature <module> <feature> [status]
+haren track commit <module> <repoKey> <sha>
+haren track artifact <id> --type <type> --path <path> [--module <m>] [--status <s>]
+haren track event <type> [--module m] [--phase p] [--feature f] [--data '<json object>']
+haren track override on --reason "<text>" [--hours <n>]
+haren track override off
+```
+
+• `status` — kiểm tra transition của module. Chỉ tạo module mới ở `discovered` hoặc `decomposed`. Thứ tự: `discovered → decomposed → planned → implementing → evaluating → completed → released`. `implementing` và `evaluating` có thể sang `blocked`; `blocked` quay về `implementing` hoặc `planned`.
+• `feature` — không có status thì thêm feature ở `pending`. Có status thì kiểm tra transition: `pending → in-progress → evaluating → passing | fixing | blocked`, `fixing → evaluating`, `blocked → in-progress`.
+• `commit` — ghi `lastCommit[repoKey]`, thêm `repoKey` vào `repos` của module, đặt `branch` là `feat/<module>` nếu chưa có.
+• `artifact` — thêm hoặc cập nhật row có ID này trong `artifacts/_registry/artifact-index.md`. `--type` là text tự do; `--status` mặc định `draft`.
+• `override on` — mở cổng chặn code cho một fix mà user yêu cầu. Ghi `gateOverride: { reason, until }` vào `progress.json`; `--hours` mặc định 2, hết giờ thì gate bỏ qua override. Chạy `override off` khi fix xong. `HAREN_GATE=off` có tác dụng tương tự cho một process.
+
+Transition sai, module không tồn tại hoặc option sai → lệnh in thông báo và thoát với mã 1.
+
+**`events/events.jsonl`** — mỗi dòng một JSON object với `type` và `timestamp` (bắt buộc), cùng `module`, `phase`, `feature` và dữ liệu riêng của từng loại event (`--data`).
+• Giá trị `phase`: `ideate`, `discover`, `research`, `decompose`, `plan`, `implement`, `evaluate`, `release`, `blocked`.
+• Event do `haren track` ghi: `module-status` (`from`, `to`, `phase`), `feature-status` (`from`, `to`), `commit` (`repo`, `sha`), `artifact` (`id`, `artifactType`, `path`, `status`), `gate-override` (`action`, `reason`, `until`).
+• Skill ghi thêm qua `haren track event`: `ideate-complete`, `discover-complete`, `feature-ready`, `escalate-human`, `iteration-complete`, `release-step`. Mọi type khác đều được chấp nhận.
+
 ━━━━━━━━━━━━━━━━━━━━
 
 ⚙️ **Cách hoạt động**
@@ -207,9 +232,9 @@ Skill này không bao giờ clone và không đổi trạng thái git. Muốn cl
 
 **Các giai đoạn & cổng chặn code** — mỗi module đi qua các giai đoạn **theo đúng thứ tự**, không nhảy cóc được:
 
-`discovered → specified → planned → implementing → evaluating → completed`
+`discovered → decomposed → planned → implementing → evaluating → completed → released`
 
-Hook `brainstorm-gate` chặn `Edit`/`Write` lên mọi file **nằm ngoài thư mục haren** cho tới khi ít nhất một module đạt `planned`. Chỉ có docs discovery và specs là chưa đủ — phải plan xong trước. (Ghi file *bên trong* thư mục haren thì luôn được phép, để các giai đoạn planning tạo ra artifact.)
+Hook `brainstorm-gate` chỉ cho `Edit`/`Write` file **ngoài thư mục haren** khi file nằm trong repo của một module đã đạt `planned` trở lên (các key trong `repos` của module). Repo có `role: e2e` được phép khi có module bất kỳ đạt `planned`. Module không có `repos` (hoặc dùng key `default`) cho phép mọi file. Ghi file *bên trong* thư mục haren thì luôn được phép. Với fix mà user yêu cầu, dùng `haren track override on --reason "..."` rồi `haren track override off`.
 
 **Agents** — haren đi kèm các định nghĩa agent theo vai trò mà LLM của bạn "nhập vai" theo từng giai đoạn — gồm **researcher**, **ideator**, **architect**, **planner**, **developer**, **reviewer** và **qa-engineer**. Mỗi vai trò có phạm vi tập trung để model hành xử như đúng chuyên gia vào đúng thời điểm.
 
