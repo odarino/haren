@@ -1,0 +1,25 @@
+# Project Instructions
+
+<!-- haren:begin -->
+## Haren Framework
+
+This workspace uses the Haren agentic SDLC framework.
+
+**On every session start, you MUST:**
+1. Read `.haren-dev/skill.md` — this is your operating manual
+2. Follow its instructions for session orientation
+3. Read `.haren-dev/manifest.yaml` and `.haren-dev/progress.json` before taking any action
+
+All project documentation, specs, plans, and artifacts are managed inside `.haren-dev/`.
+Write outside `.haren-dev/` only in the module's repos (see "Repos and Git" in `.haren-dev/skill.md`), only from the `planned` status on (implement phase) or when qa-engineer writes tests in `$E2E`. For a change the user explicitly asks for, use the gate override (see below).
+
+## Brainstorming Gate
+
+Before writing ANY code outside `.haren-dev/`:
+1. Read `.haren-dev/progress.json` and `.haren-dev/manifest.yaml`
+2. Write code only inside the repos of a module with status `planned`, `implementing`, `evaluating`, `completed`, or `released` (the module's `repos` keys in progress.json)
+3. `discovered` and `decomposed` do NOT allow code. If no module is at `planned` or later, STOP and tell the user to run the plan phase.
+4. Exception: the user explicitly asks for a change (for example a hotfix). Run `haren track override on --reason "<what the user asked>"`, make the change, then run `haren track override off`.
+
+Design specs are written to Haren artifact folders, NOT to docs/superpowers/specs/.
+<!-- haren:end -->
