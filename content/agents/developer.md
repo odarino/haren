@@ -51,15 +51,15 @@ At the beginning of each session, present the pending features and ask:
 2. **Ask the user which feature to work on** — don't silently pick one
 3. Implement ONE feature at a time — do not batch
 4. Follow TDD: write failing test → implement → verify → commit
-5. Delegate to superpowers:subagent-driven-development for execution
-6. At the start of each session, set up the branch `feat/{module-slug}` in every repo the module touches (see skill.md "Repos and Git" and the implement skill). Ask the user first if a repo has uncommitted changes. Changes inside the haren folder do not count as uncommitted changes for this check. Create a missing branch from the repo's `default_branch`, or from the current branch if `default_branch` is not set. If the module lists no repos, follow the skill.md "Repos and Git" "No repos listed" fallback (the key `default`). If the module status is `planned`, set it to `implementing` via update-tracking skill.
+5. Delegate to superpowers:subagent-driven-development for execution. Exception: for a small task (see "Fast path" in the implement skill), implement directly with TDD in the main session. If the user asks for the full path, always delegate
+6. At the start of each session, set up the branch `feat/{module-slug}` in every repo the module touches (see skill.md "Repos and Git" and the implement skill). Ask the user first if a repo has uncommitted changes. Changes inside the haren folder do not count as uncommitted changes for this check. Create a missing branch from the repo's `default_branch`, or from the current branch if `default_branch` is not set. If the module lists no repos, follow the skill.md "Repos and Git" "No repos listed" fallback (the key `default`). If the module depends on a module that is not merged yet, follow skill.md "Dependent modules". If the module status is `planned`, set it to `implementing` with `haren track status <module> implementing`.
 7. After each feature:
    - (a) Commit the code in each repo that changed, with a descriptive message. In the monorepo layout, make one code commit for all repo keys; see skill.md "Repos and Git"
-   - (b) Record each commit SHA in `progress.json` `lastCommit.<repoKey>` and set the feature status to "evaluating" via update-tracking skill
+   - (b) Record each commit SHA in `lastCommit.<repoKey>` with `haren track commit <module> <repoKey> <sha>`. Set the feature status with `haren track feature <module> <feature> evaluating`
    - Append to the task's session log (`task-{N}-{slug}.md`) with what was done, decisions made, and the commit SHA per repo. If iterations are enabled (manifest.yaml has `iterations` block), include the **Iteration:** field in the session log header; if not enabled, omit it
-   - Emit "feature-ready" event via events/events.jsonl
+   - Append the "feature-ready" event: `haren track event feature-ready --module <module> --phase implement --feature <feature>`
    - (c) Commit the haren files (session log, `progress.json` and `events/events.jsonl`) in the haren repo, listing the code commits in the message. In the monorepo layout the haren folder is in the same repo, so (a) and (c) are two commits on the same branch: the code commit first, then the haren commit. In the workspace layout, commit the haren files on the haren repo's current branch. Do not create a module branch in the haren repo.
-8. Never modify files in the haren folder except `progress.json`, session logs and `events/events.jsonl`. Never push. Never create pull requests unless the user asks.
-9. If blocked, update feature status to "blocked" and surface to user
+8. Never modify files in the haren folder except session logs. Change `progress.json` and `events/events.jsonl` only with `haren track`. Never edit them with sed or jq. Never push. Never create pull requests unless the user asks.
+9. If blocked, run `haren track feature <module> <feature> blocked` and surface to user
 10. **If you need to deviate from the plan, ask first** — "The plan says X but I think Y would be better because Z. Should I deviate?" Don't deviate silently.
 11. At session end, ask: "Should I continue with the next feature, or pause here?"

@@ -7,6 +7,7 @@ export type ModuleStatus =
   | "implementing"
   | "evaluating"
   | "completed"
+  | "released"
   | "blocked";
 
 export type FeatureStatus =
@@ -30,11 +31,44 @@ export interface ModuleProgress {
   lastUpdated: string;
 }
 
+export interface GateOverride {
+  reason: string;
+  /** ISO time. The override is ignored after it. No value means no end. */
+  until?: string;
+}
+
 export interface Progress {
   project: string;
   version: number;
   modules: Record<string, ModuleProgress>;
   dependencies: Record<string, string[]>;
+  gateOverride?: GateOverride;
+  /** Other top-level keys (phase, status, currentIteration, ...) are kept as is. */
+  [key: string]: unknown;
+}
+
+export const MODULE_STATUSES: ModuleStatus[] = [
+  "discovered",
+  "decomposed",
+  "planned",
+  "implementing",
+  "evaluating",
+  "completed",
+  "released",
+  "blocked",
+];
+
+export const FEATURE_STATUSES: FeatureStatus[] = [
+  "pending",
+  "in-progress",
+  "evaluating",
+  "passing",
+  "fixing",
+  "blocked",
+];
+
+export function phaseForStatus(status: ModuleStatus): string {
+  return STATUS_TO_PHASE[status];
 }
 
 const VALID_MODULE_TRANSITIONS: Record<ModuleStatus, ModuleStatus[]> = {
@@ -43,7 +77,8 @@ const VALID_MODULE_TRANSITIONS: Record<ModuleStatus, ModuleStatus[]> = {
   planned: ["implementing"],
   implementing: ["evaluating", "blocked"],
   evaluating: ["implementing", "completed", "blocked"],
-  completed: [],
+  completed: ["released"],
+  released: [],
   blocked: ["implementing", "planned"],
 };
 
@@ -54,6 +89,7 @@ const STATUS_TO_PHASE: Record<ModuleStatus, string> = {
   implementing: "implement",
   evaluating: "evaluate",
   completed: "evaluate",
+  released: "release",
   blocked: "blocked",
 };
 

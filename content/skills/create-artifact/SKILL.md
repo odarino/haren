@@ -26,16 +26,13 @@ Write a new artifact file using the correct template and update the artifact reg
 
 4. **Write file** to the correct path
 
-5. **Update registry**: Append entry to `artifacts/_registry/artifact-index.md`:
-   ```
-   | {ID} | {type} | {module} | {status} | {path} |
-   ```
+5. **Update registry**: run `haren track artifact <ID> --type <type> --path <path> [--module <module>] [--status <status>]`. The CLI adds the row to `artifacts/_registry/artifact-index.md`. Never edit the index by hand, with sed or with jq
 
 6. **Update links**: Call update-links skill if this artifact references others
 
 ## Rules
 
 - Always use the template — don't write freeform artifacts
-- Always update the registry — it's the master index
+- Always update the registry with `haren track artifact` — it's the master index
 - Create parent directories if they don't exist
 - Use resolve-next-id skill for sequential IDs (RESEARCH artifacts)

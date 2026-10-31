@@ -245,7 +245,7 @@ Rules for the story index:
 - **Status** defaults to `draft` (mirrors the spec status)
 - **Source** comes from the story's `Source:` line
 - If the index already exists, merge new stories — do not drop existing rows that may have updated PIC/Status values
-- Register the file in `artifacts/_registry/artifact-index.md` if that file exists
+- Register the file with `haren track artifact <id> --type story-index --path <path>`
 
 ### Step 9: Summary
 
