@@ -16,6 +16,20 @@ date: {date}
 | Decision | Choice | Alternatives Considered | Rationale |
 |----------|--------|------------------------|-----------|
 
+## Screens
+<!-- Only if the module adds or changes screens. -->
+
+### Screen: {screen name}
+**Chosen:** option {A|B|C}
+
+```
+{ASCII wireframe of the chosen option}
+```
+
+| Option | Trade-off | Result |
+|--------|-----------|--------|
+| A | {one line} | chosen / rejected: {reason} |
+
 ## File Structure
 ```
 {planned file layout in target repo}

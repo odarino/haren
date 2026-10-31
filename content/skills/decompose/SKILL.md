@@ -60,6 +60,9 @@ These decisions affect ALL modules and must be resolved first.
     }
     ```
     `features` stays `{}` until the plan phase adds tasks. `branch` and `repos` are optional. Without `branch`, haren uses `feat/<module>`.
+    Write this initial shape once, when the modules are new. After that, change module status only with `haren track status <module> <status>` (see update-tracking skill).
+11. Record dependencies in the top-level `dependencies` map of progress.json: `"<module>": ["<module it depends on>"]`. The implement skill and skill.md "Dependent modules" use this map to choose the base branch and the merge order. The release skill uses it for the release order
+12. Register each artifact: `haren track artifact <id> --type <type> --path <path>`
 
 ## Module Map Format
 

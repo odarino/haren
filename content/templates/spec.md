@@ -41,8 +41,18 @@ owner: BA
 ### Required from other modules
 {What this module needs from dependencies}
 
+## Screens
+<!-- Only if the module adds or changes screens. One block per screen. -->
+
+### Screen: {screen name}
+- Chosen: option {A|B|C} — {one-line description}
+- Rejected: option {X} — {reason}
+- Mockup: see design.md "Screens" {or the HTML file path}
+
 ## Definition of Done
 - [ ] {checklist item}
+- [ ] Changed screens match the chosen mockup
+- [ ] Fixtures, examples, seeds and screenshots use synthetic data. They contain no real third-party personal data
 
 <!-- SPEC EDIT RULE: Any edit to this file that changes business logic,
      requirements, stories, or acceptance criteria MUST add a new row to the

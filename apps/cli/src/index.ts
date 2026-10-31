@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 interface ParsedCommand {
-  command: "init" | "upgrade" | "agent" | "plugin" | "help" | "unknown";
+  command: "init" | "upgrade" | "agent" | "plugin" | "track" | "help" | "unknown";
   args: string[];
 }
 
@@ -24,6 +24,7 @@ export function parseArgs(args: string[]): ParsedCommand {
     case "upgrade":
     case "agent":
     case "plugin":
+    case "track":
       return { command, args: rest };
     default:
       return { command: "unknown", args };
@@ -55,6 +56,11 @@ async function main() {
       await plugin(parsed.args);
       break;
     }
+    case "track": {
+      const { track } = await import("./commands/track");
+      await track(parsed.args);
+      break;
+    }
     case "help":
       console.log("Usage:");
       console.log("  haren init      Set up haren (detects monorepo or multi-repo workspace)");
@@ -68,10 +74,21 @@ async function main() {
       );
       console.log("  haren agent     Manage local agent (start, stop, status)");
       console.log("  haren plugin    Manage plugins (add, remove, list, run, doctor)");
+      console.log("  haren track     Record progress and events:");
+      console.log("                  status <module> <status>");
+      console.log("                  feature <module> <feature> [status]");
+      console.log("                  commit <module> <repoKey> <sha>");
+      console.log(
+        "                  artifact <id> --type <type> --path <path> [--module <m>] [--status <s>]",
+      );
+      console.log(
+        "                  event <type> [--module m] [--phase p] [--feature f] [--data '<json>']",
+      );
+      console.log('                  override on --reason "<text>" [--hours <n>] | override off');
       break;
     case "unknown":
       console.error(`Unknown command: ${parsed.args[0]}`);
-      console.log("Usage: haren init | haren upgrade");
+      console.log("Usage: haren init | upgrade | agent | plugin | track (haren --help)");
       process.exit(1);
   }
 }

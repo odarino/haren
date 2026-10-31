@@ -33,6 +33,12 @@ Run through each criterion:
    - Check test coverage for the feature
 4. **Integration**: Does it work with module interfaces?
    - Verify exposed interfaces match the spec's interface contracts
+5. **Screens** (only if the spec has a `## Screens` section): does each changed screen match the chosen mockup?
+   - Compare layout, elements, states and labels with the chosen option in the spec
+   - If the app can run, start it and take a screenshot of each changed screen. Save it under `artifacts/06-evaluation/{module}/screens/` and link it in the review
+   - If the app cannot run, say so in the review and compare the code with the mockup
+   - A difference from the chosen mockup is a fail unless the session log records a reason the user approved
+6. **Privacy**: fixtures, examples, seeds, test data and screenshots contain no real third-party personal data (names, emails, phone numbers, addresses, handles, photos). Synthetic data only. Real personal data is a fail
 
 ## Output
 
@@ -72,6 +78,8 @@ If iterations are enabled (check manifest.yaml for `iterations` block), include 
 | Completeness | pass/fail | {detail} |
 | Correctness | pass/fail | {detail} |
 | Integration | pass/fail | {detail} |
+| Screens | pass/fail/n.a. | {mockup option, screenshot links} |
+| Privacy | pass/fail | {detail} |
 
 ## Issues
 {If fail — numbered list with file:line, description, suggested fix}
@@ -86,9 +94,11 @@ The `task-{N}-{slug}-test-report.md` captures test execution output and coverage
 
 ## After Review
 
-- **Pass**: Update feature status to "passing" via update-tracking skill
-- **Fail (attempt < 3)**: Update feature status to "fixing", developer reads review.md and fixes
-- **Fail (attempt 3)**: Update feature status to "blocked", emit "escalate-human" event
+- Register the review: `haren track artifact <id> --type review --path <review path> --module <module>`
+- **Pass**: `haren track feature <module> <feature> passing`
+- **Fail (attempt < 3)**: `haren track feature <module> <feature> fixing`. The developer reads review.md and fixes
+- **Fail (attempt 3)**: `haren track feature <module> <feature> blocked`, then `haren track event escalate-human --module <module> --phase evaluate --feature <feature> --data '{"attempt":3}'`
+- Never edit `progress.json` or `events/events.jsonl` by hand (see update-tracking skill)
 
 ## Rules
 
