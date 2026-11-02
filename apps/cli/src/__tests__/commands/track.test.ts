@@ -457,3 +457,135 @@ describe("track check in migration mode", () => {
     await run("check");
   });
 });
+
+describe("haren track depends", () => {
+  const setup = async () => {
+    await run("status", "cart", "discovered");
+    await run("status", "auth", "discovered");
+  };
+  it("replaces the dependency list and emits an event", async () => {
+    await setup();
+    await run("depends", "checkout", "cart", "auth");
+    expect((await progress()).dependencies.checkout).toEqual(["cart", "auth"]);
+    await run("depends", "checkout", "auth");
+    expect((await progress()).dependencies.checkout).toEqual(["auth"]);
+    expect((await events()).at(-1)).toMatchObject({
+      type: "dependencies",
+      module: "checkout",
+      dependsOn: ["auth"],
+    });
+  });
+  it("clears the list when no deps are given", async () => {
+    await setup();
+    await run("depends", "checkout", "cart");
+    await run("depends", "checkout");
+    expect((await progress()).dependencies.checkout).toEqual([]);
+  });
+  it("rejects unknown modules", async () => {
+    await expect(run("depends", "ghost", "checkout")).rejects.toThrow(/Unknown module 'ghost'/);
+    await expect(run("depends", "checkout", "ghost")).rejects.toThrow(/Unknown module 'ghost'/);
+  });
+  it("rejects a cycle and a self dependency", async () => {
+    await setup();
+    await run("depends", "cart", "auth");
+    await run("depends", "auth", "checkout");
+    await expect(run("depends", "checkout", "cart")).rejects.toThrow(
+      /cycle: checkout → cart → auth → checkout/,
+    );
+    await expect(run("depends", "checkout", "checkout")).rejects.toThrow(/cycle/);
+    expect((await progress()).dependencies.checkout).toBeUndefined();
+  });
+});
+
+describe("module gate in migration mode (positive paths)", () => {
+  const migManifest =
+    'haren:\n  version: "1.5.0"\nmode: migration\nrepos:\n  legacy_src: { path: ../legacy_src, role: legacy, readOnly: true }\nmigration:\n  unitId: "^SCR_[A-Z]\\\\d{3}$"\n';
+  const setModule = async (status: string, units: Record<string, string>) => {
+    const p = await progress();
+    p.modules.checkout = { ...p.modules.checkout, status, units };
+    await writeFile(join(harenDir, "progress.json"), JSON.stringify(p));
+  };
+  it("completed succeeds when all units are parity-signed", async () => {
+    await writeFile(join(harenDir, "manifest.yaml"), migManifest);
+    await setModule("evaluating", { SCR_A001: "parity-signed", SCR_A002: "parity-signed" });
+    await run("status", "checkout", "completed");
+    expect((await progress()).modules.checkout.status).toBe("completed");
+  });
+  it("a module with no units passes the gate", async () => {
+    await writeFile(join(harenDir, "manifest.yaml"), migManifest);
+    await setModule("evaluating", {});
+    await run("status", "checkout", "completed");
+    expect((await progress()).modules.checkout.status).toBe("completed");
+  });
+  it("a non-migration workspace is not gated by units", async () => {
+    await setModule("evaluating", { SCR_A001: "inventoried" });
+    await run("status", "checkout", "completed");
+    expect((await progress()).modules.checkout.status).toBe("completed");
+  });
+});
+
+describe("track check in migration mode (more)", () => {
+  const legacy = "repos:\n  legacy_src: { path: ../legacy_src, role: legacy, readOnly: true }\n";
+  const writeUnits = (units: Record<string, string>) =>
+    writeFile(
+      join(harenDir, "progress.json"),
+      JSON.stringify({
+        project: "shop",
+        version: 3,
+        modules: { checkout: { status: "planned", currentPhase: "plan", features: {}, units } },
+        dependencies: {},
+      }),
+    );
+  async function installSample() {
+    await writeFile(
+      join(harenDir, "plugins.json"),
+      JSON.stringify({
+        version: 1,
+        plugins: { sample: { source: "x", version: "0.1.0", enabled: true, config: {} } },
+      }),
+    );
+    await mkdir(join(harenDir, ".plugins", "sample"), { recursive: true });
+    await writeFile(
+      join(harenDir, ".plugins", "sample", "haren-plugin.json"),
+      JSON.stringify({
+        name: "sample",
+        version: "0.1.0",
+        harenApi: "2",
+        adapter: { unitKind: "screen", commands: { gate: "y {specPath}" } },
+      }),
+    );
+  }
+  it("fails when mode: migration has no migration block", async () => {
+    await writeFile(
+      join(harenDir, "manifest.yaml"),
+      `haren:\n  version: "1.5.0"\nmode: migration\n${legacy}`,
+    );
+    await expect(run("check")).rejects.toThrow(/needs a migration block/);
+  });
+  it("does not require gate.json when no adapter is set", async () => {
+    await writeFile(
+      join(harenDir, "manifest.yaml"),
+      `haren:\n  version: "1.5.0"\nmode: migration\n${legacy}migration:\n  unitId: "^SCR_"\n`,
+    );
+    await writeUnits({ SCR_A001: "spec-approved" });
+    await run("check");
+  });
+  it("skips the gate.json check for a blocked unit", async () => {
+    await writeFile(
+      join(harenDir, "manifest.yaml"),
+      `haren:\n  version: "1.5.0"\nmode: migration\n${legacy}migration:\n  adapter: sample\n  unitId: "^SCR_"\n`,
+    );
+    await installSample();
+    await writeUnits({ SCR_A001: "blocked" });
+    await run("check");
+    await writeUnits({ SCR_A001: "built" });
+    await expect(run("check")).rejects.toThrow(/SCR_A001.*gate\.json/);
+  });
+  it("fails when more than one repo has role: legacy", async () => {
+    await writeFile(
+      join(harenDir, "manifest.yaml"),
+      `haren:\n  version: "1.5.0"\nmode: migration\nrepos:\n  a: { path: ../a, role: legacy }\n  b: { path: ../b, role: legacy }\nmigration:\n  unitId: "^SCR_"\n`,
+    );
+    await expect(run("check")).rejects.toThrow(/more than one repo with role: legacy/);
+  });
+});

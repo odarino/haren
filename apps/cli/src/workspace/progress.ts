@@ -136,6 +136,7 @@ export async function readProgress(path: string): Promise<Progress> {
     if (!isObject(mod.features)) mod.features = {};
     if (!isObject(mod.lastCommit)) mod.lastCommit = {};
     if (!isObject(mod.units)) mod.units = {};
+    for (const [unit, status] of Object.entries(mod.units)) assertUnitStatus(unit, status);
   }
   return progress;
 }
@@ -238,6 +239,12 @@ const VALID_UNIT_TRANSITIONS: Record<UnitStatus, UnitStatus[]> = {
   ],
 };
 
+function assertUnitStatus(unit: string, status: unknown): asserts status is UnitStatus {
+  if (!UNIT_STATUSES.includes(status as UnitStatus)) {
+    throw new Error(`Unknown unit status '${String(status)}' for unit '${unit}'`);
+  }
+}
+
 /** Rank on the main line; side statuses rank as the step they sit on. */
 function unitRank(s: UnitStatus): number {
   if (s === "static-review-only") return UNIT_LINE.indexOf("built");
@@ -245,9 +252,14 @@ function unitRank(s: UnitStatus): number {
   return UNIT_LINE.indexOf(s);
 }
 
+/** True when `status` is at or past `floor` on the main line. `blocked` is below every floor. */
+export function unitAtLeast(status: UnitStatus, floor: UnitStatus): boolean {
+  return unitRank(status) >= unitRank(floor);
+}
+
 export function unitsBelow(mod: ModuleProgress, floor: UnitStatus): string[] {
   return Object.entries(mod.units ?? {})
-    .filter(([, s]) => unitRank(s) < unitRank(floor))
+    .filter(([, s]) => !unitAtLeast(s, floor))
     .map(([u]) => u);
 }
 
@@ -261,6 +273,7 @@ export function updateUnitStatus(
   if (!mod) throw new Error(`Module '${moduleName}' not found`);
   const units = mod.units ?? {};
   const from = units[unit];
+  if (from !== undefined) assertUnitStatus(unit, from);
   if (from === undefined) {
     if (to !== "inventoried") {
       throw new Error(`A new unit can start only at 'inventoried' (got '${to}')`);
@@ -302,22 +315,14 @@ export function migrateProgress(
   for (const [name, mod] of Object.entries(data.modules ?? {})) {
     const old = mod?.lastCommit;
     let lastCommit: Record<string, string> = {};
-    if (typeof old === "string" && old) lastCommit = { [repoKeyFor(name) || "default"]: old };
-    else if (
-      old &&
-      typeof old === "object" &&
-      !Array.isArray(old) &&
-      Object.values(old).every((v) => typeof v === "string")
-    ) {
+    // A v1 file has a string; v1 and v2 may have a per-repo map of strings.
+    if (version < 2 && typeof old === "string" && old) {
+      lastCommit = { [repoKeyFor(name) || "default"]: old };
+    } else if (isObject(old) && Object.values(old).every((v) => typeof v === "string")) {
       lastCommit = old as Record<string, string>;
     }
-    const units =
-      mod?.units && typeof mod.units === "object" && !Array.isArray(mod.units) ? mod.units : {};
-    modules[name] = {
-      ...mod,
-      lastCommit: version >= 2 ? (mod.lastCommit ?? {}) : lastCommit,
-      units,
-    };
+    const units = isObject(mod?.units) ? mod.units : {};
+    modules[name] = { ...(isObject(mod) ? mod : {}), lastCommit, units };
   }
   return { progress: { ...data, version: PROGRESS_VERSION, modules }, changed: true };
 }

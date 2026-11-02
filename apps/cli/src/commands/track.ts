@@ -6,6 +6,7 @@ import {
   normalizeRepos,
   parseManifest,
   readMigrationConfig,
+  type MigrationConfig,
 } from "../workspace/manifest";
 import { appendEvent, EVENT_PHASES, isEventPhase, type HarenEvent } from "../workspace/events";
 import {
@@ -13,6 +14,7 @@ import {
   MODULE_STATUSES,
   phaseForStatus,
   readProgress,
+  unitAtLeast,
   unitsBelow,
   UNIT_STATUSES,
   updateFeatureStatus,
@@ -24,7 +26,6 @@ import {
   type Progress,
   type UnitStatus,
 } from "../workspace/progress";
-import type { MigrationConfig } from "../workspace/manifest";
 import { adapterMissingMessage, readAdapter } from "../plugins/adapter-spec";
 import { harenDirFlag, resolveHarenDir } from "../workspace/resolve";
 
@@ -33,6 +34,7 @@ export const TRACK_USAGE = `Usage:
   haren track feature <module> <feature> [status]
   haren track unit <module> <unit> <status>
   haren track commit <module> <repoKey> <sha>
+  haren track depends <module> [dep ...]
   haren track artifact <id> --type <type> --path <path> [--module <m>] [--status <s>]
   haren track event <type> [--module m] [--phase p] [--feature f] [--data '<json object>']
   haren track override on --reason "<text>" [--hours <n>]
@@ -141,6 +143,8 @@ export async function track(args: string[], cwd = process.cwd()): Promise<void> 
       return trackUnit(paths, rest);
     case "commit":
       return trackCommit(paths, rest);
+    case "depends":
+      return trackDepends(paths, rest);
     case "artifact":
       return trackArtifact(paths, rest, flags);
     case "event":
@@ -316,6 +320,42 @@ async function trackCommit(paths: TrackPaths, rest: string[]): Promise<void> {
   await writeProgress(paths.progress, next);
   await emit(paths, { type: "commit", module, repo, sha });
   console.log(`  ${module}: lastCommit.${repo} = ${sha}`);
+}
+
+/** A path that closes a cycle when `module` depends on `deps`; null when there is none. */
+function findCycle(
+  graph: Record<string, string[]>,
+  module: string,
+  deps: string[],
+): string[] | null {
+  const next = { ...graph, [module]: deps };
+  const visit = (node: string, path: string[]): string[] | null => {
+    for (const dep of next[node] ?? []) {
+      if (dep === module) return [...path, dep];
+      if (path.includes(dep)) continue;
+      const found = visit(dep, [...path, dep]);
+      if (found) return found;
+    }
+    return null;
+  };
+  return visit(module, [module]);
+}
+
+async function trackDepends(paths: TrackPaths, rest: string[]): Promise<void> {
+  const module = need(rest[0], "<module>");
+  const deps = [...new Set(rest.slice(1))];
+  const progress = await loadProgress(paths);
+  requireModule(progress, module);
+  for (const dep of deps) requireModule(progress, dep);
+  const graph = progress.dependencies ?? {};
+  const cycle = findCycle(graph, module, deps);
+  if (cycle) throw new Error(`Dependency cycle: ${cycle.join(" → ")}`);
+  await writeProgress(paths.progress, {
+    ...progress,
+    dependencies: { ...graph, [module]: deps },
+  });
+  await emit(paths, { type: "dependencies", module, dependsOn: deps });
+  console.log(`  ${module} depends on: ${deps.length ? deps.join(", ") : "(none)"}`);
 }
 
 const REGISTRY_HEADER = `| ID | Type | Module | Status | Path |\n|----|------|--------|--------|------|`;
@@ -512,8 +552,12 @@ export async function checkWorkspace(paths: TrackPaths): Promise<CheckResult> {
     errors.push((e as Error).message);
   }
   if (manifest.mode === "migration" && mig) {
-    if (!legacyRepo(manifest)) {
-      errors.push("mode: migration needs one repo with role: legacy in manifest.yaml");
+    try {
+      if (!legacyRepo(manifest)) {
+        errors.push("mode: migration needs one repo with role: legacy in manifest.yaml");
+      }
+    } catch (e) {
+      errors.push((e as Error).message);
     }
     if (mig.adapter) {
       try {
@@ -529,10 +573,10 @@ export async function checkWorkspace(paths: TrackPaths): Promise<CheckResult> {
         if (!mig.unitId.test(unit)) {
           errors.push(`module '${name}' unit '${unit}' does not match migration.unitId`);
         }
-        if (
-          mig.adapter &&
-          unitsBelow({ ...mod, units: { [unit]: status } }, "spec-approved").length === 0
-        ) {
+        // A blocked unit is skipped: progress.json does not keep the status it had before
+        // the block, so haren cannot tell if it passed the gate. The gate is checked again
+        // when the unit leaves blocked at spec-approved or later.
+        if (mig.adapter && unitAtLeast(status, "spec-approved")) {
           const gate = join(
             paths.harenDir,
             "artifacts",

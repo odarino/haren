@@ -9,6 +9,7 @@ import {
   updateFeatureStatus,
   updateUnitStatus,
   unitsBelow,
+  unitAtLeast,
   migrateProgress,
   PROGRESS_VERSION,
   type Progress,
@@ -216,5 +217,74 @@ describe("units", () => {
     expect(changed).toBe(true);
     expect((progress as any).version).toBe(PROGRESS_VERSION);
     expect((progress as any).modules.a.units).toEqual({});
+  });
+});
+
+describe("units (review fixes)", () => {
+  it("spec-approved can go back to spec-draft", () => {
+    const p = unitBase();
+    p.modules.orders.units = { A: "spec-approved" };
+    expect(updateUnitStatus(p, "orders", "A", "spec-draft").modules.orders.units!.A).toBe(
+      "spec-draft",
+    );
+  });
+  it("parity-signed may go only to built", () => {
+    const p = unitBase();
+    p.modules.orders.units = { A: "parity-signed" };
+    expect(updateUnitStatus(p, "orders", "A", "built").modules.orders.units!.A).toBe("built");
+    expect(() => updateUnitStatus(p, "orders", "A", "verified")).toThrow(/built/);
+    expect(() => updateUnitStatus(p, "orders", "A", "blocked")).toThrow();
+  });
+  it("static-review-only ranks as built", () => {
+    const mod = { ...unitBase().modules.orders, units: { S: "static-review-only" } };
+    expect(unitsBelow(mod, "built")).toEqual([]);
+    expect(unitsBelow(mod, "verified")).toEqual(["S"]);
+  });
+  it("unitAtLeast compares on the main line; blocked is below everything", () => {
+    expect(unitAtLeast("spec-approved", "spec-approved")).toBe(true);
+    expect(unitAtLeast("built", "spec-approved")).toBe(true);
+    expect(unitAtLeast("static-review-only", "built")).toBe(true);
+    expect(unitAtLeast("spec-draft", "spec-approved")).toBe(false);
+    expect(unitAtLeast("blocked", "inventoried")).toBe(false);
+  });
+  it("updateUnitStatus throws on an unknown current status", () => {
+    const p = unitBase();
+    p.modules.orders.units = { A: "weird" };
+    expect(() => updateUnitStatus(p, "orders", "A", "built")).toThrow(
+      "Unknown unit status 'weird' for unit 'A'",
+    );
+  });
+  it("readProgress throws on an unknown unit status", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "haren-prog-"));
+    const file = join(dir, "progress.json");
+    const p = unitBase();
+    p.modules.orders.units = { A: "weird" };
+    await writeFile(file, JSON.stringify(p));
+    await expect(readProgress(file)).rejects.toThrow("Unknown unit status 'weird' for unit 'A'");
+    await rm(dir, { recursive: true, force: true });
+  });
+  it("migrates v1 to v3 and adds units", () => {
+    const { progress } = migrateProgress(
+      { version: 1, modules: { a: { lastCommit: "abc" } } },
+      () => "api",
+    );
+    expect((progress as any).modules.a).toEqual({ lastCommit: { api: "abc" }, units: {} });
+  });
+  it("migration keeps existing units", () => {
+    const { progress } = migrateProgress(
+      { version: 2, modules: { a: { lastCommit: {}, units: { X: "built" } } } },
+      () => undefined,
+    );
+    expect((progress as any).modules.a.units).toEqual({ X: "built" });
+  });
+  it("v2 path validates lastCommit and tolerates a null module", () => {
+    const { progress } = migrateProgress(
+      { version: 2, modules: { a: { lastCommit: "abc" }, b: { lastCommit: { x: 1 } }, c: null } },
+      () => undefined,
+    );
+    const m = (progress as any).modules;
+    expect(m.a.lastCommit).toEqual({});
+    expect(m.b.lastCommit).toEqual({});
+    expect(m.c).toEqual({ lastCommit: {}, units: {} });
   });
 });

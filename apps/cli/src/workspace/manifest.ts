@@ -229,6 +229,13 @@ export function readMigrationConfig(m: Manifest): MigrationConfig | null {
   if (!b || typeof b !== "object") {
     throw new Error("mode: migration needs a migration block in manifest.yaml");
   }
+  if (Array.isArray(b)) throw new Error("manifest migration block must be a mapping");
+  if (b.adapter !== undefined && b.adapter !== null && typeof b.adapter !== "string") {
+    throw new Error("manifest migration.adapter must be a plugin name string");
+  }
+  if (b.liveLegacy !== undefined && b.liveLegacy !== null && typeof b.liveLegacy !== "boolean") {
+    throw new Error("manifest migration.liveLegacy must be true or false");
+  }
   const acceptance = (b.acceptance ?? "parity") as MigrationConfig["acceptance"];
   if (acceptance !== "parity" && acceptance !== "parity-with-approved-deviations") {
     throw new Error(
@@ -244,7 +251,13 @@ export function readMigrationConfig(m: Manifest): MigrationConfig | null {
   };
 }
 
+/** The one repo with role: legacy; null when none. Throws when there is more than one. */
 export function legacyRepo(m: Manifest): [string, RepoEntry] | null {
-  const found = Object.entries(normalizeRepos(m.repos)).find(([, r]) => r.role === "legacy");
-  return found ?? null;
+  const found = Object.entries(normalizeRepos(m.repos)).filter(([, r]) => r.role === "legacy");
+  if (found.length > 1) {
+    throw new Error(
+      `manifest.yaml has more than one repo with role: legacy (${found.map(([k]) => k).join(", ")}); keep one`,
+    );
+  }
+  return found[0] ?? null;
 }

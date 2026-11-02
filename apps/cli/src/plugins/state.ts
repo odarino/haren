@@ -29,7 +29,14 @@ export function pluginDataDir(harenDir: string, name: string): string {
 export async function readPlugins(harenDir: string): Promise<PluginsFile> {
   const path = pluginsPath(harenDir);
   if (!existsSync(path)) return { version: 1, plugins: {} };
-  const data = JSON.parse(await readFile(path, "utf-8")) as Partial<PluginsFile>;
+  let data: Partial<PluginsFile>;
+  try {
+    data = JSON.parse(await readFile(path, "utf-8")) as Partial<PluginsFile>;
+  } catch (e) {
+    throw new Error(
+      `plugins.json is not valid JSON: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
   return { version: 1, plugins: data.plugins ?? {} };
 }
 

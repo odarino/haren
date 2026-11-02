@@ -84,6 +84,7 @@ async function main() {
       console.log("                  status <module> <status>");
       console.log("                  feature <module> <feature> [status]");
       console.log("                  commit <module> <repoKey> <sha>");
+      console.log("                  depends <module> [dep ...]   (replace the dependency list)");
       console.log(
         "                  artifact <id> --type <type> --path <path> [--module <m>] [--status <s>]",
       );

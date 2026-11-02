@@ -324,3 +324,25 @@ describe("yamlScalar reserved forms", () => {
     ]);
   });
 });
+
+describe("readMigrationConfig type checks", () => {
+  const mig = (extra: string) =>
+    parseManifest(`mode: migration\nmigration:\n  unitId: "^S"\n${extra}`);
+  it("throws on a non-string adapter", () => {
+    expect(() => readMigrationConfig(mig("  adapter: 5\n"))).toThrow(/migration.adapter/);
+  });
+  it("throws on a non-boolean liveLegacy", () => {
+    expect(() => readMigrationConfig(mig('  liveLegacy: "yes"\n'))).toThrow(/migration.liveLegacy/);
+  });
+  it("throws when the migration block is an array", () => {
+    expect(() =>
+      readMigrationConfig(parseManifest("mode: migration\nmigration:\n  - a\n")),
+    ).toThrow("migration block must be a mapping");
+  });
+  it("legacyRepo throws when more than one repo has role: legacy", () => {
+    const m = parseManifest(
+      "repos:\n  a: { path: ../a, role: legacy }\n  b: { path: ../b, role: legacy }\n",
+    );
+    expect(() => legacyRepo(m)).toThrow(/more than one repo with role: legacy/);
+  });
+});
