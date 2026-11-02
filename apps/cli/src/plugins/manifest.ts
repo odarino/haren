@@ -2,7 +2,12 @@ import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import { isAbsolute, join } from "path";
 
-export const HAREN_API = "1";
+import { validateAdapter, type AdapterSpec } from "./adapter-spec";
+
+/** Supported manifest API versions. "2" adds the optional `adapter` block. */
+export const HAREN_APIS = ["1", "2"];
+/** The version new plugins should declare. */
+export const HAREN_API = "2";
 export const HOOK_NAMES = ["session-start", "after-plan", "on-task-status"] as const;
 export type HookName = (typeof HOOK_NAMES)[number];
 
@@ -23,6 +28,7 @@ export interface PluginManifest {
   config: Record<string, unknown>;
   skills: string[];
   agents: string[];
+  adapter?: AdapterSpec;
 }
 
 const NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -35,18 +41,20 @@ function stringList(value: unknown, field: string): string[] {
   return value;
 }
 
+export function assertInsidePlugin(p: string, field: string): void {
+  if (
+    isAbsolute(p) ||
+    p.startsWith("/") ||
+    /^[A-Za-z]:/.test(p) ||
+    p.split(/[\\/]/).includes("..")
+  ) {
+    throw new Error(`Plugin manifest: ${field} path must stay inside the plugin: ${p}`);
+  }
+}
+
 function relativePathList(value: unknown, field: string): string[] {
   const list = stringList(value, field);
-  for (const p of list) {
-    if (
-      isAbsolute(p) ||
-      p.startsWith("/") ||
-      /^[A-Za-z]:/.test(p) ||
-      p.split(/[\\/]/).includes("..")
-    ) {
-      throw new Error(`Plugin manifest: ${field} path must stay inside the plugin: ${p}`);
-    }
-  }
+  for (const p of list) assertInsidePlugin(p, field);
   return list;
 }
 
@@ -58,10 +66,13 @@ export function validateManifest(raw: unknown, packageVersion?: string): PluginM
   if (typeof m.name !== "string" || !m.name) throw new Error("Plugin manifest: name is required");
   if (!NAME.test(m.name)) throw new Error(`Plugin manifest: name must be kebab-case: ${m.name}`);
 
-  if (m.harenApi !== HAREN_API) {
+  if (typeof m.harenApi !== "string" || !HAREN_APIS.includes(m.harenApi)) {
     throw new Error(
-      `Plugin manifest: this haren supports harenApi "${HAREN_API}", got ${JSON.stringify(m.harenApi)}`,
+      `Plugin manifest: this haren supports harenApi ${HAREN_APIS.map((v) => `"${v}"`).join(" or ")}, got ${JSON.stringify(m.harenApi)}`,
     );
+  }
+  if (m.adapter !== undefined && m.harenApi !== "2") {
+    throw new Error('Plugin manifest: adapter needs harenApi "2"');
   }
 
   let version: string;
@@ -118,7 +129,7 @@ export function validateManifest(raw: unknown, packageVersion?: string): PluginM
   return {
     name: m.name,
     version,
-    harenApi: HAREN_API,
+    harenApi: m.harenApi,
     description: typeof m.description === "string" ? m.description : undefined,
     requires,
     setup: stringList(m.setup, "setup"),
@@ -126,6 +137,7 @@ export function validateManifest(raw: unknown, packageVersion?: string): PluginM
     config: config as Record<string, unknown>,
     skills: relativePathList(m.skills, "skills"),
     agents: relativePathList(m.agents, "agents"),
+    ...(m.adapter !== undefined ? { adapter: validateAdapter(m.adapter) } : {}),
   };
 }
 

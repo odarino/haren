@@ -276,6 +276,56 @@ describe("haren track check", () => {
   });
 });
 
+describe("haren track unit with an adapter", () => {
+  const adapterManifest =
+    'haren:\n  version: "1.5.0"\nmode: migration\nrepos:\n  legacy_src: { path: ../legacy_src, role: legacy, readOnly: true }\nmigration:\n  adapter: sample\n  unitId: "^SCR_[A-Z]\\\\d{3}$"\n';
+  async function install(commands: Record<string, string>) {
+    await writeFile(
+      join(harenDir, "plugins.json"),
+      JSON.stringify({
+        version: 1,
+        plugins: { sample: { source: "x", version: "0.1.0", enabled: true, config: {} } },
+      }),
+    );
+    const dir = join(harenDir, ".plugins", "sample");
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      join(dir, "haren-plugin.json"),
+      JSON.stringify({
+        name: "sample",
+        version: "0.1.0",
+        harenApi: "2",
+        adapter: { unitKind: "screen", commands },
+      }),
+    );
+  }
+  beforeEach(async () => {
+    await writeFile(join(harenDir, "manifest.yaml"), adapterManifest);
+  });
+
+  it("refuses extracted and spec-approved when the adapter owns them", async () => {
+    await install({ extract: "x {unit}", gate: "y {specPath}" });
+    await run("unit", "checkout", "SCR_A001", "inventoried");
+    await expect(run("unit", "checkout", "SCR_A001", "extracted")).rejects.toThrow(
+      /adapter owns this step/,
+    );
+    await expect(run("unit", "checkout", "SCR_A001", "spec-approved")).rejects.toThrow(
+      /adapter owns this step/,
+    );
+  });
+  it("allows steps the adapter does not declare", async () => {
+    await install({ gate: "y {specPath}" });
+    await run("unit", "checkout", "SCR_A001", "inventoried");
+    await run("unit", "checkout", "SCR_A001", "extracted");
+    expect((await progress()).modules.checkout.units.SCR_A001).toBe("extracted");
+  });
+  it("does not refuse when the adapter is not installed", async () => {
+    await run("unit", "checkout", "SCR_A001", "inventoried");
+    await run("unit", "checkout", "SCR_A001", "extracted");
+    expect((await progress()).modules.checkout.units.SCR_A001).toBe("extracted");
+  });
+});
+
 describe("haren track unit", () => {
   const migManifest =
     'haren:\n  version: "1.5.0"\nmode: migration\nrepos:\n  legacy_src: { path: ../legacy_src, role: legacy, readOnly: true }\nmigration:\n  unitId: "^SCR_[A-Z]\\\\d{3}(_P\\\\d+)?$"\n';

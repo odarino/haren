@@ -25,6 +25,7 @@ import {
   type UnitStatus,
 } from "../workspace/progress";
 import type { MigrationConfig } from "../workspace/manifest";
+import { readAdapter } from "../plugins/adapter-spec";
 import { harenDirFlag, resolveHarenDir } from "../workspace/resolve";
 
 export const TRACK_USAGE = `Usage:
@@ -159,9 +160,14 @@ export async function loadMigration(paths: TrackPaths): Promise<MigrationConfig 
   return readMigrationConfig(parseManifest(await readFile(manifestPath, "utf-8")));
 }
 
-/** Stub until adapter lookup exists: the command names the adapter declares. */
-async function adapterCommands(): Promise<Set<string>> {
-  return new Set();
+/** The command names the migration adapter declares; empty when none is set or installed. */
+async function adapterCommands(
+  paths: TrackPaths,
+  migration: MigrationConfig,
+): Promise<Set<string>> {
+  if (!migration.adapter) return new Set();
+  const adapter = await readAdapter(paths.harenDir, migration.adapter);
+  return new Set(Object.keys(adapter?.commands ?? {}));
 }
 
 async function trackUnit(paths: TrackPaths, rest: string[]): Promise<void> {
@@ -176,7 +182,7 @@ async function trackUnit(paths: TrackPaths, rest: string[]): Promise<void> {
   if (!migration.unitId.test(unit)) {
     throw new Error(`Unit '${unit}' does not match migration.unitId`);
   }
-  const commands = await adapterCommands();
+  const commands = await adapterCommands(paths, migration);
   if (
     (to === "extracted" && commands.has("extract")) ||
     (to === "spec-approved" && commands.has("gate"))

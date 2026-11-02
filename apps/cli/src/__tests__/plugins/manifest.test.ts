@@ -28,7 +28,7 @@ describe("validateManifest", () => {
     expect(() => validateManifest({ ...base, name: "Bad Name" })).toThrow("kebab-case");
   });
   it("rejects an unsupported harenApi", () => {
-    expect(() => validateManifest({ ...base, harenApi: "2" })).toThrow('supports harenApi "1"');
+    expect(() => validateManifest({ ...base, harenApi: "3" })).toThrow('supports harenApi "1"');
   });
   it("rejects an unknown hook", () => {
     expect(() => validateManifest({ ...base, hooks: { "on-deploy": "x" } })).toThrow(
@@ -91,5 +91,50 @@ describe("readInstalledManifest", () => {
     await expect(readInstalledManifest(await plugin(noVersion, { version: 3 }))).rejects.toThrow(
       "version is required",
     );
+  });
+});
+
+describe("validateManifest adapter block", () => {
+  const v2 = { name: "x", version: "1", harenApi: "2" };
+  it("accepts harenApi 2 with an adapter block", () => {
+    const m = validateManifest({
+      name: "sample-adapter",
+      version: "0.1.0",
+      harenApi: "2",
+      adapter: {
+        unitKind: "screen",
+        commands: { gate: "bun tools/gate.ts {specPath}" },
+        skills: { spec: "sample-spec" },
+      },
+    });
+    expect(m.harenApi).toBe("2");
+    expect(m.adapter?.commands.gate).toBe("bun tools/gate.ts {specPath}");
+  });
+  it("keeps accepting harenApi 1 without an adapter", () => {
+    expect(validateManifest(base).adapter).toBeUndefined();
+  });
+  it("rejects adapter on harenApi 1", () => {
+    expect(() =>
+      validateManifest({
+        name: "x",
+        version: "1",
+        harenApi: "1",
+        adapter: { unitKind: "s", commands: {} },
+      }),
+    ).toThrow(/harenApi "2"/);
+  });
+  it("rejects unknown adapter commands and unknown placeholders", () => {
+    const bad = (commands: any) => () =>
+      validateManifest({ ...v2, adapter: { unitKind: "s", commands } });
+    expect(bad({ deploy: "x" })).toThrow(/Unknown adapter command/);
+    expect(bad({ gate: "x {nope}" })).toThrow(/placeholder/);
+  });
+  it("rejects a semantics path outside the plugin", () => {
+    expect(() =>
+      validateManifest({
+        ...v2,
+        adapter: { unitKind: "s", commands: {}, semantics: "../x.md" },
+      }),
+    ).toThrow(/inside the plugin/);
   });
 });
