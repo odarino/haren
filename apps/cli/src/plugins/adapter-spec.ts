@@ -1,3 +1,5 @@
+import { existsSync } from "fs";
+import { join } from "path";
 import { assertInsidePlugin, readInstalledManifest } from "./manifest";
 import { pluginDir, readPlugins } from "./state";
 
@@ -75,9 +77,11 @@ export function validateAdapter(raw: unknown): AdapterSpec {
 export async function readAdapter(harenDir: string, name: string): Promise<AdapterSpec | null> {
   const { plugins } = await readPlugins(harenDir);
   if (!plugins[name]) return null;
+  const dir = pluginDir(harenDir, name);
+  if (!existsSync(join(dir, "haren-plugin.json"))) return null;
   try {
-    return (await readInstalledManifest(pluginDir(harenDir, name))).adapter ?? null;
-  } catch {
-    return null;
+    return (await readInstalledManifest(dir)).adapter ?? null;
+  } catch (e) {
+    throw new Error(`Adapter plugin '${name}': ${e instanceof Error ? e.message : String(e)}`);
   }
 }

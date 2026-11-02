@@ -319,6 +319,18 @@ describe("haren track unit with an adapter", () => {
     await run("unit", "checkout", "SCR_A001", "extracted");
     expect((await progress()).modules.checkout.units.SCR_A001).toBe("extracted");
   });
+  it("fails closed when the registered adapter manifest is invalid", async () => {
+    await install({ extract: "x {unit}" });
+    await run("unit", "checkout", "SCR_A001", "inventoried");
+    await writeFile(join(harenDir, ".plugins", "sample", "haren-plugin.json"), "{ not json");
+    await expect(run("unit", "checkout", "SCR_A001", "extracted")).rejects.toThrow(
+      /Adapter plugin 'sample'/,
+    );
+    await install({ bogus: "x" });
+    await expect(run("unit", "checkout", "SCR_A001", "extracted")).rejects.toThrow(
+      /Adapter plugin 'sample': .*Unknown adapter command/,
+    );
+  });
   it("does not refuse when the adapter is not installed", async () => {
     await run("unit", "checkout", "SCR_A001", "inventoried");
     await run("unit", "checkout", "SCR_A001", "extracted");
