@@ -20,6 +20,7 @@ export const EVENT_TYPES = [
   "module-status",
   "feature-status",
   "unit-status",
+  "unit-gate",
   "commit",
   "artifact",
   "gate-override",

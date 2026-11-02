@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 interface ParsedCommand {
-  command: "init" | "upgrade" | "agent" | "plugin" | "track" | "help" | "unknown";
+  command: "init" | "upgrade" | "agent" | "plugin" | "track" | "migrate" | "help" | "unknown";
   args: string[];
 }
 
@@ -25,6 +25,7 @@ export function parseArgs(args: string[]): ParsedCommand {
     case "agent":
     case "plugin":
     case "track":
+    case "migrate":
       return { command, args: rest };
     default:
       return { command: "unknown", args };
@@ -61,6 +62,11 @@ async function main() {
       await track(parsed.args);
       break;
     }
+    case "migrate": {
+      const { migrate } = await import("./commands/migrate");
+      await migrate(parsed.args);
+      break;
+    }
     case "help":
       console.log("Usage:");
       console.log("  haren init      Set up haren (detects monorepo or multi-repo workspace)");
@@ -85,10 +91,12 @@ async function main() {
         "                  event <type> [--module m] [--phase p] [--feature f] [--data '<json>']",
       );
       console.log('                  override on --reason "<text>" [--hours <n>] | override off');
+      console.log("  haren migrate   Run the migration adapter:");
+      console.log("                  inventory [--module <m>] | extract <unit> | gate <unit> [--approve]");
       break;
     case "unknown":
       console.error(`Unknown command: ${parsed.args[0]}`);
-      console.log("Usage: haren init | upgrade | agent | plugin | track (haren --help)");
+      console.log("Usage: haren init | upgrade | agent | plugin | track | migrate (haren --help)");
       process.exit(1);
   }
 }

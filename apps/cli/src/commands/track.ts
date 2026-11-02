@@ -77,14 +77,14 @@ export function parseTrackArgs(args: string[]): ParsedTrackArgs {
   return { positional, flags };
 }
 
-interface TrackPaths {
+export interface TrackPaths {
   harenDir: string;
   progress: string;
   events: string;
   registry: string;
 }
 
-function pathsFor(harenDir: string): TrackPaths {
+export function pathsFor(harenDir: string): TrackPaths {
   return {
     harenDir,
     progress: join(harenDir, "progress.json"),
@@ -93,7 +93,7 @@ function pathsFor(harenDir: string): TrackPaths {
   };
 }
 
-async function emit(paths: TrackPaths, event: Omit<HarenEvent, "timestamp">): Promise<void> {
+export async function emit(paths: TrackPaths, event: Omit<HarenEvent, "timestamp">): Promise<void> {
   await mkdir(dirname(paths.events), { recursive: true });
   await appendEvent(paths.events, { ...event, timestamp: new Date().toISOString() } as HarenEvent);
 }
