@@ -411,6 +411,7 @@ You are operating within the Haren agentic SDLC framework.
 
 - User says "let's build X" or describes a new feature → discover/ skill (triggers brainstorming)
 - User says "what's next?" → read \`progress.json\` → suggest action
+- User says "extract <unit>" or "spec the legacy screen" (migration mode) → extract/ skill
 - User says "extract stories" or "break down the PRD" or "create stories from docs" → extract-stories/ skill
 - User says "let's work on {module}" → check module phase → dispatch appropriate skill
 - User says "I need to research X" → research/ skill
@@ -477,7 +478,7 @@ When a skill says "read the master plan" or needs full module context, it means 
 
 ### Dependent modules
 
-The decompose skill records module dependencies in \`progress.json\` \`dependencies\` (for example \`"web": ["api"]\`). If module B depends on module A:
+The decompose skill records module dependencies with \`haren track depends <module> <dep>\` (for example \`haren track depends web api\`). They are stored in \`progress.json\` \`dependencies\`. If module B depends on module A:
 
 - **A is merged:** create \`feat/<B>\` from the default branch as usual.
 - **A is not merged yet:** create \`feat/<B>\` from \`feat/<A>\`. Record the base in the session log, for example "baseBranch: feat/<A>". Merge A into the default branch first. Then rebase or merge B onto the default branch, and only then merge B.

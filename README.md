@@ -289,7 +289,7 @@ haren migrate gate <unit> [--approve]  # run the spec gate; --approve records th
 haren track check                      # also checks unit rules in migration mode
 ```
 
-A gate FAIL and an adapter error are different results. An adapter error changes no status.
+A gate FAIL and an adapter error are different results. An adapter error changes no status. A gate FAIL on a `spec-approved` unit moves it back to `spec-draft`. An adapter command stops after 300 seconds by default. Set `HAREN_ADAPTER_TIMEOUT_MS` to change the limit.
 
 #### Write an adapter
 
@@ -323,6 +323,7 @@ haren track commit <module> <repoKey> <sha>
 haren track artifact <id> --type <type> --path <path> [--module <m>] [--status <s>]
 haren track event <type> [--module m] [--phase p] [--feature f] [--data '<json object>']
 haren track unit <module> <unit> <status>   # migration mode only
+haren track depends <module> [dep ...]      # set module dependencies; rejects a cycle
 haren track override on --reason "<text>" [--hours <n>]
 haren track override off
 haren track check          # manifest repos + artifact index consistency; exits 1 on FAIL

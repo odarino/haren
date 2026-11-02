@@ -61,7 +61,7 @@ These decisions affect ALL modules and must be resolved first.
     ```
     `features` stays `{}` until the plan phase adds tasks. `branch` and `repos` are optional. Without `branch`, haren uses `feat/<module>`.
     Write this initial shape once, when the modules are new. After that, change module status only with `haren track status <module> <status>` (see update-tracking skill).
-11. Record dependencies in the top-level `dependencies` map of progress.json: `"<module>": ["<module it depends on>"]`. The implement skill and skill.md "Dependent modules" use this map to choose the base branch and the merge order. The release skill uses it for the release order
+11. Record the dependencies of each module with `haren track depends <module> <dep> [<dep> ...]`. Run it with no `<dep>` to clear them. The command checks that the modules exist and rejects a cycle. Do not edit progress.json by hand. The implement skill and skill.md "Dependent modules" use this map to choose the base branch and the merge order. The release skill uses it for the release order
 12. Migration mode only (`mode: migration`): the modules come from the Module column of `artifacts/02-discovery/unit-map.md`.
     1. For each module in the column, run `haren track status <module> decomposed`.
     2. Run `haren migrate inventory` once, with no `--module` flag. It reads the Module column of each known unit and registers the unit as `inventoried` in that module. The `--module` flag only sets the module of units that are new to the map.

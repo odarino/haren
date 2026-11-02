@@ -121,4 +121,31 @@ describe("content: migration mode", () => {
     expect(read("skills/discover/SKILL.md")).toContain("skills/discover/migration.md");
     expect(read("skills/discover/migration.md")).toContain("legacy-semantics.md");
   });
+  it("evaluate closes a difference only by fix, parity evidence or approved deviation", () => {
+    const text = read("skills/evaluate/SKILL.md");
+    expect(text).toContain("Close each difference only by one of these");
+    expect(text).toContain("parity-evidence");
+    expect(text).toContain("`approved` row in `artifacts/03-modules/deviation-log.md`");
+    expect(text).toContain("static-review-only");
+  });
+  it("implement reads the deviation log and keeps approved deviations", () => {
+    const text = read("skills/implement/SKILL.md");
+    expect(text).toContain("deviation-log.md");
+    expect(text).toContain("Never change behavior that has an `approved` deviation row");
+  });
+  it("decompose records dependencies with haren track depends", () => {
+    expect(read("skills/decompose/SKILL.md")).toContain("haren track depends");
+    expect(read("agents/architect.md")).toContain("haren track depends");
+  });
+  it("extract explains that a blocked unit skips the gate.json check", () => {
+    const text = read("skills/extract/SKILL.md");
+    expect(text).toContain("`blocked`");
+    expect(text).toContain("skips the `gate.json` check");
+  });
+  it("update-tracking lists depends, the adapter timeout and the gate demotion", () => {
+    const text = read("skills/update-tracking/SKILL.md");
+    expect(text).toContain("haren track depends");
+    expect(text).toContain("HAREN_ADAPTER_TIMEOUT_MS");
+    expect(text).toContain("`spec-draft`");
+  });
 });

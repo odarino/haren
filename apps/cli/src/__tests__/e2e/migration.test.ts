@@ -1,5 +1,6 @@
 // src/__tests__/e2e/migration.test.ts
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { readFileSync } from "fs";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { join, resolve } from "path";
 import { tmpdir } from "os";
@@ -10,17 +11,22 @@ import { installPlugin } from "../../plugins/install";
 
 const SAMPLE = resolve(import.meta.dir, "../../../../../examples/adapters/sample");
 
-const MANIFEST =
-  'haren:\n  version: "1.5.0"\nproject: shop\nmode: migration\nrepos:\n  legacy_src: { path: ../legacy_src, role: legacy, readOnly: true }\nmigration:\n  adapter: sample-adapter\n  unitId: "^SCR_[A-Z]\\\\d{3}(_P\\\\d+)?$"\n';
+const { version: HAREN_VERSION } = JSON.parse(
+  readFileSync(resolve(import.meta.dir, "../../../package.json"), "utf-8"),
+) as { version: string };
 
-const specWith = (writes: string) => `# SCR_A001
+const MANIFEST = `haren:\n  version: "${HAREN_VERSION}"\nproject: shop\nmode: migration\nrepos:\n  legacy_src: { path: ../legacy_src, role: legacy, readOnly: true }\nmigration:\n  adapter: sample-adapter\n  unitId: "^SCR_[A-Z]\\\\d{3}(_P\\\\d+)?$"\n`;
+
+const specWith = (
+  writes: string,
+  bindings = ["ORDER_TBL.ORDER_NO", "ORDER_TBL.STATUS"],
+) => `# SCR_A001
 
 ## Fields
 orderNo, status
 
 ## Bindings
-- ORDER_TBL.ORDER_NO
-- ORDER_TBL.STATUS
+${bindings.map((b) => `- ${b}`).join("\n")}
 
 ## Writes
 ${writes}
@@ -40,12 +46,12 @@ const run = (args: string[]) => track([...args, "--haren-dir", harenDir], root);
 const mig = (args: string[]) => migrate([...args, "--haren-dir", harenDir], root);
 const progress = async () => JSON.parse(await readFile(join(harenDir, "progress.json"), "utf-8"));
 const quiet = async <T>(fn: () => Promise<T>): Promise<T> => {
-  const log = console.log;
-  console.log = () => {};
+  const saved = { log: console.log, warn: console.warn, error: console.error };
+  console.log = console.warn = console.error = () => {};
   try {
     return await fn();
   } finally {
-    console.log = log;
+    Object.assign(console, saved);
   }
 };
 
@@ -118,6 +124,18 @@ describe("e2e: migration unit flow with the sample adapter", () => {
     const failed = JSON.parse(await readFile(join(unitDir("SCR_A001"), "gate.json"), "utf-8"));
     expect(failed.pass).toBe(false);
     expect(failed.findings[0].rule).toBe("missing-writes");
+    expect((await progress()).modules.orders.units.SCR_A001).toBe("spec-draft");
+
+    // A spec that omits one binding fails with missing-binding.
+    await writeFile(
+      join(unitDir("SCR_A001"), "spec.md"),
+      specWith("- ORDER_LOG", ["ORDER_TBL.ORDER_NO"]),
+    );
+    await expect(quiet(() => mig(["gate", "SCR_A001", "--approve"]))).rejects.toThrow(/gate FAIL/);
+    const unbound = JSON.parse(await readFile(join(unitDir("SCR_A001"), "gate.json"), "utf-8"));
+    expect(unbound.pass).toBe(false);
+    expect(unbound.findings.map((f: { rule: string }) => f.rule)).toEqual(["missing-binding"]);
+    expect(unbound.findings[0].message).toContain("ORDER_TBL.STATUS");
     expect((await progress()).modules.orders.units.SCR_A001).toBe("spec-draft");
 
     // A fixed spec passes and the status moves.

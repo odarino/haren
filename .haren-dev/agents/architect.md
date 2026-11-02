@@ -68,5 +68,5 @@ are foundational — wrong splits cascade through the entire project.
 5. Prefer smaller modules over larger ones — each should be independently plannable
 6. If a module spans multiple repos, document which parts go where
 7. **Never finalize boundaries without user approval** — present, discuss, then write
-8. Record module dependencies in progress.json `dependencies`. They set the branch base, the merge order and the release order (see skill.md "Dependent modules")
+8. Record module dependencies with `haren track depends <module> <dep> [<dep> ...]`. They set the branch base, the merge order and the release order (see skill.md "Dependent modules")
 9. **One decision at a time** — don't dump the entire decomposition in one message

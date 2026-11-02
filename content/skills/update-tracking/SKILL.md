@@ -27,12 +27,15 @@ Run every command from the haren folder.
 | Open the code gate for a user request | `haren track override on --reason "<text>" [--hours <n>]` |
 | Close the code gate again | `haren track override off` |
 | Set unit status (migration mode) | `haren track unit <module> <unit> <status>` |
+| Set the dependencies of a module | `haren track depends <module> [<dep> ...]` |
 | Make or update the unit map | `haren migrate inventory [--module m]` |
 | Extract one unit from the legacy source | `haren migrate extract <unit>` |
 | Run the spec gate of one unit | `haren migrate gate <unit> [--approve]` |
 | Check manifest repos and the artifact index | `haren track check` (run before every phase transition) |
 
 The `status`, `feature`, `commit`, `artifact` and `override` commands append their own events. Do not also run `haren track event` for the same change.
+
+In migration mode, `haren migrate gate <unit>` runs the adapter gate. A gate FAIL on a `spec-approved` unit moves the unit back to `spec-draft`. An adapter command that runs longer than 300 seconds stops with an error. Set `HAREN_ADAPTER_TIMEOUT_MS` to change this limit.
 
 ## Operations
 

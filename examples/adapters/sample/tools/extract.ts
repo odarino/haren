@@ -3,7 +3,10 @@ import { copyFileSync, readFileSync, readdirSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const args = process.argv.slice(2);
-const flag = (name: string) => args[args.indexOf(name) + 1];
+const flag = (name: string) => {
+  const i = args.indexOf(name);
+  return i === -1 ? undefined : args[i + 1];
+};
 const unit = args[0];
 const root = flag("--root");
 const out = flag("--out");

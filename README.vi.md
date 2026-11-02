@@ -203,7 +203,7 @@ haren migrate extract <unit>           # trích unit rồi viết spec
 haren migrate gate <unit> [--approve]  # chạy spec gate; --approve ghi nhận người duyệt
 ```
 
-Gate FAIL và lỗi adapter là hai kết quả khác nhau; lỗi adapter không đổi status nào.
+Gate FAIL và lỗi adapter là hai kết quả khác nhau; lỗi adapter không đổi status nào. Gate FAIL trên unit đang `spec-approved` sẽ đưa unit về `spec-draft`. Command của adapter bị dừng sau 300 giây theo mặc định; đặt `HAREN_ADAPTER_TIMEOUT_MS` để đổi giới hạn.
 
 **Viết adapter** — adapter là plugin có `harenApi: "2"` và khối `adapter` trong `haren-plugin.json`: `unitKind`, `commands` (`inventory`, `extract`, `gate`), `skills.spec`, và file `semantics` (tùy chọn). Mỗi command là một chuỗi, CLI tách thành argv (không qua shell) và thay các placeholder `{legacyRoot}`, `{unit}`, `{unitDir}`, `{specPath}`. Mỗi command in một JSON object ra stdout, CLI kiểm tra schema:
 
@@ -228,6 +228,7 @@ haren track commit <module> <repoKey> <sha>
 haren track artifact <id> --type <type> --path <path> [--module <m>] [--status <s>]
 haren track event <type> [--module m] [--phase p] [--feature f] [--data '<json object>']
 haren track unit <module> <unit> <status>   # chỉ mode migration
+haren track depends <module> [dep ...]      # đặt dependency của module; từ chối vòng lặp
 haren track override on --reason "<text>" [--hours <n>]
 haren track override off
 haren track check          # kiểm tra repos trong manifest và artifact index; exit 1 nếu FAIL
