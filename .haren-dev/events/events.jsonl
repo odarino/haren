@@ -2,3 +2,5 @@
 {"type":"gate-override","action":"off","timestamp":"2026-11-02T09:12:50.567Z"}
 {"type":"artifact","id":"DESIGN-001","artifactType":"design","path":"artifacts/04-plans/migration-mode/design.md","status":"draft","timestamp":"2026-11-02T10:05:31.511Z"}
 {"type":"artifact","id":"TASKS-001","artifactType":"tasks","path":"artifacts/04-plans/migration-mode/tasks.md","status":"draft","timestamp":"2026-11-02T10:11:12.129Z"}
+{"type":"gate-override","action":"on","reason":"user approved: execute migration-mode plan (TASKS-001)","until":"2026-11-03T01:04:49.224Z","timestamp":"2026-11-02T13:04:49.228Z"}
+{"type":"gate-override","action":"off","timestamp":"2026-11-02T15:38:21.740Z"}
