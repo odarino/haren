@@ -35,6 +35,7 @@ You are operating within the Haren agentic SDLC framework.
 | Design a feature | discover/ (brainstorming) | Researcher |
 | Start a new project | discover/ | Researcher |
 | Research a topic | research/ | Researcher |
+| Extract legacy units into specs (migration) | extract/ | Researcher |
 | Break into modules | decompose/ | Architect |
 | Extract stories from docs | extract-stories/ | Researcher |
 | Plan a module | plan/ | Planner |

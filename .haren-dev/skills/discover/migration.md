@@ -24,7 +24,7 @@ The legacy repo is read-only. Do not write to it.
 6. Make sure that the semantics rulebook exists:
    - If `artifacts/01-research/legacy-semantics.md` is missing, copy the semantics file of the adapter plugin. Find its path in the plugin's `haren-plugin.json`, key `adapter.semantics`, inside the installed plugin folder.
    - If there is no adapter, start from the `legacy-semantics.md` template.
-   - Register it: `haren track artifact <id> --type legacy-semantics --path artifacts/01-research/legacy-semantics.md`.
+   - Get the next artifact ID with the `resolve-next-id` skill. Register it: `haren track artifact <id> --type legacy-semantics --path artifacts/01-research/legacy-semantics.md`.
 7. Write the context brief. Include the legacy stack, the unit counts per family, the shared components, and the suggested modules.
 8. Run `haren track check`. Then go to the `decompose` phase.
 

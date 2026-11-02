@@ -30,7 +30,7 @@ Do these steps for each unit of the module:
 7. Only after the user approves:
    - With an adapter: run `haren migrate gate <unit> --approve`.
    - Without an adapter: tick the Manual gate section of the spec. Then run `haren track unit <module> <unit> spec-approved`.
-8. Register the spec: `haren track artifact <id> --type unit-spec --path artifacts/02-discovery/units/<unit>/spec.md --module <module>`.
+8. Get the next artifact ID with the `resolve-next-id` skill. Register the spec: `haren track artifact <id> --type unit-spec --path artifacts/02-discovery/units/<unit>/spec.md --module <module>`.
 
 ## Rules
 
