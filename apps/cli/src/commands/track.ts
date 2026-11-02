@@ -1,6 +1,7 @@
 import { existsSync } from "fs";
-import { mkdir, readFile, writeFile } from "fs/promises";
-import { dirname, join } from "path";
+import { mkdir, readdir, readFile, writeFile } from "fs/promises";
+import { dirname, join, relative, sep } from "path";
+import { normalizeRepos, parseManifest } from "../workspace/manifest";
 import { appendEvent, EVENT_PHASES, isEventPhase, type HarenEvent } from "../workspace/events";
 import {
   FEATURE_STATUSES,
@@ -24,6 +25,7 @@ export const TRACK_USAGE = `Usage:
   haren track event <type> [--module m] [--phase p] [--feature f] [--data '<json object>']
   haren track override on --reason "<text>" [--hours <n>]
   haren track override off
+  haren track check
 Options: --haren-dir <path>`;
 
 const VALUE_FLAGS = [
@@ -131,6 +133,8 @@ export async function track(args: string[], cwd = process.cwd()): Promise<void> 
       return trackEvent(paths, rest, flags);
     case "override":
       return trackOverride(paths, rest, flags);
+    case "check":
+      return trackCheck(paths);
     default:
       throw new Error(`Unknown track command: ${sub}\n${TRACK_USAGE}`);
   }
@@ -347,4 +351,108 @@ async function trackOverride(
   } else {
     throw new Error(`Unknown override action '${action}'. Use on or off.`);
   }
+}
+
+export interface CheckResult {
+  errors: string[];
+  warnings: string[];
+}
+
+/** Folders under artifacts/ that hold inputs or the registry, not tracked artifacts. */
+const UNTRACKED_DIRS = new Set(["_registry", "00-baseline"]);
+
+async function listArtifactFiles(artifactsDir: string): Promise<string[]> {
+  if (!existsSync(artifactsDir)) return [];
+  const out: string[] = [];
+  const walk = async (dir: string): Promise<void> => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith(".")) continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (dir === artifactsDir && UNTRACKED_DIRS.has(entry.name)) continue;
+        await walk(full);
+      } else if (entry.name.endsWith(".md") && entry.name.toLowerCase() !== "readme.md") {
+        out.push(full);
+      }
+    }
+  };
+  await walk(artifactsDir);
+  return out;
+}
+
+/** Parse the artifact index table into rows of { id, module, path }. */
+export function parseRegistryRows(text: string): { id: string; module: string; path: string }[] {
+  const rows: { id: string; module: string; path: string }[] = [];
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line.startsWith("|")) continue;
+    const cells = line.slice(1, line.endsWith("|") ? -1 : undefined).split("|").map((c) => c.trim());
+    if (cells.length < 5 || cells[0] === "ID" || /^-+$/.test(cells[0])) continue;
+    rows.push({ id: cells[0], module: cells[2], path: cells[4] });
+  }
+  return rows;
+}
+
+function normalizeArtifactPath(p: string): string {
+  return p.replace(/^\.\//, "").replace(/^artifacts\//, "").replaceAll("\\", "/");
+}
+
+/** Cross-check manifest, progress.json and the artifact index. */
+export async function checkWorkspace(paths: TrackPaths): Promise<CheckResult> {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const progress = await loadProgress(paths);
+
+  // 1. Every repo key used in progress.json must be declared in manifest.yaml.
+  const manifestPath = join(paths.harenDir, "manifest.yaml");
+  const manifest = existsSync(manifestPath)
+    ? parseManifest(await readFile(manifestPath, "utf-8"))
+    : {};
+  const declared = new Set(Object.keys(normalizeRepos(manifest.repos)));
+  for (const [name, mod] of Object.entries(progress.modules)) {
+    const used = new Set([...(mod.repos ?? []), ...Object.keys(mod.lastCommit ?? {})]);
+    for (const key of used) {
+      if (!declared.has(key)) {
+        errors.push(
+          `module '${name}' uses repo '${key}', but manifest.yaml has no repos.${key} entry`,
+        );
+      }
+    }
+  }
+
+  // 2. Every artifact file on disk must have an index row, and every row must point to a file.
+  const registryText = existsSync(paths.registry) ? await readFile(paths.registry, "utf-8") : "";
+  const rows = parseRegistryRows(registryText);
+  const indexed = new Set(rows.map((r) => normalizeArtifactPath(r.path)));
+  const artifactsDir = join(paths.harenDir, "artifacts");
+  for (const file of await listArtifactFiles(artifactsDir)) {
+    const rel = relative(artifactsDir, file).split(sep).join("/");
+    if (!indexed.has(rel)) {
+      errors.push(`artifacts/${rel} has no row in artifact-index.md (run haren track artifact)`);
+    }
+  }
+  for (const row of rows) {
+    const rel = normalizeArtifactPath(row.path);
+    if (!existsSync(join(artifactsDir, rel))) {
+      errors.push(`index row ${row.id} points to missing file artifacts/${rel}`);
+    }
+  }
+
+  // 3. A module past 'decomposed' with no index row is suspicious.
+  const modulesWithRows = new Set(rows.map((r) => r.module));
+  for (const [name, mod] of Object.entries(progress.modules)) {
+    if (mod.status !== "discovered" && !modulesWithRows.has(name)) {
+      warnings.push(`module '${name}' (${mod.status}) has no artifact in the index`);
+    }
+  }
+  return { errors, warnings };
+}
+
+async function trackCheck(paths: TrackPaths): Promise<void> {
+  const { errors, warnings } = await checkWorkspace(paths);
+  for (const w of warnings) console.log(`  warn: ${w}`);
+  if (errors.length) {
+    throw new Error(`Workspace check FAIL:\n${errors.map((e) => `  - ${e}`).join("\n")}`);
+  }
+  console.log("  Workspace check PASS");
 }

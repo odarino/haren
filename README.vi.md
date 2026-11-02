@@ -205,6 +205,7 @@ haren track artifact <id> --type <type> --path <path> [--module <m>] [--status <
 haren track event <type> [--module m] [--phase p] [--feature f] [--data '<json object>']
 haren track override on --reason "<text>" [--hours <n>]
 haren track override off
+haren track check          # kiểm tra repos trong manifest và artifact index; exit 1 nếu FAIL
 ```
 
 • `status` — kiểm tra transition của module. Chỉ tạo module mới ở `discovered` hoặc `decomposed`. Thứ tự: `discovered → decomposed → planned → implementing → evaluating → completed → released`. `implementing` và `evaluating` có thể sang `blocked`; `blocked` quay về `implementing` hoặc `planned`.

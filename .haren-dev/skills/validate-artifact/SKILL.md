@@ -43,6 +43,8 @@ Required sections:
 - [ ] Architecture overview
 - [ ] Data model (or "N/A" with justification)
 - [ ] Key technical decisions
+- [ ] Existing Code section (reuse inventory). For each table that the module writes and each side effect that it triggers, the section lists the existing writers and callers in all target repos with `file:line`, or states "none found" with the search command. A design that says "new" for a behavior must name what it leaves behind. Missing or empty section → FAIL
+- [ ] Cheap mechanical check: for each table under "Data Model → Owned (write)", search all target repos for writes to it (for example `INSERT INTO <table>`, `UPDATE <table>`, ORM save calls). A hit that the Existing Code section does not mention → FAIL
 
 ### Tasks (04-plans)
 Required:
@@ -56,6 +58,10 @@ Iteration-scoped designs are filtered subsets of the master design. Relaxed chec
 - [ ] Key technical decisions relevant to this iteration's tasks
 - [ ] Cross-reference to spec: `Spec: artifacts/03-modules/{module}/spec.md`
 - [ ] Cross-reference to master design: `Master: artifacts/04-plans/{module}/design.md`
+
+## Workspace Check (all phase transitions)
+
+Before any phase transition, run `haren track check`. Its FAIL lines are FAIL lines of this validation: unregistered artifact files, index rows that point to missing files, and repo keys that manifest.yaml does not declare.
 
 ## Output
 

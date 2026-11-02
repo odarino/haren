@@ -21,6 +21,11 @@ Orient yourself at the start of every session or before taking any action.
 3. **Read artifact-index.md**
    - Understand what artifacts exist
    - Note any gaps (e.g., module has no plan yet)
+   - Run `haren track check`. A FAIL means the workspace state is not reliable:
+     - a repo key in progress.json has no entry in manifest.yaml `repos` → ask the user for the path and add the entry
+     - an artifact file has no index row → register it with `haren track artifact`
+     - an index row points to a missing file → ask the user, then fix the row
+   - Report each FAIL line to the user before other work
 
 4. **Scan `artifacts/00-baseline/`**
    - List any files found (PDFs, docs, markdown, etc.)
@@ -93,5 +98,5 @@ Haren repo: {branch, clean | N changed files} ← workspace layout only
 
 - Always run this before any other action
 - If progress.json doesn't exist, suggest running discover phase
-- If manifest.yaml is missing repos, warn but don't block
+- If manifest.yaml is missing repos and no module uses a repo yet, warn but don't block. If a module already uses a repo, `haren track check` fails: fix manifest.yaml first
 - Surface drift between progress.json and git state to the user

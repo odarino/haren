@@ -12,6 +12,7 @@ You are operating within the Haren agentic SDLC framework.
 1. Read `manifest.yaml` to understand the project
 2. Read `progress.json` to understand current state
 3. Read `artifacts/_registry/artifact-index.md` for artifact inventory
+   - Run `haren track check`. It reports repo keys missing from `manifest.yaml` and artifacts missing from the index. Tell the user about each FAIL line before other work
 4. **Scan `artifacts/00-baseline/`** for documents (PDFs, docs, markdown, etc.)
    - If docs found and mode is `undecided` → auto-recommend `blueprint` mode
    - If docs found and discovery hasn't started → suggest starting discover phase

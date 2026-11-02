@@ -18,6 +18,20 @@ Create a complete, actionable plan for implementing a single module.
 5. Read any relevant research: `artifacts/01-research/`
 6. Check dependencies: are dependent modules' interfaces defined?
 
+### Step 4: Reuse inventory (before decisions and tasks)
+
+<HARD-GATE>
+Do not write design.md or tasks.md before the reuse inventory is done.
+A plan that builds behavior which already exists in a target repo is a defect.
+</HARD-GATE>
+
+1. List every table the module writes and every side effect it triggers (notification, SMS, mail, file, external API, audit log, numbering)
+2. For each item, search ALL target repos in manifest.yaml `repos`. Do not stop at the module's own package or at class names that match the screen name. Search by table name, by side effect (for example `send`, `notify`, `mail`), and by the shared service folders
+3. Record each hit with `file:line` and one verdict: reuse, extend, supersede or duplicate. Record "none found" with the search command that you ran
+4. Read the hits that are a shared service. Check its doc comment for a caller/shared split
+5. Put the result in the `## Existing Code` section of design.md. Tasks must use the verdicts: no task builds a "reuse" item again
+6. If the inventory is large, also write it as a research artifact `artifacts/01-research/{module}-reuse-audit.md` and link it from the design
+
 ### Step 5: Gather decisions BEFORE writing artifacts
 
 <HARD-GATE>
@@ -91,6 +105,7 @@ Write to: `artifacts/04-plans/{module}/design.md` (master — always written her
 
 Using `templates/design.md`:
 - Architecture overview
+- **Existing code** (from the reuse inventory in Step 4)
 - Data model
 - **Key technical decisions with rationale** (from step 5 — include what was chosen and why)
 - **Screens** (if the module adds or changes screens): the chosen mockup per screen and the rejected options with the reason
@@ -118,7 +133,7 @@ The user can always ask for the full path. Then review section by section.
 
 ### Step 8: Finalize
 
-1. Validate all three artifacts with validate-artifact skill
+1. Validate all three artifacts with validate-artifact skill. This runs `haren track check`
 2. Register each new artifact: `haren track artifact <id> --type <type> --path <path> --module <module>`
 3. Set the module status: `haren track status <module> planned`. Never edit progress.json by hand
 4. If `plugins.json` exists in the haren folder, run `haren plugin run after-plan --payload '{"module":"<module>","tasksFile":"<path of tasks.md relative to the haren folder>"}'` and show its output lines. A warning does not block the plan. The CLI adds the missing features to progress.json, so do not add them yourself
@@ -164,3 +179,4 @@ After creating the master spec and design, and after all tasks are defined:
 - Include edge cases and error scenarios in the spec
 - The design must document every decision with "chosen: X, alternatives: Y/Z, rationale: ..."
 - If unsure about anything, ask — don't guess
+- **Never plan new code before the reuse inventory** — search all target repos for existing writers and callers first

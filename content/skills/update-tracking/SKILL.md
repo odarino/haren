@@ -26,6 +26,7 @@ Run every command from the haren folder.
 | Append another event | `haren track event <type> [--module m] [--phase p] [--feature f] [--data '<json>']` |
 | Open the code gate for a user request | `haren track override on --reason "<text>" [--hours <n>]` |
 | Close the code gate again | `haren track override off` |
+| Check manifest repos and the artifact index | `haren track check` (run before every phase transition) |
 
 The `status`, `feature`, `commit`, `artifact` and `override` commands append their own events. Do not also run `haren track event` for the same change.
 

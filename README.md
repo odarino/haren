@@ -286,6 +286,7 @@ haren track artifact <id> --type <type> --path <path> [--module <m>] [--status <
 haren track event <type> [--module m] [--phase p] [--feature f] [--data '<json object>']
 haren track override on --reason "<text>" [--hours <n>]
 haren track override off
+haren track check          # manifest repos + artifact index consistency; exits 1 on FAIL
 ```
 
 - `status` checks the module transition. It creates a missing module only at

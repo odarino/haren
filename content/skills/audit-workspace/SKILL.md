@@ -130,7 +130,8 @@ Cross-check `_registry/artifact-index.md` against actual files:
 
 - Every file in `02-discovery/` through `07-iterations/` should have a registry entry
 - Every registry entry should point to an existing file
-- **Report:** unregistered files as WARN, broken registry entries as FAIL
+- Run `haren track check` for this check. It also fails when progress.json uses a repo key that manifest.yaml does not declare
+- **Report:** unregistered files, broken registry entries and undeclared repo keys as FAIL
 
 ### 7. Progress.json ↔ Tasks.md Consistency
 

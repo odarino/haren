@@ -228,3 +228,41 @@ describe("haren track", () => {
     expect((await progress()).modules.checkout.status).toBe("implementing");
   });
 });
+
+describe("haren track check", () => {
+  const artifact = async (rel: string) => {
+    await mkdir(join(harenDir, "artifacts", rel, ".."), { recursive: true });
+    await writeFile(join(harenDir, "artifacts", rel), "# x\n");
+  };
+
+  it("passes on a clean workspace", async () => {
+    await expect(run("check")).resolves.toBeUndefined();
+  });
+
+  it("fails when an artifact file has no index row", async () => {
+    await artifact("03-modules/checkout/spec.md");
+    await expect(run("check")).rejects.toThrow(/03-modules\/checkout\/spec.md has no row/);
+  });
+
+  it("passes after the artifact is registered, and ignores baseline files", async () => {
+    await artifact("03-modules/checkout/spec.md");
+    await artifact("00-baseline/prd.md");
+    await run("artifact", "SPEC-001", "--type", "spec", "--path", "artifacts/03-modules/checkout/spec.md", "--module", "checkout");
+    await expect(run("check")).resolves.toBeUndefined();
+  });
+
+  it("fails when an index row points to a missing file", async () => {
+    await run("artifact", "SPEC-009", "--type", "spec", "--path", "artifacts/03-modules/gone.md");
+    await expect(run("check")).rejects.toThrow(/SPEC-009 points to missing file/);
+  });
+
+  it("fails when progress.json uses a repo key that manifest.yaml does not declare", async () => {
+    await run("commit", "checkout", "legacy_be", "abc123");
+    await expect(run("check")).rejects.toThrow(/uses repo 'legacy_be'/);
+    await writeFile(
+      join(harenDir, "manifest.yaml"),
+      'haren:\n  version: "1.3.3"\nrepos:\n  legacy_be:\n    path: ../legacy_be\n',
+    );
+    await expect(run("check")).resolves.toBeUndefined();
+  });
+});
