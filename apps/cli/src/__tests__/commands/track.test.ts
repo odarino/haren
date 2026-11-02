@@ -319,3 +319,50 @@ describe("haren track unit", () => {
     await expect(run("status", "m", "planned")).rejects.toThrow(/SCR_A001/);
   });
 });
+
+describe("track check in migration mode", () => {
+  const legacy = "repos:\n  legacy_src: { path: ../legacy_src, role: legacy, readOnly: true }\n";
+  const unitId = 'migration:\n  unitId: "^SCR_[A-Z]\\\\d{3}$"\n';
+  const writeUnits = (units: Record<string, string>) =>
+    writeFile(
+      join(harenDir, "progress.json"),
+      JSON.stringify({
+        project: "shop",
+        version: 3,
+        phase: "plan",
+        currentIteration: 3,
+        modules: { checkout: { status: "planned", currentPhase: "plan", features: {}, units } },
+        dependencies: {},
+      }),
+    );
+
+  it("fails without a legacy repo", async () => {
+    await writeFile(
+      join(harenDir, "manifest.yaml"),
+      'haren:\n  version: "1.5.0"\nmode: migration\nmigration:\n  unitId: "^SCR_"\n',
+    );
+    await expect(run("check")).rejects.toThrow(/role: legacy/);
+  });
+  it("fails when a unit id does not match unitId", async () => {
+    await writeFile(
+      join(harenDir, "manifest.yaml"),
+      `haren:\n  version: "1.5.0"\nmode: migration\n${legacy}${unitId}`,
+    );
+    await writeUnits({ BAD: "inventoried" });
+    await expect(run("check")).rejects.toThrow(/unit 'BAD' does not match migration\.unitId/);
+  });
+  it("fails when an approved unit has no passing gate.json in adapter mode", async () => {
+    await writeFile(
+      join(harenDir, "manifest.yaml"),
+      `haren:\n  version: "1.5.0"\nmode: migration\n${legacy}${unitId.replace("migration:\n", "migration:\n  adapter: sample\n")}`,
+    );
+    await writeUnits({ SCR_A001: "spec-approved" });
+    await expect(run("check")).rejects.toThrow(/SCR_A001.*gate\.json/);
+    const dir = join(harenDir, "artifacts", "02-discovery", "units", "SCR_A001");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "gate.json"), "{ not json");
+    await expect(run("check")).rejects.toThrow(/SCR_A001.*gate\.json/);
+    await writeFile(join(dir, "gate.json"), JSON.stringify({ pass: true }));
+    await run("check");
+  });
+});

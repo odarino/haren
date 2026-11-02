@@ -1,7 +1,12 @@
 import { existsSync } from "fs";
 import { mkdir, readdir, readFile, writeFile } from "fs/promises";
 import { dirname, join, relative, sep } from "path";
-import { normalizeRepos, parseManifest, readMigrationConfig } from "../workspace/manifest";
+import {
+  legacyRepo,
+  normalizeRepos,
+  parseManifest,
+  readMigrationConfig,
+} from "../workspace/manifest";
 import { appendEvent, EVENT_PHASES, isEventPhase, type HarenEvent } from "../workspace/events";
 import {
   FEATURE_STATUSES,
@@ -481,6 +486,50 @@ export async function checkWorkspace(paths: TrackPaths): Promise<CheckResult> {
         errors.push(
           `module '${name}' uses repo '${key}', but manifest.yaml has no repos.${key} entry`,
         );
+      }
+    }
+  }
+
+  // 1b. Migration workspaces: legacy repo, unit ids, and adapter gates.
+  let mig: MigrationConfig | null = null;
+  try {
+    mig = readMigrationConfig(manifest);
+  } catch (e) {
+    errors.push((e as Error).message);
+  }
+  if (manifest.mode === "migration" && mig) {
+    if (!legacyRepo(manifest)) {
+      errors.push("mode: migration needs one repo with role: legacy in manifest.yaml");
+    }
+    for (const [name, mod] of Object.entries(progress.modules)) {
+      for (const [unit, status] of Object.entries(mod.units ?? {})) {
+        if (!mig.unitId.test(unit)) {
+          errors.push(`module '${name}' unit '${unit}' does not match migration.unitId`);
+        }
+        if (
+          mig.adapter &&
+          unitsBelow({ ...mod, units: { [unit]: status } }, "spec-approved").length === 0
+        ) {
+          const gate = join(
+            paths.harenDir,
+            "artifacts",
+            "02-discovery",
+            "units",
+            unit,
+            "gate.json",
+          );
+          let ok = false;
+          try {
+            ok = JSON.parse(await readFile(gate, "utf-8")).pass === true;
+          } catch {
+            ok = false;
+          }
+          if (!ok) {
+            errors.push(
+              `unit '${unit}' is ${status} but artifacts/02-discovery/units/${unit}/gate.json is missing or not pass`,
+            );
+          }
+        }
       }
     }
   }
