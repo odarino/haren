@@ -18,6 +18,29 @@ export type FeatureStatus =
   | "fixing"
   | "blocked";
 
+export type UnitStatus =
+  | "inventoried"
+  | "extracted"
+  | "spec-draft"
+  | "spec-approved"
+  | "built"
+  | "verified"
+  | "parity-signed"
+  | "blocked"
+  | "static-review-only";
+
+/** Main line, in order. Side statuses are handled in VALID_UNIT_TRANSITIONS. */
+export const UNIT_LINE: UnitStatus[] = [
+  "inventoried",
+  "extracted",
+  "spec-draft",
+  "spec-approved",
+  "built",
+  "verified",
+  "parity-signed",
+];
+export const UNIT_STATUSES: UnitStatus[] = [...UNIT_LINE, "blocked", "static-review-only"];
+
 export interface ModuleProgress {
   status: ModuleStatus;
   currentPhase: string;
@@ -28,6 +51,8 @@ export interface ModuleProgress {
   branch?: string;
   /** Repo keys from manifest `repos` that this module touches. */
   repos?: string[];
+  /** Per-unit lifecycle (migration mode). Keys are unit ids. */
+  units?: Record<string, UnitStatus>;
   lastUpdated: string;
 }
 
@@ -110,6 +135,7 @@ export async function readProgress(path: string): Promise<Progress> {
   for (const mod of Object.values(progress.modules)) {
     if (!isObject(mod.features)) mod.features = {};
     if (!isObject(mod.lastCommit)) mod.lastCommit = {};
+    if (!isObject(mod.units)) mod.units = {};
   }
   return progress;
 }
@@ -192,7 +218,72 @@ export function updateFeatureStatus(
   };
 }
 
-export const PROGRESS_VERSION = 2;
+const VALID_UNIT_TRANSITIONS: Record<UnitStatus, UnitStatus[]> = {
+  inventoried: ["extracted", "blocked"],
+  extracted: ["spec-draft", "blocked"],
+  "spec-draft": ["spec-approved", "extracted", "blocked"],
+  "spec-approved": ["built", "spec-draft", "blocked"],
+  built: ["verified", "static-review-only", "blocked"],
+  "static-review-only": ["verified", "built", "blocked"],
+  verified: ["parity-signed", "built", "blocked"],
+  "parity-signed": ["built"],
+  blocked: [
+    "inventoried",
+    "extracted",
+    "spec-draft",
+    "spec-approved",
+    "built",
+    "static-review-only",
+    "verified",
+  ],
+};
+
+/** Rank on the main line; side statuses rank as the step they sit on. */
+function unitRank(s: UnitStatus): number {
+  if (s === "static-review-only") return UNIT_LINE.indexOf("built");
+  if (s === "blocked") return -1;
+  return UNIT_LINE.indexOf(s);
+}
+
+export function unitsBelow(mod: ModuleProgress, floor: UnitStatus): string[] {
+  return Object.entries(mod.units ?? {})
+    .filter(([, s]) => unitRank(s) < unitRank(floor))
+    .map(([u]) => u);
+}
+
+export function updateUnitStatus(
+  progress: Progress,
+  moduleName: string,
+  unit: string,
+  to: UnitStatus,
+): Progress {
+  const mod = progress.modules[moduleName];
+  if (!mod) throw new Error(`Module '${moduleName}' not found`);
+  const units = mod.units ?? {};
+  const from = units[unit];
+  if (from === undefined) {
+    if (to !== "inventoried") {
+      throw new Error(`A new unit can start only at 'inventoried' (got '${to}')`);
+    }
+  } else if (!VALID_UNIT_TRANSITIONS[from].includes(to)) {
+    throw new Error(
+      `Invalid unit transition: ${from} → ${to}. Allowed: ${VALID_UNIT_TRANSITIONS[from].join(", ")}`,
+    );
+  }
+  return {
+    ...progress,
+    modules: {
+      ...progress.modules,
+      [moduleName]: {
+        ...mod,
+        units: { ...units, [unit]: to },
+        lastUpdated: new Date().toISOString(),
+      },
+    },
+  };
+}
+
+export const PROGRESS_VERSION = 3;
 
 /**
  * Migrate a v1 progress.json (string `lastCommit`) to v2 (per-repo map).
@@ -204,7 +295,8 @@ export function migrateProgress(
 ): { progress: unknown; changed: boolean } {
   if (!raw || typeof raw !== "object") return { progress: raw, changed: false };
   const data = raw as { version?: number; modules?: Record<string, Record<string, unknown>> };
-  if ((data.version ?? 1) >= PROGRESS_VERSION) return { progress: raw, changed: false };
+  const version = data.version ?? 1;
+  if (version >= PROGRESS_VERSION) return { progress: raw, changed: false };
 
   const modules: Record<string, Record<string, unknown>> = {};
   for (const [name, mod] of Object.entries(data.modules ?? {})) {
@@ -219,7 +311,13 @@ export function migrateProgress(
     ) {
       lastCommit = old as Record<string, string>;
     }
-    modules[name] = { ...mod, lastCommit };
+    const units =
+      mod?.units && typeof mod.units === "object" && !Array.isArray(mod.units) ? mod.units : {};
+    modules[name] = {
+      ...mod,
+      lastCommit: version >= 2 ? (mod.lastCommit ?? {}) : lastCommit,
+      units,
+    };
   }
   return { progress: { ...data, version: PROGRESS_VERSION, modules }, changed: true };
 }

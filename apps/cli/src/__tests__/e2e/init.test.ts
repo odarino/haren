@@ -31,7 +31,7 @@ describe("e2e: haren init", () => {
 
     const progress = JSON.parse(await readFile(join(testDir, "haren", "progress.json"), "utf-8"));
     expect(progress.project).toBe("e2e-test");
-    expect(progress.version).toBe(2);
+    expect(progress.version).toBe(3);
 
     const skillMd = await readFile(join(testDir, "haren", "skill.md"), "utf-8");
     expect(skillMd).toContain("Available Actions");

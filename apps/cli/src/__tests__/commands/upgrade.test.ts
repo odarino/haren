@@ -211,7 +211,7 @@ describe("haren upgrade", () => {
     );
     const claudeMd = await readFile(join(ws, "CLAUDE.md"), "utf-8");
     expect(claudeMd.startsWith("# Mine\n\n<!-- haren:begin -->")).toBe(true);
-    expect(JSON.parse(await readFile(join(haren, "progress.json"), "utf-8")).version).toBe(2);
+    expect(JSON.parse(await readFile(join(haren, "progress.json"), "utf-8")).version).toBe(3);
   });
 
   it("does not list files it changes as protected", async () => {

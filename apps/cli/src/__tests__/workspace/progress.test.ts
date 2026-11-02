@@ -7,6 +7,10 @@ import {
   writeProgress,
   updateModuleStatus,
   updateFeatureStatus,
+  updateUnitStatus,
+  unitsBelow,
+  migrateProgress,
+  PROGRESS_VERSION,
   type Progress,
 } from "../../workspace/progress";
 
@@ -150,5 +154,67 @@ describe("progress", () => {
     };
 
     expect(() => updateFeatureStatus(data, "auth", "login-flow", "passing")).toThrow();
+  });
+});
+
+const unitBase = () =>
+  ({
+    project: "p",
+    version: 3,
+    dependencies: {},
+    modules: {
+      orders: {
+        status: "decomposed",
+        currentPhase: "decompose",
+        features: {},
+        lastCommit: {},
+        lastUpdated: "",
+        units: {} as Record<string, any>,
+      },
+    },
+  }) as any;
+
+describe("units", () => {
+  it("adds a new unit only as inventoried", () => {
+    const p = updateUnitStatus(unitBase(), "orders", "SCR_A001", "inventoried");
+    expect(p.modules.orders.units!.SCR_A001).toBe("inventoried");
+    expect(() => updateUnitStatus(unitBase(), "orders", "SCR_A001", "extracted")).toThrow(
+      /new unit/,
+    );
+  });
+  it("enforces order", () => {
+    let p = updateUnitStatus(unitBase(), "orders", "SCR_A001", "inventoried");
+    expect(() => updateUnitStatus(p, "orders", "SCR_A001", "spec-draft")).toThrow(
+      /Invalid unit transition/,
+    );
+    p = updateUnitStatus(p, "orders", "SCR_A001", "extracted");
+    p = updateUnitStatus(p, "orders", "SCR_A001", "spec-draft");
+    expect(p.modules.orders.units!.SCR_A001).toBe("spec-draft");
+  });
+  it("blocked returns to any non-final status; static-review-only sits beside verified", () => {
+    let p = unitBase();
+    p.modules.orders.units = { SCR_A001: "built" };
+    p = updateUnitStatus(p, "orders", "SCR_A001", "blocked");
+    p = updateUnitStatus(p, "orders", "SCR_A001", "built");
+    p = updateUnitStatus(p, "orders", "SCR_A001", "static-review-only");
+    p = updateUnitStatus(p, "orders", "SCR_A001", "verified");
+    p = updateUnitStatus(p, "orders", "SCR_A001", "parity-signed");
+    expect(p.modules.orders.units!.SCR_A001).toBe("parity-signed");
+  });
+  it("unitsBelow lists units under a floor", () => {
+    const mod = {
+      ...unitBase().modules.orders,
+      units: { A: "spec-approved", B: "spec-draft", C: "blocked" },
+    };
+    expect(unitsBelow(mod, "spec-approved").sort()).toEqual(["B", "C"]);
+  });
+  it("migrates v2 to v3 with empty units", () => {
+    const { progress, changed } = migrateProgress(
+      { version: 2, modules: { a: { lastCommit: {} } } },
+      () => undefined,
+    );
+    expect(changed).toBe(true);
+    expect((progress as any).version).toBe(PROGRESS_VERSION);
+    expect((progress as any).modules.a.units).toEqual({});
   });
 });

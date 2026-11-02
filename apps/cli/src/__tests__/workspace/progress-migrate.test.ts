@@ -25,9 +25,9 @@ describe("migrateProgress", () => {
     expect(p.modules.cart.lastCommit).toEqual({ default: "def456" });
   });
 
-  it("leaves a v2 file unchanged", () => {
-    const v2 = { version: 2, modules: { a: { lastCommit: { api: "x" } } } };
-    expect(migrateProgress(v2, () => "api")).toEqual({ progress: v2, changed: false });
+  it("leaves a v3 file unchanged", () => {
+    const v3 = { version: 3, modules: { a: { lastCommit: { api: "x" }, units: {} } } };
+    expect(migrateProgress(v3, () => "api")).toEqual({ progress: v3, changed: false });
   });
 
   it("keeps a plain object lastCommit with string values and drops other shapes", () => {
