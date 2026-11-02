@@ -495,6 +495,18 @@ describe("haren track depends", () => {
     await expect(run("depends", "checkout", "checkout")).rejects.toThrow(/cycle/);
     expect((await progress()).dependencies.checkout).toBeUndefined();
   });
+  it("finds no cycle in a dense acyclic graph quickly", async () => {
+    await setup();
+    const p = await progress();
+    const names = Array.from({ length: 40 }, (_, i) => `m${i}`);
+    for (const n of names) p.modules[n] = { status: "discovered" };
+    // Each node depends on every later node: exponential paths without a visited set.
+    p.dependencies = Object.fromEntries(names.map((n, i) => [n, names.slice(i + 1)]));
+    await writeFile(join(harenDir, "progress.json"), JSON.stringify(p));
+    const start = Date.now();
+    await run("depends", "checkout", "m0");
+    expect(Date.now() - start).toBeLessThan(2000);
+  });
 });
 
 describe("module gate in migration mode (positive paths)", () => {

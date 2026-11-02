@@ -82,24 +82,23 @@ export async function runAdapter<T>(
 ): Promise<T> {
   const proc = spawnAdapter(command, buildArgv(template, values), cwd);
   const timeoutMs = adapterTimeoutMs();
-  let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    proc.kill("SIGKILL");
-  }, timeoutMs);
-  let out: string, err: string, code: number;
-  try {
-    [out, err, code] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
-  if (timedOut) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  // Race the reads against the timeout: a grandchild can keep the pipes open
+  // after the adapter is killed, so awaiting the reads alone can hang.
+  const timeout = new Promise<"timeout">((done) => {
+    timer = setTimeout(() => {
+      proc.kill("SIGKILL");
+      done("timeout");
+    }, timeoutMs);
+  });
+  const result = await Promise.race([
+    Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]),
+    timeout,
+  ]).finally(() => clearTimeout(timer));
+  if (result === "timeout") {
     throw new AdapterError(`adapter ${command} timed out after ${timeoutMs / 1000}s`);
   }
+  const [out, err, code] = result;
   if (code !== 0)
     throw new AdapterError(`adapter ${command} exited ${code}: ${err.trim().slice(0, 500)}`);
   let parsed: unknown;

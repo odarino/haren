@@ -329,10 +329,13 @@ function findCycle(
   deps: string[],
 ): string[] | null {
   const next = { ...graph, [module]: deps };
+  // Each node is expanded once: a node that did not reach `module` before never will.
+  const visited = new Set<string>([module]);
   const visit = (node: string, path: string[]): string[] | null => {
     for (const dep of next[node] ?? []) {
       if (dep === module) return [...path, dep];
-      if (path.includes(dep)) continue;
+      if (visited.has(dep)) continue;
+      visited.add(dep);
       const found = visit(dep, [...path, dep]);
       if (found) return found;
     }

@@ -280,6 +280,9 @@ describe("haren migrate", () => {
     }
     expect((await progress()).modules.orders.units.SCR_A001).toBe("spec-draft");
     expect(lines.join("\n")).toContain("spec-approved → spec-draft");
+    expect(lines.join("\n")).toContain("[error] missing-binding: ORDER_TBL not bound");
+    const gate = JSON.parse(await readFile(join(unitDir("SCR_A001"), "gate.json"), "utf-8"));
+    expect(gate.pass).toBe(false);
     expect((await events()).at(-1)).toMatchObject({
       type: "unit-status",
       unit: "SCR_A001",

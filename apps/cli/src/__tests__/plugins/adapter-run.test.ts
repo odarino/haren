@@ -117,6 +117,21 @@ describe("runAdapter (more)", () => {
       );
     }
   });
+  it("does not hang when a grandchild holds the pipes", async () => {
+    const dir = await script(
+      'Bun.spawn(["sleep", "30"], { stdout: "inherit", stderr: "inherit" }).unref(); await Bun.sleep(5000);',
+    );
+    const prev = process.env.HAREN_ADAPTER_TIMEOUT_MS;
+    process.env.HAREN_ADAPTER_TIMEOUT_MS = "300";
+    const start = Date.now();
+    try {
+      await expect(runAdapter("gate", "bun a.ts", {}, dir)).rejects.toThrow("timed out");
+    } finally {
+      if (prev === undefined) delete process.env.HAREN_ADAPTER_TIMEOUT_MS;
+      else process.env.HAREN_ADAPTER_TIMEOUT_MS = prev;
+    }
+    expect(Date.now() - start).toBeLessThan(3000);
+  });
   it("kills the adapter and throws after the timeout", async () => {
     const dir = await script("await Bun.sleep(5000)");
     const prev = process.env.HAREN_ADAPTER_TIMEOUT_MS;

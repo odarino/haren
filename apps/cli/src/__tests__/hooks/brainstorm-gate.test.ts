@@ -298,6 +298,39 @@ describe("review fixes", () => {
     expect(json.agent_message).toContain("discover");
   });
 
+  describe("payload source", () => {
+    const edit = (extra: Record<string, unknown>) =>
+      JSON.stringify({ tool_input: { file_path: join(root, "web", "a.ts") }, ...extra });
+    beforeEach(async () => {
+      await progress({ version: 2, modules: {} });
+    });
+    it("Claude Code PreToolUse: reason on stderr only", async () => {
+      const r = await runRaw(
+        edit({
+          hook_event_name: "PreToolUse",
+          tool_name: "Edit",
+          session_id: "s",
+          transcript_path: "/t",
+        }),
+      );
+      expect(r.code).toBe(2);
+      expect(r.err).toContain("discover");
+      expect(r.out.trim()).toBe("");
+    });
+    it("Cursor preToolUse with tool_name: JSON on stdout only", async () => {
+      const r = await runRaw(edit({ hook_event_name: "preToolUse", tool_name: "Write" }));
+      expect(r.code).toBe(2);
+      expect(JSON.parse(r.out).permission).toBe("deny");
+      expect(r.err.trim()).toBe("");
+    });
+    it("unclear source: both stderr and stdout JSON", async () => {
+      const r = await runRaw(edit({ tool_name: "Edit" }));
+      expect(r.code).toBe(2);
+      expect(r.err).toContain("discover");
+      expect(JSON.parse(r.out).agent_message).toContain("discover");
+    });
+  });
+
   describe("Bash false denies", () => {
     beforeEach(async () => {
       await writeFile(join(harenDir, "manifest.yaml"), LEGACY);
@@ -312,6 +345,9 @@ describe("review fixes", () => {
       expect((await runShell(`git -C web commit -m "fix legacy_src/x"`)).code).toBe(0);
       expect((await runShell(`git -C web commit --message legacy_src/x`)).code).toBe(0);
       expect((await runShell(`git -C web commit -F legacy_src/msg.txt`)).code).toBe(0);
+      // -C/-c <commit> reuse a commit message: the value is a commit, not a path.
+      expect((await runShell(`git commit -C legacy_src/x`)).code).toBe(0);
+      expect((await runShell(`git commit -c legacy_src/x`)).code).toBe(0);
     });
     it("does not match a bare directory name in another place", async () => {
       const other = realpathSync(await mkdtemp(join(tmpdir(), "haren-gate-other-")));
@@ -336,6 +372,21 @@ describe("review fixes", () => {
       expect((await runShell("echo hi > api/x")).code).toBe(2);
       expect((await runGate(join(harenDir, "manifest.yaml"))).code).toBe(0);
       expect((await runShell("cat api/x")).code).toBe(0);
+    });
+    it("denies Bash writes to a readOnly repo outside the workspace", async () => {
+      const other = realpathSync(await mkdtemp(join(tmpdir(), "haren-gate-far-")));
+      try {
+        await progress(planned(["web"]));
+        await writeFile(
+          join(harenDir, "manifest.yaml"),
+          `repos: [unclosed\n  legacy:\n    path: ${join(other, "legacy")}\n    readOnly: true\n  : :`,
+        );
+        expect((await runShell(`touch ${join(other, "legacy", "x")}`)).code).toBe(2);
+        expect((await runShell(`echo hi > ${join(harenDir, "notes.md")}`)).code).toBe(0);
+        expect((await runShell("grep foo web/x 2>/dev/null")).code).toBe(0);
+      } finally {
+        await rm(other, { recursive: true, force: true });
+      }
     });
     it("fails open when the broken manifest has no readOnly", async () => {
       await progress(planned(["web"]));

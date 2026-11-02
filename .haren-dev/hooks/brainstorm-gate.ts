@@ -54,14 +54,25 @@ function allow(): never {
   process.exit(0);
 }
 
-// Set by readInput(). Claude Code payloads have tool_name or tool_input.
-let isClaude = false;
+// Set by readInput(). "unknown" writes both the Claude and the Cursor denial.
+let source: "claude" | "cursor" | "unknown" = "unknown";
+
+// Claude Code sends hook_event_name "PreToolUse" with session_id and transcript_path.
+// Cursor sends its own hook_event_name values (beforeShellExecution, preToolUse, ...).
+function detectSource(input: any): typeof source {
+  const event = input?.hook_event_name;
+  if (event === "PreToolUse") return "claude";
+  if (typeof event === "string" && event) return "cursor";
+  if (typeof input?.session_id === "string" && typeof input?.transcript_path === "string") return "claude";
+  return "unknown";
+}
 
 function deny(message: string): never {
-  if (isClaude) {
+  if (source !== "cursor") {
     // Claude Code reads stderr on exit 2 and shows it to the model.
     console.error(message);
-  } else {
+  }
+  if (source !== "claude") {
     console.log(JSON.stringify({
       permission: "deny",        // Cursor
       user_message: message,     // Cursor — shown in UI
@@ -212,17 +223,19 @@ function parseShell(command: string): Segment[] {
   return segments;
 }
 
-// A token refers to a root only when it resolves (relative to cwd) into the root.
-function makeRefersTo(roots: string[], exclude?: string) {
+// A token refers to a root only when it resolves (relative to cwd) into the root
+// and not into an excluded folder.
+function makeRefersTo(roots: string[], exclude: string[] = []) {
   return (token: string, cwd: string): boolean => {
     if (!token || token.startsWith("-")) return false;
     const abs = realTarget(resolve(cwd, token));
-    if (exclude && inside(abs, exclude)) return false;
+    if (exclude.some((dir) => inside(abs, dir))) return false;
     return roots.some((root) => inside(abs, root));
   };
 }
 
 // Drops git commit message values (-m/--message/-F/--file and their = forms).
+// -C/-c <commit> (reuse the message of a commit) take a commit, not a path.
 function gitPathArgs(sub: string, args: string[]): string[] {
   if (sub !== "commit") return args;
   const out: string[] = [];
@@ -236,7 +249,7 @@ function gitPathArgs(sub: string, args: string[]): string[] {
 }
 
 /** True when the command looks like it writes into one of the roots. */
-function shellWritesTo(command: string, startCwd: string, roots: string[], exclude?: string): boolean {
+function shellWritesTo(command: string, startCwd: string, roots: string[], exclude: string[] = []): boolean {
   const refersTo = makeRefersTo(roots, exclude);
   let cwd = startCwd;
   let cwdInRoot = refersTo(cwd, cwd);
@@ -294,7 +307,7 @@ async function readInput(): Promise<HookInput> {
     const stdin = await Bun.stdin.text();
     if (!stdin) return { target: "", command: null, cwd: process.cwd(), shell: false };
     const input = JSON.parse(stdin);
-    isClaude = input?.tool_name !== undefined || input?.tool_input !== undefined;
+    source = detectSource(input);
     const shell = input?.tool_name === "Bash"
       || input?.hook_event_name === "beforeShellExecution"
       || (input !== null && typeof input === "object" && "command" in input);
@@ -333,7 +346,9 @@ async function main() {
     const roots = Object.values(manifest.repos)
       .filter((repo) => repo.readOnly)
       .map((repo) => realRoot(repo.path));
-    if (manifest.brokenReadOnly && shellWritesTo(command, cwd, [workspaceDir], harenDir)) {
+    // Broken manifest with a readOnly repo: the repo can be anywhere, so any write
+    // outside the haren folder (and /dev) is blocked.
+    if (manifest.brokenReadOnly && shellWritesTo(command, cwd, [resolve("/")], [harenDir, realTarget("/dev")])) {
       deny(BROKEN_MANIFEST_MESSAGE);
     }
     if (roots.length && shellWritesTo(command, cwd, roots)) {
