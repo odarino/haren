@@ -25,25 +25,26 @@ export function buildArgv(template: string, values: Record<string, string>): str
   return template
     .trim()
     .split(/\s+/)
-    .map((tok) => {
-      const whole = /^\{(\w+)\}$/.exec(tok);
-      if (whole) {
-        if (!Object.hasOwn(values, whole[1]))
-          throw new AdapterError(`No value for placeholder {${whole[1]}}`);
-        return values[whole[1]];
-      }
-      return tok.replace(/\{(\w+)\}/g, (_, k) => {
+    .map((tok) =>
+      tok.replace(/\{(\w+)\}/g, (_, k) => {
         if (!Object.hasOwn(values, k)) throw new AdapterError(`No value for placeholder {${k}}`);
         return values[k];
-      });
-    });
+      }),
+    );
 }
 
 const isStr = (v: unknown) => typeof v === "string" && v.length > 0;
+const optStr = (v: unknown) => v === undefined || typeof v === "string";
 const VALIDATORS: Record<AdapterCommand, (o: any) => boolean> = {
   inventory: (o) =>
     Array.isArray(o?.units) &&
-    o.units.every((u: any) => isStr(u?.id) && (u.parent === null || isStr(u.parent))),
+    o.units.every(
+      (u: any) =>
+        isStr(u?.id) &&
+        (u.parent === null || isStr(u.parent)) &&
+        optStr(u.family) &&
+        optStr(u.title),
+    ),
   extract: (o) => isStr(o?.unit) && Array.isArray(o.files) && o.files.every(isStr),
   gate: (o) =>
     isStr(o?.unit) &&
@@ -51,9 +52,7 @@ const VALIDATORS: Record<AdapterCommand, (o: any) => boolean> = {
     Array.isArray(o.findings) &&
     o.findings.every(
       (f: any) =>
-        (f?.severity === "error" || f?.severity === "warning") &&
-        isStr(f.rule) &&
-        typeof f.message === "string",
+        (f?.severity === "error" || f?.severity === "warning") && isStr(f.rule) && isStr(f.message),
     ),
 };
 
@@ -67,6 +66,14 @@ function spawnAdapter(command: AdapterCommand, argv: string[], cwd: string) {
   }
 }
 
+export const DEFAULT_ADAPTER_TIMEOUT_MS = 300_000;
+
+/** The adapter timeout: HAREN_ADAPTER_TIMEOUT_MS when it is a positive number, else 300s. */
+function adapterTimeoutMs(): number {
+  const n = Number(process.env.HAREN_ADAPTER_TIMEOUT_MS);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_ADAPTER_TIMEOUT_MS;
+}
+
 export async function runAdapter<T>(
   command: AdapterCommand,
   template: string,
@@ -74,11 +81,25 @@ export async function runAdapter<T>(
   cwd: string,
 ): Promise<T> {
   const proc = spawnAdapter(command, buildArgv(template, values), cwd);
-  const [out, err, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
+  const timeoutMs = adapterTimeoutMs();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    proc.kill("SIGKILL");
+  }, timeoutMs);
+  let out: string, err: string, code: number;
+  try {
+    [out, err, code] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+  if (timedOut) {
+    throw new AdapterError(`adapter ${command} timed out after ${timeoutMs / 1000}s`);
+  }
   if (code !== 0)
     throw new AdapterError(`adapter ${command} exited ${code}: ${err.trim().slice(0, 500)}`);
   let parsed: unknown;

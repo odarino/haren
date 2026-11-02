@@ -26,7 +26,7 @@ import {
   type Progress,
   type UnitStatus,
 } from "../workspace/progress";
-import { adapterMissingMessage, readAdapter } from "../plugins/adapter-spec";
+import { adapterMissingMessage, readAdapter } from "../plugins/adapter-read";
 import { harenDirFlag, resolveHarenDir } from "../workspace/resolve";
 
 export const TRACK_USAGE = `Usage:

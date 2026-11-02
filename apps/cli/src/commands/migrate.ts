@@ -9,12 +9,8 @@ import {
   writeProgress,
   type Progress,
 } from "../workspace/progress";
-import {
-  adapterMissingMessage,
-  readAdapter,
-  type AdapterCommand,
-  type AdapterSpec,
-} from "../plugins/adapter-spec";
+import { adapterMissingMessage, readAdapter } from "../plugins/adapter-read";
+import type { AdapterCommand, AdapterSpec } from "../plugins/adapter-spec";
 import {
   runAdapter,
   type ExtractOut,

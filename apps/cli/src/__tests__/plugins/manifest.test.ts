@@ -128,6 +128,9 @@ describe("validateManifest adapter block", () => {
       validateManifest({ ...v2, adapter: { unitKind: "s", commands } });
     expect(bad({ deploy: "x" })).toThrow(/Unknown adapter command/);
     expect(bad({ gate: "x {nope}" })).toThrow(/placeholder/);
+    expect(bad({ gate: "x {spec-path}" })).toThrow(/placeholder \{spec-path\}/);
+    expect(bad({ gate: "x {}" })).toThrow(/placeholder \{\}/);
+    expect(bad({ gate: "x --a={specPath}" })).not.toThrow();
   });
   it("rejects a semantics path outside the plugin", () => {
     expect(() =>

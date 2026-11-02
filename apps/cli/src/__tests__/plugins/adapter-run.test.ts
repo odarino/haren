@@ -72,6 +72,68 @@ describe("runAdapter", () => {
   });
 });
 
+describe("runAdapter (more)", () => {
+  const script = async (body: string) => {
+    const dir = await tempDir();
+    await writeFile(join(dir, "a.ts"), body);
+    return dir;
+  };
+  const out = (o: unknown) => `console.log(${JSON.stringify(JSON.stringify(o))})`;
+
+  it("non-JSON stdout is an AdapterError", async () => {
+    const dir = await script('console.log("hello")');
+    await expect(runAdapter("gate", "bun a.ts", {}, dir)).rejects.toThrow(/non-JSON/);
+  });
+  it("validates inventory output", async () => {
+    const ok = { units: [{ id: "A", parent: null, family: "f", title: "t" }] };
+    expect(await runAdapter<unknown>("inventory", "bun a.ts", {}, await script(out(ok)))).toEqual(
+      ok,
+    );
+    for (const bad of [
+      { units: [{ id: "A", parent: null, family: 5 }] },
+      { units: [{ id: "A", parent: null, title: {} }] },
+      { units: [{ id: "", parent: null }] },
+    ]) {
+      await expect(runAdapter("inventory", "bun a.ts", {}, await script(out(bad)))).rejects.toThrow(
+        /schema/,
+      );
+    }
+  });
+  it("validates extract output", async () => {
+    const ok = { unit: "A", files: ["ir.json"] };
+    expect(await runAdapter<unknown>("extract", "bun a.ts", {}, await script(out(ok)))).toEqual(ok);
+    await expect(
+      runAdapter("extract", "bun a.ts", {}, await script(out({ unit: "A", files: [1] }))),
+    ).rejects.toThrow(/schema/);
+  });
+  it("rejects a bad severity and an empty finding message", async () => {
+    const gate = (f: unknown) => out({ unit: "A", pass: false, findings: [f] });
+    for (const f of [
+      { severity: "info", rule: "r", message: "m" },
+      { severity: "error", rule: "r", message: "" },
+    ]) {
+      await expect(runAdapter("gate", "bun a.ts", {}, await script(gate(f)))).rejects.toThrow(
+        /schema/,
+      );
+    }
+  });
+  it("kills the adapter and throws after the timeout", async () => {
+    const dir = await script("await Bun.sleep(5000)");
+    const prev = process.env.HAREN_ADAPTER_TIMEOUT_MS;
+    process.env.HAREN_ADAPTER_TIMEOUT_MS = "200";
+    const start = Date.now();
+    try {
+      await expect(runAdapter("gate", "bun a.ts", {}, dir)).rejects.toThrow(
+        "adapter gate timed out after 0.2s",
+      );
+    } finally {
+      if (prev === undefined) delete process.env.HAREN_ADAPTER_TIMEOUT_MS;
+      else process.env.HAREN_ADAPTER_TIMEOUT_MS = prev;
+    }
+    expect(Date.now() - start).toBeLessThan(3000);
+  });
+});
+
 describe("AdapterError", () => {
   it("has name AdapterError so callers can tell it from gate FAILs", () => {
     const err = new AdapterError("boom");

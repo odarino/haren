@@ -3,9 +3,10 @@ import { readFile } from "fs/promises";
 import { isAbsolute, join } from "path";
 
 import { validateAdapter, type AdapterSpec } from "./adapter-spec";
+import { assertInsidePlugin } from "./paths";
 
 /** Supported manifest API versions. "2" adds the optional `adapter` block. */
-export const HAREN_APIS = ["1", "2"];
+export const HAREN_APIS = ["1", "2"] as const;
 /** The version new plugins should declare. */
 export const HAREN_API = "2";
 export const HOOK_NAMES = ["session-start", "after-plan", "on-task-status"] as const;
@@ -41,17 +42,6 @@ function stringList(value: unknown, field: string): string[] {
   return value;
 }
 
-export function assertInsidePlugin(p: string, field: string): void {
-  if (
-    isAbsolute(p) ||
-    p.startsWith("/") ||
-    /^[A-Za-z]:/.test(p) ||
-    p.split(/[\\/]/).includes("..")
-  ) {
-    throw new Error(`Plugin manifest: ${field} path must stay inside the plugin: ${p}`);
-  }
-}
-
 function relativePathList(value: unknown, field: string): string[] {
   const list = stringList(value, field);
   for (const p of list) assertInsidePlugin(p, field);
@@ -66,7 +56,7 @@ export function validateManifest(raw: unknown, packageVersion?: string): PluginM
   if (typeof m.name !== "string" || !m.name) throw new Error("Plugin manifest: name is required");
   if (!NAME.test(m.name)) throw new Error(`Plugin manifest: name must be kebab-case: ${m.name}`);
 
-  if (typeof m.harenApi !== "string" || !HAREN_APIS.includes(m.harenApi)) {
+  if (typeof m.harenApi !== "string" || !(HAREN_APIS as readonly string[]).includes(m.harenApi)) {
     throw new Error(
       `Plugin manifest: this haren supports harenApi ${HAREN_APIS.map((v) => `"${v}"`).join(" or ")}, got ${JSON.stringify(m.harenApi)}`,
     );
