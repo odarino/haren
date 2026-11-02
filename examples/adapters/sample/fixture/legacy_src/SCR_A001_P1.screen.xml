@@ -1,0 +1,3 @@
+<screen id="SCR_A001_P1" title="Order popup" family="order" parent="SCR_A001">
+  <field name="orderNo" bind="ORDER_TBL.ORDER_NO"/>
+</screen>

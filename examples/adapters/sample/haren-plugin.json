@@ -1,0 +1,17 @@
+{
+  "name": "sample-adapter",
+  "version": "0.1.0",
+  "harenApi": "2",
+  "description": "Neutral example adapter for haren migration mode",
+  "skills": ["skills/sample-spec"],
+  "adapter": {
+    "unitKind": "screen",
+    "commands": {
+      "inventory": "bun tools/inventory.ts --root {legacyRoot}",
+      "extract": "bun tools/extract.ts {unit} --root {legacyRoot} --out {unitDir}",
+      "gate": "bun tools/gate.ts {specPath} --ir {unitDir}"
+    },
+    "skills": { "spec": "sample-spec" },
+    "semantics": "rules/legacy-semantics.md"
+  }
+}

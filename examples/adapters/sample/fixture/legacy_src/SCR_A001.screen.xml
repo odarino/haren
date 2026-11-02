@@ -1,0 +1,5 @@
+<screen id="SCR_A001" title="Order list" family="order">
+  <field name="orderNo" bind="ORDER_TBL.ORDER_NO"/>
+  <field name="status" bind="ORDER_TBL.STATUS"/>
+  <writes table="ORDER_LOG"/>
+</screen>

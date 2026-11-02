@@ -1,0 +1,3 @@
+<screen id="SCR_B001" title="Order report" family="report">
+  <field name="total" bind="ORDER_TBL.TOTAL"/>
+</screen>
