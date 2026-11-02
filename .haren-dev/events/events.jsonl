@@ -1,3 +1,4 @@
 {"type":"gate-override","action":"on","reason":"user asked: implement feedback items 1-3 (repos check, index check, reuse inventory)","until":"2026-11-02T11:10:24.955Z","timestamp":"2026-11-02T09:10:24.960Z"}
 {"type":"gate-override","action":"off","timestamp":"2026-11-02T09:12:50.567Z"}
 {"type":"artifact","id":"DESIGN-001","artifactType":"design","path":"artifacts/04-plans/migration-mode/design.md","status":"draft","timestamp":"2026-11-02T10:05:31.511Z"}
+{"type":"artifact","id":"TASKS-001","artifactType":"tasks","path":"artifacts/04-plans/migration-mode/tasks.md","status":"draft","timestamp":"2026-11-02T10:11:12.129Z"}
