@@ -182,6 +182,7 @@ every repo.
 | `haren init`    | Set up haren in the current directory: scaffold a new haren folder, or set up a cloned one. Interactive, or pass flags (below).                                                                                                              |
 | `haren upgrade` | Update framework files in an existing haren folder to the installed version, and migrate old `manifest.yaml` / `progress.json`. It also restores missing plugins from `plugins.json`. Use `--yes` to accept plugins from unofficial sources. |
 | `haren plugin`  | Manage plugins: `add <name\|source>`, `remove <name>`, `list`, `doctor`, `run <hook>`. See [PLUGINS.md](PLUGINS.md).                                                                                                                         |
+| `haren migrate` | Migration mode only: `inventory [--module m]`, `extract <unit>`, `gate <unit> [--approve]`. It runs the adapter commands. See [Migration mode](#migration-mode). |
 | `haren agent`   | Manage the local agent bridge _(experimental — for the in-progress Haren Portal)_.                                                                                                                                                           |
 
 `haren agent` works in both layouts. It uses the git remote of the haren repo as
@@ -194,7 +195,7 @@ Run `haren` with no arguments for help.
 ```bash
 haren init \
   --project "my-app" \
-  --mode blueprint \          # blueprint | explore | inherit | undecided
+  --mode blueprint \          # blueprint | explore | inherit | migration | undecided
   --language English \
   --editor both \             # claude-code | cursor | both
   --iterations \              # enable iteration-based planning
@@ -271,6 +272,42 @@ A skill for a new developer or a new workspace. It does three things:
 It never clones and never changes git state. To clone a missing repo, run
 `haren init`.
 
+### Migration mode
+
+Use `--mode migration` to rewrite a legacy system when parity with the old system is the bar.
+The legacy repo has `role: legacy` and `readOnly: true` in `manifest.yaml`. The code gate blocks all writes to it.
+
+The unit is the work item, for example one screen. Each unit has a status: `discovered`, `extracted`, `spec-reviewed`, `specified`, and later states. Use `haren track unit <module> <unit> <status>` to move it. A module cannot pass a stage while a unit is below it.
+
+An adapter plugin reads the legacy format. Install one with `haren plugin add <source>`. Then run:
+
+```bash
+haren migrate inventory [--module m]   # list units, write unit-map.md
+haren migrate extract <unit>           # extract the unit, then write the spec
+haren migrate gate <unit> [--approve]  # run the spec gate; --approve records the human approval
+haren track check                      # also checks unit rules in migration mode
+```
+
+A gate FAIL and an adapter error are different results. An adapter error changes no status.
+
+#### Write an adapter
+
+An adapter is a plugin with `harenApi: "2"` and an `adapter` block in `haren-plugin.json`. The block has `unitKind`, `commands` (`inventory`, `extract`, `gate`), `skills.spec`, and an optional `semantics` file.
+Each command is a string. The CLI splits it into arguments and does not use a shell. It replaces these placeholders: `{legacyRoot}`, `{unit}`, `{unitDir}`, `{specPath}`.
+Each command prints one JSON object on stdout. The CLI checks the shape:
+
+```jsonc
+// inventory
+{ "units": [ { "id": "SCR_A001", "parent": null, "family": "order", "title": "Order list" } ] }
+// extract
+{ "unit": "SCR_A001", "files": ["ir.xml", "view.txt"] }
+// gate
+{ "unit": "SCR_A001", "pass": false,
+  "findings": [ { "severity": "error", "rule": "missing-binding", "message": "..." } ] }
+```
+
+A non-zero exit code or a wrong shape is an adapter error. See `examples/adapters/sample` for a working adapter with a fake screen format and a fixture legacy repo.
+
 ### `haren track`
 
 Use `haren track` to update `progress.json`, the artifact index, and
@@ -284,6 +321,7 @@ haren track feature <module> <feature> [status]
 haren track commit <module> <repoKey> <sha>
 haren track artifact <id> --type <type> --path <path> [--module <m>] [--status <s>]
 haren track event <type> [--module m] [--phase p] [--feature f] [--data '<json object>']
+haren track unit <module> <unit> <status>   # migration mode only
 haren track override on --reason "<text>" [--hours <n>]
 haren track override off
 haren track check          # manifest repos + artifact index consistency; exits 1 on FAIL

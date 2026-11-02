@@ -126,7 +126,7 @@ Chạy `haren` không kèm tham số để xem trợ giúp.
 ```bash
 haren init \
   --project "my-app" \
-  --mode blueprint \          # blueprint | explore | inherit | undecided
+  --mode blueprint \          # blueprint | explore | inherit | migration | undecided
   --language English \
   --editor both \             # claude-code | cursor | both
   --iterations \              # bật planning theo iteration
@@ -195,6 +195,30 @@ Xem [PLUGINS.md](PLUGINS.md) để biết chi tiết, plugin backlog và cách v
 
 Skill này không bao giờ clone và không đổi trạng thái git. Muốn clone repo thiếu, chạy `haren init`.
 
+**Mode migration** — dùng `haren init --mode migration`. Đơn vị công việc là *unit* (ví dụ một màn hình), mỗi unit có status riêng; đổi bằng `haren track unit <module> <unit> <status>`. Module không qua được một giai đoạn khi còn unit ở status thấp hơn. Một adapter plugin đọc định dạng legacy; cài bằng `haren plugin add <source>`. Sau đó dùng:
+
+```bash
+haren migrate inventory [--module m]   # liệt kê unit, ghi unit-map.md
+haren migrate extract <unit>           # trích unit rồi viết spec
+haren migrate gate <unit> [--approve]  # chạy spec gate; --approve ghi nhận người duyệt
+```
+
+Gate FAIL và lỗi adapter là hai kết quả khác nhau; lỗi adapter không đổi status nào.
+
+**Viết adapter** — adapter là plugin có `harenApi: "2"` và khối `adapter` trong `haren-plugin.json`: `unitKind`, `commands` (`inventory`, `extract`, `gate`), `skills.spec`, và file `semantics` (tùy chọn). Mỗi command là một chuỗi, CLI tách thành argv (không qua shell) và thay các placeholder `{legacyRoot}`, `{unit}`, `{unitDir}`, `{specPath}`. Mỗi command in một JSON object ra stdout, CLI kiểm tra schema:
+
+```jsonc
+// inventory
+{ "units": [ { "id": "SCR_A001", "parent": null, "family": "order", "title": "Order list" } ] }
+// extract
+{ "unit": "SCR_A001", "files": ["ir.xml", "view.txt"] }
+// gate
+{ "unit": "SCR_A001", "pass": false,
+  "findings": [ { "severity": "error", "rule": "missing-binding", "message": "..." } ] }
+```
+
+Exit code khác 0 hoặc sai schema là lỗi adapter. Xem adapter mẫu chạy được ở `examples/adapters/sample` (định dạng màn hình giả và repo legacy fixture).
+
 **`haren track`** — cập nhật `progress.json`, artifact index và `events/events.jsonl`. Không sửa các file này bằng tay với `jq` hay `sed`. Lệnh tự tìm thư mục haren từ thư mục hiện tại; dùng `--haren-dir <path>` hoặc `HAREN_DIR` để chọn. Các key khác trong `progress.json` được giữ nguyên.
 
 ```bash
@@ -203,6 +227,7 @@ haren track feature <module> <feature> [status]
 haren track commit <module> <repoKey> <sha>
 haren track artifact <id> --type <type> --path <path> [--module <m>] [--status <s>]
 haren track event <type> [--module m] [--phase p] [--feature f] [--data '<json object>']
+haren track unit <module> <unit> <status>   # chỉ mode migration
 haren track override on --reason "<text>" [--hours <n>]
 haren track override off
 haren track check          # kiểm tra repos trong manifest và artifact index; exit 1 nếu FAIL
@@ -229,6 +254,7 @@ Transition sai, module không tồn tại hoặc option sai → lệnh in thông
 • `blueprint` — Project mới (greenfield) đã có sẵn docs/specs để làm việc.
 • `explore` — Project mới, bắt đầu chỉ từ một ý tưởng.
 • `inherit` — Project cũ (brownfield) đã có codebase.
+• `migration` — Viết lại hệ thống legacy, lấy parity với hệ thống cũ làm chuẩn. Repo legacy là `role: legacy`, `readOnly: true`; code gate chặn mọi ghi vào đó.
 • `undecided` — Để agent giúp bạn chọn ở phiên đầu tiên.
 
 **Các giai đoạn & cổng chặn code** — mỗi module đi qua các giai đoạn **theo đúng thứ tự**, không nhảy cóc được:

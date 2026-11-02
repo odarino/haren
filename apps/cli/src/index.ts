@@ -90,6 +90,7 @@ async function main() {
       console.log(
         "                  event <type> [--module m] [--phase p] [--feature f] [--data '<json>']",
       );
+      console.log("                  unit <module> <unit> <status>   (migration mode)");
       console.log('                  override on --reason "<text>" [--hours <n>] | override off');
       console.log("  haren migrate   Run the migration adapter:");
       console.log("                  inventory [--module <m>] | extract <unit> | gate <unit> [--approve]");
