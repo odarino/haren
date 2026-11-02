@@ -19,6 +19,7 @@ export type EventPhase = (typeof EVENT_PHASES)[number];
 export const EVENT_TYPES = [
   "module-status",
   "feature-status",
+  "unit-status",
   "commit",
   "artifact",
   "gate-override",

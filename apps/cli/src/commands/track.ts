@@ -1,25 +1,31 @@
 import { existsSync } from "fs";
 import { mkdir, readdir, readFile, writeFile } from "fs/promises";
 import { dirname, join, relative, sep } from "path";
-import { normalizeRepos, parseManifest } from "../workspace/manifest";
+import { normalizeRepos, parseManifest, readMigrationConfig } from "../workspace/manifest";
 import { appendEvent, EVENT_PHASES, isEventPhase, type HarenEvent } from "../workspace/events";
 import {
   FEATURE_STATUSES,
   MODULE_STATUSES,
   phaseForStatus,
   readProgress,
+  unitsBelow,
+  UNIT_STATUSES,
   updateFeatureStatus,
   updateModuleStatus,
+  updateUnitStatus,
   writeProgress,
   type FeatureStatus,
   type ModuleStatus,
   type Progress,
+  type UnitStatus,
 } from "../workspace/progress";
+import type { MigrationConfig } from "../workspace/manifest";
 import { harenDirFlag, resolveHarenDir } from "../workspace/resolve";
 
 export const TRACK_USAGE = `Usage:
   haren track status <module> <status>
   haren track feature <module> <feature> [status]
+  haren track unit <module> <unit> <status>
   haren track commit <module> <repoKey> <sha>
   haren track artifact <id> --type <type> --path <path> [--module <m>] [--status <s>]
   haren track event <type> [--module m] [--phase p] [--feature f] [--data '<json object>']
@@ -125,6 +131,8 @@ export async function track(args: string[], cwd = process.cwd()): Promise<void> 
       return trackStatus(paths, rest);
     case "feature":
       return trackFeature(paths, rest);
+    case "unit":
+      return trackUnit(paths, rest);
     case "commit":
       return trackCommit(paths, rest);
     case "artifact":
@@ -140,6 +148,45 @@ export async function track(args: string[], cwd = process.cwd()): Promise<void> 
   }
 }
 
+export async function loadMigration(paths: TrackPaths): Promise<MigrationConfig | null> {
+  const manifestPath = join(paths.harenDir, "manifest.yaml");
+  if (!existsSync(manifestPath)) return null;
+  return readMigrationConfig(parseManifest(await readFile(manifestPath, "utf-8")));
+}
+
+/** Stub until adapter lookup exists: the command names the adapter declares. */
+async function adapterCommands(): Promise<Set<string>> {
+  return new Set();
+}
+
+async function trackUnit(paths: TrackPaths, rest: string[]): Promise<void> {
+  const module = need(rest[0], "<module>");
+  const unit = need(rest[1], "<unit>");
+  const to = need(rest[2], "<status>") as UnitStatus;
+  const migration = await loadMigration(paths);
+  if (!migration) throw new Error("track unit needs mode: migration in manifest.yaml");
+  if (!UNIT_STATUSES.includes(to)) {
+    throw new Error(`Invalid unit status '${to}'. Allowed: ${UNIT_STATUSES.join(", ")}`);
+  }
+  if (!migration.unitId.test(unit)) {
+    throw new Error(`Unit '${unit}' does not match migration.unitId`);
+  }
+  const commands = await adapterCommands();
+  if (
+    (to === "extracted" && commands.has("extract")) ||
+    (to === "spec-approved" && commands.has("gate"))
+  ) {
+    throw new Error("Use haren migrate extract|gate; the adapter owns this step");
+  }
+  const progress = await loadProgress(paths);
+  requireModule(progress, module);
+  const from = progress.modules[module].units?.[unit] ?? null;
+  const next = updateUnitStatus(progress, module, unit, to);
+  await writeProgress(paths.progress, next);
+  await emit(paths, { type: "unit-status", module, unit, from, to });
+  console.log(`  ${module}/${unit}: ${from ?? "(new)"} → ${to}`);
+}
+
 async function trackStatus(paths: TrackPaths, rest: string[]): Promise<void> {
   const module = need(rest[0], "<module>");
   const to = need(rest[1], "<status>") as ModuleStatus;
@@ -147,6 +194,18 @@ async function trackStatus(paths: TrackPaths, rest: string[]): Promise<void> {
     throw new Error(`Invalid module status '${to}'. Allowed: ${MODULE_STATUSES.join(", ")}`);
   }
   const progress = await loadProgress(paths);
+  const migration = await loadMigration(paths);
+  if (migration && progress.modules[module]) {
+    const floor = to === "planned" ? "spec-approved" : to === "completed" ? "parity-signed" : null;
+    if (floor) {
+      const below = unitsBelow(progress.modules[module], floor);
+      if (below.length) {
+        throw new Error(
+          `Module '${module}' cannot be '${to}': units below '${floor}': ${below.join(", ")}`,
+        );
+      }
+    }
+  }
   let next: Progress;
   let from: ModuleStatus | null = null;
   if (!progress.modules[module]) {
@@ -386,7 +445,10 @@ export function parseRegistryRows(text: string): { id: string; module: string; p
   for (const raw of text.split("\n")) {
     const line = raw.trim();
     if (!line.startsWith("|")) continue;
-    const cells = line.slice(1, line.endsWith("|") ? -1 : undefined).split("|").map((c) => c.trim());
+    const cells = line
+      .slice(1, line.endsWith("|") ? -1 : undefined)
+      .split("|")
+      .map((c) => c.trim());
     if (cells.length < 5 || cells[0] === "ID" || /^-+$/.test(cells[0])) continue;
     rows.push({ id: cells[0], module: cells[2], path: cells[4] });
   }
@@ -394,7 +456,10 @@ export function parseRegistryRows(text: string): { id: string; module: string; p
 }
 
 function normalizeArtifactPath(p: string): string {
-  return p.replace(/^\.\//, "").replace(/^artifacts\//, "").replaceAll("\\", "/");
+  return p
+    .replace(/^\.\//, "")
+    .replace(/^artifacts\//, "")
+    .replaceAll("\\", "/");
 }
 
 /** Cross-check manifest, progress.json and the artifact index. */

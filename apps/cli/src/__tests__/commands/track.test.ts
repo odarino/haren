@@ -247,7 +247,16 @@ describe("haren track check", () => {
   it("passes after the artifact is registered, and ignores baseline files", async () => {
     await artifact("03-modules/checkout/spec.md");
     await artifact("00-baseline/prd.md");
-    await run("artifact", "SPEC-001", "--type", "spec", "--path", "artifacts/03-modules/checkout/spec.md", "--module", "checkout");
+    await run(
+      "artifact",
+      "SPEC-001",
+      "--type",
+      "spec",
+      "--path",
+      "artifacts/03-modules/checkout/spec.md",
+      "--module",
+      "checkout",
+    );
     await expect(run("check")).resolves.toBeUndefined();
   });
 
@@ -264,5 +273,49 @@ describe("haren track check", () => {
       'haren:\n  version: "1.3.3"\nrepos:\n  legacy_be:\n    path: ../legacy_be\n',
     );
     await expect(run("check")).resolves.toBeUndefined();
+  });
+});
+
+describe("haren track unit", () => {
+  const migManifest =
+    'haren:\n  version: "1.5.0"\nmode: migration\nrepos:\n  legacy_src: { path: ../legacy_src, role: legacy, readOnly: true }\nmigration:\n  unitId: "^SCR_[A-Z]\\\\d{3}(_P\\\\d+)?$"\n';
+  beforeEach(async () => {
+    await writeFile(join(harenDir, "manifest.yaml"), migManifest);
+  });
+
+  it("records a unit and an event", async () => {
+    await run("unit", "checkout", "SCR_A001", "inventoried");
+    expect((await progress()).modules.checkout.units.SCR_A001).toBe("inventoried");
+    expect((await events()).at(-1)).toMatchObject({
+      type: "unit-status",
+      unit: "SCR_A001",
+      to: "inventoried",
+    });
+  });
+  it("rejects a unit id that does not match unitId", async () => {
+    await expect(run("unit", "checkout", "BAD", "inventoried")).rejects.toThrow(/unitId/);
+  });
+  it("accepts a unit id with a part suffix", async () => {
+    await run("unit", "checkout", "SCR_A001_P2", "inventoried");
+    expect((await progress()).modules.checkout.units.SCR_A001_P2).toBe("inventoried");
+  });
+  it("rejects units outside migration mode", async () => {
+    await writeFile(join(harenDir, "manifest.yaml"), 'haren:\n  version: "1.5.0"\n');
+    await expect(run("unit", "checkout", "SCR_A001", "inventoried")).rejects.toThrow(
+      /mode: migration/,
+    );
+  });
+  it("blocks module 'completed' while a unit is below parity-signed", async () => {
+    await run("unit", "checkout", "SCR_A001", "inventoried");
+    await run("status", "checkout", "implementing");
+    await run("status", "checkout", "evaluating");
+    await expect(run("status", "checkout", "completed")).rejects.toThrow(/SCR_A001/);
+  });
+  it("blocks module 'planned' while a unit is below spec-approved", async () => {
+    await run("status", "m", "decomposed");
+    await run("unit", "m", "SCR_A001", "inventoried");
+    await run("unit", "m", "SCR_A001", "extracted");
+    await run("unit", "m", "SCR_A001", "spec-draft");
+    await expect(run("status", "m", "planned")).rejects.toThrow(/SCR_A001/);
   });
 });
