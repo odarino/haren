@@ -263,4 +263,100 @@ describe("haren migrate", () => {
       "Adapter has no extract command. Do this step by hand (see skill extract)",
     );
   });
+
+  it("gate FAIL on a spec-approved unit demotes it to spec-draft", async () => {
+    await readyForGate();
+    await setUnit("SCR_A001", "spec-approved");
+    await writeFile(join(plugin, "tools", "gate.ts"), gateScript(false));
+    const lines: string[] = [];
+    const orig = console.log;
+    console.log = (...a: unknown[]) => void lines.push(a.join(" "));
+    try {
+      await expect(migrate(["gate", "SCR_A001", "--approve"], root)).rejects.toThrow(
+        /gate FAIL.*spec-draft/,
+      );
+    } finally {
+      console.log = orig;
+    }
+    expect((await progress()).modules.orders.units.SCR_A001).toBe("spec-draft");
+    expect(lines.join("\n")).toContain("spec-approved → spec-draft");
+    expect((await events()).at(-1)).toMatchObject({
+      type: "unit-status",
+      unit: "SCR_A001",
+      from: "spec-approved",
+      to: "spec-draft",
+    });
+  });
+
+  it("gate PASS emits a unit-status event", async () => {
+    await readyForGate();
+    await migrate(["gate", "SCR_A001", "--approve"], root);
+    expect(await events()).toContainEqual(
+      expect.objectContaining({
+        type: "unit-status",
+        unit: "SCR_A001",
+        from: "spec-draft",
+        to: "spec-approved",
+      }),
+    );
+  });
+
+  it("inventory checks --module before it runs the adapter", async () => {
+    await writeFile(
+      join(plugin, "tools", "inventory.ts"),
+      `require("fs").writeFileSync(${JSON.stringify(join(root, "ran"))}, "x"); process.exit(1);`,
+    );
+    await expect(migrate(["inventory", "--module", "ghost"], root)).rejects.toThrow(
+      "Unknown module 'ghost'",
+    );
+    expect(existsSync(join(root, "ran"))).toBe(false);
+  });
+
+  it("inventory drops and warns about unit ids that do not match migration.unitId", async () => {
+    await writeFile(
+      join(plugin, "tools", "inventory.ts"),
+      `console.log(JSON.stringify({ units: [{ id: "SCR_A001", parent: null }, { id: "bad id", parent: null }] }));`,
+    );
+    const lines: string[] = [];
+    const orig = console.log;
+    console.log = (...a: unknown[]) => void lines.push(a.join(" "));
+    try {
+      await migrate(["inventory", "--module", "orders"], root);
+    } finally {
+      console.log = orig;
+    }
+    expect(lines.join("\n")).toContain("does not match migration.unitId: bad id");
+    expect((await progress()).modules.orders.units).toEqual({ SCR_A001: "inventoried" });
+    const map = await readFile(join(harenDir, "artifacts/02-discovery/unit-map.md"), "utf-8");
+    expect(map).not.toContain("bad id");
+  });
+
+  it("inventory skip warning names the missing module", async () => {
+    await mkdir(join(harenDir, "artifacts", "02-discovery"), { recursive: true });
+    await writeFile(
+      join(harenDir, "artifacts/02-discovery/unit-map.md"),
+      renderUnitMap([{ id: "SCR_A001", parent: null }], { SCR_A001: "ghost" }),
+    );
+    const lines: string[] = [];
+    const orig = console.log;
+    console.log = (...a: unknown[]) => void lines.push(a.join(" "));
+    try {
+      await migrate(["inventory"], root);
+    } finally {
+      console.log = orig;
+    }
+    expect(lines.join("\n")).toContain("haren track status ghost decomposed");
+  });
+
+  it("extract with a unit mismatch is an AdapterError", async () => {
+    await migrate(["inventory", "--module", "orders"], root);
+    await writeFile(
+      join(plugin, "tools", "extract.ts"),
+      `console.log(JSON.stringify({ unit: "SCR_Z999", files: [] }));`,
+    );
+    await expect(migrate(["extract", "SCR_A001"], root)).rejects.toMatchObject({
+      name: "AdapterError",
+    });
+    expect((await progress()).modules.orders.units.SCR_A001).toBe("inventoried");
+  });
 });

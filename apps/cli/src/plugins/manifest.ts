@@ -1,6 +1,6 @@
 import { existsSync } from "fs";
 import { readFile } from "fs/promises";
-import { isAbsolute, join } from "path";
+import { join } from "path";
 
 import { validateAdapter, type AdapterSpec } from "./adapter-spec";
 import { assertInsidePlugin } from "./paths";

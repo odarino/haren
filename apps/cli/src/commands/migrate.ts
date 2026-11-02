@@ -12,6 +12,7 @@ import {
 import { adapterMissingMessage, readAdapter } from "../plugins/adapter-read";
 import type { AdapterCommand, AdapterSpec } from "../plugins/adapter-spec";
 import {
+  AdapterError,
   runAdapter,
   type ExtractOut,
   type GateOut,
@@ -169,16 +170,19 @@ export async function migrate(args: string[], cwd = process.cwd()): Promise<void
 }
 
 async function inventory(ctx: Ctx, moduleFlag: string | undefined): Promise<void> {
-  const out = await runAdapter<InventoryOut>(
-    "inventory",
-    commandFor(ctx, "inventory"),
-    { legacyRoot: ctx.legacyRoot },
-    pluginDir(ctx.paths.harenDir, ctx.adapterName),
-  );
+  const template = commandFor(ctx, "inventory");
   let progress = await readProgress(ctx.paths.progress);
   if (moduleFlag && !progress.modules[moduleFlag]) {
     throw new Error(`Unknown module '${moduleFlag}'`);
   }
+  const raw = await runAdapter<InventoryOut>(
+    "inventory",
+    template,
+    { legacyRoot: ctx.legacyRoot },
+    pluginDir(ctx.paths.harenDir, ctx.adapterName),
+  );
+  const badIds = raw.units.filter((u) => !ctx.migration.unitId.test(u.id)).map((u) => u.id);
+  const out = { units: raw.units.filter((u) => ctx.migration.unitId.test(u.id)) };
   const mapRel = "artifacts/02-discovery/unit-map.md";
   const mapPath = join(ctx.paths.harenDir, mapRel);
   const previous = existsSync(mapPath) ? await readFile(mapPath, "utf-8") : "";
@@ -209,10 +213,10 @@ async function inventory(ctx: Ctx, moduleFlag: string | undefined): Promise<void
   await writeFile(mapPath, renderUnitMap(units, moduleOf, previous));
 
   const added: [string, string][] = [];
-  const skipped: string[] = [];
+  const skipped: { unit: string; module: string }[] = [];
   for (const u of out.units) {
     const mod = moduleOf[u.id];
-    if (mod && !progress.modules[mod]) skipped.push(`${u.id} (${mod})`);
+    if (mod && !progress.modules[mod]) skipped.push({ unit: u.id, module: mod });
     if (!mod || !progress.modules[mod]) continue;
     if (progress.modules[mod].units?.[u.id] !== undefined) continue;
     progress = updateUnitStatus(progress, mod, u.id, "inventoried");
@@ -237,9 +241,13 @@ async function inventory(ctx: Ctx, moduleFlag: string | undefined): Promise<void
     `  inventory: ${fresh} new, ${out.units.length - fresh} known, ${gone.length} disappeared`,
   );
   if (gone.length) console.log(`  disappeared (kept): ${gone.join(", ")}`);
+  if (badIds.length) {
+    console.log(`  warning: dropped, id does not match migration.unitId: ${badIds.join(", ")}`);
+  }
   if (skipped.length) {
+    const missing = [...new Set(skipped.map((s) => s.module))];
     console.log(
-      `  warning: skipped, module not in progress.json: ${skipped.join(", ")}. Run \`haren track status <module> decomposed\`, then run inventory again.`,
+      `  warning: skipped, module not in progress.json: ${skipped.map((s) => `${s.unit} (${s.module})`).join(", ")}. Run ${missing.map((m) => `\`haren track status ${m} decomposed\``).join(", ")}, or fix the Module cell in unit-map.md, then run inventory again.`,
     );
   }
 }
@@ -257,7 +265,7 @@ async function extract(ctx: Ctx, unit: string): Promise<void> {
     pluginDir(ctx.paths.harenDir, ctx.adapterName),
   );
   if (out.unit !== unit) {
-    throw new Error(`adapter error: extract returned unit '${out.unit}', expected '${unit}'`);
+    throw new AdapterError(`adapter extract returned unit '${out.unit}', expected '${unit}'`);
   }
   const from = progress.modules[module].units![unit];
   if (UNIT_LINE.indexOf(from) > UNIT_LINE.indexOf("extracted")) {
@@ -304,6 +312,18 @@ async function gate(ctx: Ctx, unit: string, approve: boolean): Promise<void> {
 
   if (!out.pass) {
     for (const f of out.findings) console.log(`  [${f.severity}] ${f.rule}: ${f.message}`);
+    if (from === "spec-approved") {
+      // The spec changed after approval and no longer passes: approval is void.
+      await writeProgress(
+        ctx.paths.progress,
+        updateUnitStatus(progress, module, unit, "spec-draft"),
+      );
+      await emit(ctx.paths, { type: "unit-status", module, unit, from, to: "spec-draft" });
+      console.log(`  ${module}/${unit}: spec-approved → spec-draft`);
+      throw new Error(
+        `gate FAIL for ${unit}: ${out.findings.length} finding(s). Status is now spec-draft.`,
+      );
+    }
     throw new Error(
       `gate FAIL for ${unit}: ${out.findings.length} finding(s). Status stays ${from}.`,
     );
@@ -326,6 +346,7 @@ async function gate(ctx: Ctx, unit: string, approve: boolean): Promise<void> {
       ctx.paths.progress,
       updateUnitStatus(progress, module, unit, "spec-approved"),
     );
+    await emit(ctx.paths, { type: "unit-status", module, unit, from, to: "spec-approved" });
   }
   await emit(ctx.paths, { type: "unit-gate", module, unit, pass: true, approvedBy: "user" });
   console.log(`  ${module}/${unit}: ${from} → spec-approved`);
