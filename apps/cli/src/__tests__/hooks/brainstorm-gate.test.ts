@@ -149,3 +149,27 @@ describe("brainstorm-gate hook (generated script)", () => {
     expect((await runGate(join(root, "api", "a.ts"))).code).toBe(0);
   });
 });
+
+describe("readOnly repos", () => {
+  beforeEach(async () => {
+    await writeFile(
+      join(harenDir, "manifest.yaml"),
+      MANIFEST + "  legacy_src:\n    path: ../legacy_src\n    role: legacy\n    readOnly: true\n",
+    );
+    await mkdir(join(root, "legacy_src"), { recursive: true });
+  });
+  it("blocks writes to a readOnly repo even when a module is planned", async () => {
+    await progress(planned());
+    const r = await runGate(join(root, "legacy_src", "a.xml"));
+    expect(r.code).toBe(2);
+    expect(r.out).toContain("read-only");
+  });
+  it("keeps the block when the gate override is on", async () => {
+    await progress({ ...planned(), gateOverride: { reason: "hotfix" } });
+    expect((await runGate(join(root, "legacy_src", "a.xml"))).code).toBe(2);
+  });
+  it("keeps the block with HAREN_GATE=off", async () => {
+    await progress(planned());
+    expect((await runGate(join(root, "legacy_src", "a.xml"), { HAREN_GATE: "off" })).code).toBe(2);
+  });
+});

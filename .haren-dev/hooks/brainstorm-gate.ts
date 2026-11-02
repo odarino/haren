@@ -63,7 +63,7 @@ function deny(message: string): never {
   process.exit(2);
 }
 
-interface Repo { path: string; role?: string }
+interface Repo { path: string; role?: string; readOnly?: boolean }
 
 // Same rules as the CLI: repos is a map key -> {path} | key -> string, or an array.
 function normalizeRepos(repos: unknown): Record<string, Repo> {
@@ -71,13 +71,13 @@ function normalizeRepos(repos: unknown): Record<string, Repo> {
   if (Array.isArray(repos)) {
     for (const item of repos) {
       const path = typeof item === "string" ? item : item?.path;
-      if (typeof path === "string" && path) out[basename(path)] = { path, role: item?.role };
+      if (typeof path === "string" && path) out[basename(path)] = { path, role: item?.role, readOnly: item?.readOnly === true };
     }
   } else if (repos && typeof repos === "object") {
     for (const [key, value] of Object.entries(repos as Record<string, any>)) {
       if (typeof value === "string") out[key] = { path: value };
       else if (value && typeof value === "object" && typeof value.path === "string") {
-        out[key] = { path: value.path, role: value.role };
+        out[key] = { path: value.path, role: value.role, readOnly: value.readOnly === true };
       }
     }
   }
@@ -129,6 +129,15 @@ async function main() {
 
   // Allow writes inside the haren folder — planning/discovery phases write artifacts there
   if (target && inside(target, harenDir)) allow();
+
+  // Read-only repos (legacy source of truth) are blocked before any override check.
+  if (target) {
+    for (const repo of Object.values(await readRepos())) {
+      if (repo.readOnly && inside(target, realRoot(repo.path))) {
+        deny("This repo is read-only (manifest readOnly: true). It is the legacy source of truth. The gate override does not lift this block.");
+      }
+    }
+  }
 
   if (process.env.HAREN_GATE === "off") allow();
 
