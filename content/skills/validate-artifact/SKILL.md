@@ -59,6 +59,20 @@ Iteration-scoped designs are filtered subsets of the master design. Relaxed chec
 - [ ] Cross-reference to spec: `Spec: artifacts/03-modules/{module}/spec.md`
 - [ ] Cross-reference to master design: `Master: artifacts/04-plans/{module}/design.md`
 
+### Unit Spec (02-discovery/units/<unit>/spec.md)
+- [ ] Sections: Purpose, Fields, Bindings, Writes, Behavior, Legacy traps, Parity checklist
+- [ ] With an adapter: `gate.json` in the unit folder has `pass: true`
+- [ ] Without an adapter: the Manual gate is ticked, with reviewer and date
+
+### Deviation Log (03-modules/deviation-log.md)
+- [ ] Each row has all columns: ID, Unit, Legacy behavior, Target behavior, Reason, Approved by, Date, Status
+- [ ] Each row has an approver
+- [ ] Status is `approved` or `revoked`. No row is deleted
+
+### Parity Evidence (06-evaluation/parity-evidence/)
+- [ ] User, tenant and locale are equal on the legacy side and the target side
+- [ ] `verdict` is `matches-legacy`, `target-bug` or `approved-deviation`
+
 ## Workspace Check (all phase transitions)
 
 Before any phase transition, run `haren track check`. Its FAIL lines are FAIL lines of this validation: unregistered artifact files, index rows that point to missing files, and repo keys that manifest.yaml does not declare.

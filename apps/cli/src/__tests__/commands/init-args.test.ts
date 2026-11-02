@@ -39,6 +39,9 @@ describe("parseInitArgs", () => {
       force: true,
     });
   });
+  it("accepts --mode migration", () => {
+    expect(parseInitArgs(["--mode", "migration"]).mode).toBe("migration");
+  });
   it("rejects a bad layout", () => {
     expect(() => parseInitArgs(["--layout", "poly"])).toThrow("Invalid layout");
   });

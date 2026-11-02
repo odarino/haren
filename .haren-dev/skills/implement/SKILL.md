@@ -27,6 +27,12 @@ Execute the implementation plan for a module, one feature at a time.
    - If the module depends on a module that is not merged yet, follow skill.md "Dependent modules" for the base branch
    - If the module status is `planned`, set it to `implementing` with `haren track status <module> implementing`
 
+### Migration mode only
+
+- Read `artifacts/03-modules/deviation-log.md` before each task.
+- Never change behavior that has an `approved` deviation row back to the legacy behavior.
+- After all tasks of a unit pass, run `haren track unit <module> <unit> built`.
+
 ## Implementation Loop
 
 For each feature:

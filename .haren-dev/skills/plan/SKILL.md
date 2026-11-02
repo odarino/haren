@@ -17,6 +17,11 @@ Create a complete, actionable plan for implementing a single module.
 4. Read context brief: `artifacts/02-discovery/context-brief.md`
 5. Read any relevant research: `artifacts/01-research/`
 6. Check dependencies: are dependent modules' interfaces defined?
+7. **Migration mode only** (`mode: migration` in manifest.yaml):
+   - Read the unit specs of the module: `artifacts/02-discovery/units/<unit>/spec.md`
+   - Read `artifacts/03-modules/deviation-log.md`
+   - The reuse inventory (Step 4) includes every table and side effect in the Writes section of each legacy unit
+   - Each task references its unit IDs (for example SCR_A001) as well as its STORY-IDs
 
 ### Step 4: Reuse inventory (before decisions and tasks)
 

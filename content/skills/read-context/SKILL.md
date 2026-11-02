@@ -17,6 +17,7 @@ Orient yourself at the start of every session or before taking any action.
 2. **Read progress.json**
    - List all modules and their current status
    - List all features and their status within active modules
+   - In migration mode, count the units of each module per status (`modules.<m>.units`). Name the legacy repo and mark it read-only
 
 3. **Read artifact-index.md**
    - Understand what artifacts exist
@@ -80,6 +81,10 @@ Haren repo: {branch, clean | N changed files} ← workspace layout only
       - Master: ✓ spec.md | ✗ spec.md, ✓ design.md | ✗ design.md
       - Iteration {N}: ✓ spec.md | ✗ spec.md, ✓ design.md | ✗ design.md, ✓ tasks.md | ✗ tasks.md
 - ...
+
+## Units (migration mode only)
+- Legacy repo: {repo key} (read-only)
+- {module}: {count} inventoried, {count} extracted, {count} spec-draft, {count} spec-approved, {count} built, {count} verified, {count} parity-signed
 
 ## Plugins
 {output lines of `haren plugin run session-start`, or omit if there is no plugins.json}

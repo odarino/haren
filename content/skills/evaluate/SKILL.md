@@ -40,6 +40,21 @@ Run through each criterion:
    - A difference from the chosen mockup is a fail unless the session log records a reason the user approved
 6. **Privacy**: fixtures, examples, seeds, test data and screenshots contain no real third-party personal data (names, emails, phone numbers, addresses, handles, photos). Synthetic data only. Real personal data is a fail
 
+### Migration mode only
+
+For each unit of the module:
+
+1. Run the Parity checklist of `artifacts/02-discovery/units/<unit>/spec.md`.
+2. If `migration.liveLegacy` is `true`, compare on both systems. Use the same user, tenant and locale on both.
+3. Close each difference only by one of these:
+   - a fix in the target code
+   - a parity evidence file at `artifacts/06-evaluation/parity-evidence/<unit>-<n>.md` (template `parity-evidence.md`)
+   - an `approved` row in `artifacts/03-modules/deviation-log.md`
+4. When all differences are closed, run `haren track unit <module> <unit> verified`. If you did not use the live legacy system, set `static-review-only` instead.
+5. After the BA signs off, run `haren track unit <module> <unit> parity-signed`.
+
+Set the module to `completed` only after all its units are `parity-signed`.
+
 ## Output
 
 Each task gets its own evaluation files using a per-task naming convention:

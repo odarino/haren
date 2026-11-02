@@ -105,3 +105,20 @@ describe("content: plugin extension points", () => {
     expect(read("skills/update-tracking/SKILL.md")).toContain("haren plugin run on-task-status");
   });
 });
+
+describe("content: migration mode", () => {
+  it("extract skill has frontmatter name", () => {
+    const text = read("skills/extract/SKILL.md");
+    expect(text).toMatch(/^---\nname: extract\n/);
+    expect(text).toContain("haren migrate gate <unit> --approve");
+  });
+  for (const t of ["unit-map", "unit-spec", "legacy-semantics", "deviation-log", "parity-evidence"]) {
+    it(`template ${t}.md exists`, () => {
+      expect(read(`templates/${t}.md`).length).toBeGreaterThan(0);
+    });
+  }
+  it("discover routes migration mode", () => {
+    expect(read("skills/discover/SKILL.md")).toContain("skills/discover/migration.md");
+    expect(read("skills/discover/migration.md")).toContain("legacy-semantics.md");
+  });
+});

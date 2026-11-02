@@ -28,6 +28,7 @@ Before starting discovery, determine the intent:
 - **explore** mode: routes through brainstorming for collaborative design (preserved for users who explicitly set `mode: explore` in manifest.yaml — the default path for new ideas is now through `ideate`)
 - **blueprint** mode: if baseline docs exist in `artifacts/00-baseline/`, the existing blueprint strategy processes them first. Brainstorming triggers only for new features not covered by baseline docs.
 - **inherit** mode: existing codebase analysis runs first. Brainstorming triggers for new features on top of the existing code.
+- **migration** mode: a rewrite of a legacy system with parity as the bar. The unit inventory runs first. After `decompose`, the `extract` skill makes one approved spec per unit before `plan`.
 - **undecided** mode: brainstorming helps determine the mode as part of the discovery process
 
 ## Process
@@ -37,6 +38,7 @@ Before starting discovery, determine the intent:
    - `blueprint` → read `skills/discover/blueprint.md`
    - `explore` → read `skills/discover/explore.md`
    - `inherit` → read `skills/discover/inherit.md`
+   - `migration` → read `skills/discover/migration.md`
 3. Follow the strategy to produce a context brief
 4. Write output using create-artifact skill: `artifacts/02-discovery/context-brief.md`
 5. Validate output with validate-artifact skill
@@ -52,4 +54,4 @@ A single `context-brief.md` that contains:
 - Screens: the main screens that users see, as a list with one line each. Do not draw them here. The plan phase makes 2-3 mockup options per changed screen with the `generate-mockup` skill
 - Suggested module boundaries (high-level, refined in Decompose)
 
-All three modes produce the same output format — the strategy only changes how the information is gathered.
+All modes produce the same output format — the strategy only changes how the information is gathered.

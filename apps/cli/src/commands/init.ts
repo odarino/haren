@@ -22,7 +22,7 @@ import { HAREN_VERSION } from "../lib/version";
 import { installPlugin, missingPlugins, restorePlugins } from "../plugins/install";
 import { REGISTRY } from "../plugins/registry";
 
-type Mode = "blueprint" | "explore" | "inherit" | "undecided";
+type Mode = "blueprint" | "explore" | "inherit" | "migration" | "undecided";
 
 interface IterationConfig {
   enabled: true;
@@ -43,7 +43,7 @@ interface InitOptions {
   beforeRootFiles?: () => Promise<void>;
 }
 
-const MODES = ["blueprint", "explore", "inherit", "undecided"] as const;
+const MODES = ["blueprint", "explore", "inherit", "migration", "undecided"] as const;
 
 const EDITORS = ["claude-code", "cursor", "both"] as const;
 const EDITOR_DESCRIPTIONS: Record<string, string> = {
@@ -56,6 +56,7 @@ const MODE_DESCRIPTIONS: Record<string, string> = {
   blueprint: "Greenfield project with existing docs",
   explore: "Greenfield project from scratch",
   inherit: "Brownfield project with existing code",
+  migration: "Rewrite of a legacy system with parity as the bar",
   undecided: "Decide later — LLM will help you choose",
 };
 
@@ -383,6 +384,7 @@ You are operating within the Haren agentic SDLC framework.
    - Has docs/specs → tell them to drop docs in \`artifacts/00-baseline/\` then \`blueprint\`
    - Starting from scratch, just an idea → \`explore\`
    - Has existing code → \`inherit\`
+   - Rewrite of a legacy system with parity as the bar → \`migration\`
 6. Suggest next action based on current state
 
 ## Available Actions
@@ -547,7 +549,7 @@ export function parseInitArgs(args: string[]): InitArgs {
       case "--mode":
         if (!MODES.includes(value as Mode)) {
           throw new Error(
-            `Invalid mode: ${value}. Must be blueprint, explore, inherit, or undecided.`,
+            `Invalid mode: ${value}. Must be blueprint, explore, inherit, migration, or undecided.`,
           );
         }
         out.mode = value as Mode;

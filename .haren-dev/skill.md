@@ -25,6 +25,7 @@ You are operating within the Haren agentic SDLC framework.
    - Has docs/specs → tell them to drop docs in `artifacts/00-baseline/` then `blueprint`
    - Starting from scratch, just an idea → `explore`
    - Has existing code → `inherit`
+   - Rewrite of a legacy system with parity as the bar → `migration`
 6. Suggest next action based on current state
 
 ## Available Actions
