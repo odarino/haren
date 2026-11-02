@@ -196,8 +196,10 @@ async function inventory(ctx: Ctx, moduleFlag: string | undefined): Promise<void
   await writeFile(mapPath, renderUnitMap(units, moduleOf));
 
   const added: [string, string][] = [];
+  const skipped: string[] = [];
   for (const u of out.units) {
     const mod = moduleOf[u.id];
+    if (mod && !progress.modules[mod]) skipped.push(`${u.id} (${mod})`);
     if (!mod || !progress.modules[mod]) continue;
     if (progress.modules[mod].units?.[u.id] !== undefined) continue;
     progress = updateUnitStatus(progress, mod, u.id, "inventoried");
@@ -222,6 +224,11 @@ async function inventory(ctx: Ctx, moduleFlag: string | undefined): Promise<void
     `  inventory: ${fresh} new, ${out.units.length - fresh} known, ${gone.length} disappeared`,
   );
   if (gone.length) console.log(`  disappeared (kept): ${gone.join(", ")}`);
+  if (skipped.length) {
+    console.log(
+      `  warning: skipped, module not in progress.json: ${skipped.join(", ")}. Run \`haren track status <module> decomposed\`, then run inventory again.`,
+    );
+  }
 }
 
 async function extract(ctx: Ctx, unit: string): Promise<void> {

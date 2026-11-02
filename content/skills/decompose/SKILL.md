@@ -62,11 +62,17 @@ These decisions affect ALL modules and must be resolved first.
     `features` stays `{}` until the plan phase adds tasks. `branch` and `repos` are optional. Without `branch`, haren uses `feat/<module>`.
     Write this initial shape once, when the modules are new. After that, change module status only with `haren track status <module> <status>` (see update-tracking skill).
 11. Record dependencies in the top-level `dependencies` map of progress.json: `"<module>": ["<module it depends on>"]`. The implement skill and skill.md "Dependent modules" use this map to choose the base branch and the merge order. The release skill uses it for the release order
-12. Register each artifact: `haren track artifact <id> --type <type> --path <path>`
+12. Migration mode only (`mode: migration`): the modules come from the Module column of `artifacts/02-discovery/unit-map.md`.
+    1. For each module in the column, run `haren track status <module> decomposed`.
+    2. Run `haren migrate inventory` once, with no `--module` flag. It reads the Module column of each known unit and registers the unit as `inventoried` in that module. The `--module` flag only sets the module of units that are new to the map.
+    3. Check the output for a `warning: skipped` line. Fix the module name or create the module, then run inventory again.
+    4. Run `haren track check`.
+13. Register each artifact: `haren track artifact <id> --type <type> --path <path>`
 
 ## Module Map Format
 
 The module-map.md should contain:
+
 - Overview of all modules
 - Dependency graph (mermaid diagram)
 - Suggested implementation order (topological sort of dependencies)
@@ -75,6 +81,7 @@ The module-map.md should contain:
 ## Module Definition Format
 
 Each module .md file should follow `templates/module.md`:
+
 - Frontmatter: name, repos, dependencies
 - Description and responsibilities
 - Interfaces (exposed)

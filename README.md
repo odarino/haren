@@ -182,7 +182,7 @@ every repo.
 | `haren init`    | Set up haren in the current directory: scaffold a new haren folder, or set up a cloned one. Interactive, or pass flags (below).                                                                                                              |
 | `haren upgrade` | Update framework files in an existing haren folder to the installed version, and migrate old `manifest.yaml` / `progress.json`. It also restores missing plugins from `plugins.json`. Use `--yes` to accept plugins from unofficial sources. |
 | `haren plugin`  | Manage plugins: `add <name\|source>`, `remove <name>`, `list`, `doctor`, `run <hook>`. See [PLUGINS.md](PLUGINS.md).                                                                                                                         |
-| `haren migrate` | Migration mode only: `inventory [--module m]`, `extract <unit>`, `gate <unit> [--approve]`. It runs the adapter commands. See [Migration mode](#migration-mode). |
+| `haren migrate` | Migration mode only: `inventory [--module m]`, `extract <unit>`, `gate <unit> [--approve]`. It runs the adapter commands. See [Migration mode](#migration-mode).                                                                             |
 | `haren agent`   | Manage the local agent bridge _(experimental — for the in-progress Haren Portal)_.                                                                                                                                                           |
 
 `haren agent` works in both layouts. It uses the git remote of the haren repo as
@@ -277,7 +277,7 @@ It never clones and never changes git state. To clone a missing repo, run
 Use `--mode migration` to rewrite a legacy system when parity with the old system is the bar.
 The legacy repo has `role: legacy` and `readOnly: true` in `manifest.yaml`. The code gate blocks all writes to it.
 
-The unit is the work item, for example one screen. Each unit has a status: `discovered`, `extracted`, `spec-reviewed`, `specified`, and later states. Use `haren track unit <module> <unit> <status>` to move it. A module cannot pass a stage while a unit is below it.
+The unit is the work item, for example one screen. Each unit has a status: `inventoried`, `extracted`, `spec-draft`, `spec-approved`, `built`, `verified`, `parity-signed`. The side statuses are `blocked` and `static-review-only`. Use `haren track unit <module> <unit> <status>` to move it. A module cannot pass a stage while a unit is below it.
 
 An adapter plugin reads the legacy format. Install one with `haren plugin add <source>`. Then run:
 

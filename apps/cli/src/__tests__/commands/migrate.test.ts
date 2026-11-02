@@ -148,6 +148,24 @@ describe("haren migrate", () => {
     ]);
   });
 
+  it("inventory warns about units whose module is not in progress.json", async () => {
+    await mkdir(join(harenDir, "artifacts", "02-discovery"), { recursive: true });
+    await writeFile(
+      join(harenDir, "artifacts/02-discovery/unit-map.md"),
+      renderUnitMap([{ id: "SCR_A001", parent: null }], { SCR_A001: "ghost" }),
+    );
+    const lines: string[] = [];
+    const orig = console.log;
+    console.log = (...a: unknown[]) => void lines.push(a.join(" "));
+    try {
+      await migrate(["inventory"], root);
+    } finally {
+      console.log = orig;
+    }
+    expect(lines.join("\n")).toContain("skipped, module not in progress.json: SCR_A001 (ghost)");
+    expect((await progress()).modules.orders.units ?? {}).toEqual({});
+  });
+
   it("renderUnitMap renders the table", () => {
     const text = renderUnitMap([{ id: "SCR_A001", parent: null, title: "A" }], {
       SCR_A001: "orders",
