@@ -7,7 +7,48 @@ import {
   replaceTopLevelBlock,
   migrateManifestText,
   buildManifestText,
+  readMigrationConfig,
+  legacyRepo,
 } from "../../workspace/manifest";
+
+const MIG = `mode: migration
+repos:
+  legacy_src: { path: ../legacy_src, role: legacy, readOnly: true }
+  backend: { path: ../backend, role: backend }
+migration:
+  adapter: sample
+  unitId: '^SCR_[A-Z]\\d{3}(_P\\d+)?$'
+  parentOf: '_P\\d+$'
+  acceptance: parity-with-approved-deviations
+  liveLegacy: true
+`;
+
+describe("migration manifest", () => {
+  it("reads the migration block", () => {
+    const c = readMigrationConfig(parseManifest(MIG))!;
+    expect(c.adapter).toBe("sample");
+    expect(c.unitId.test("SCR_A001_P1")).toBe(true);
+    expect(c.unitId.test("X1")).toBe(false);
+    expect(c.acceptance).toBe("parity-with-approved-deviations");
+  });
+  it("returns null outside migration mode", () => {
+    expect(readMigrationConfig(parseManifest("mode: inherit\n"))).toBeNull();
+  });
+  it("throws on a bad block", () => {
+    expect(() =>
+      readMigrationConfig(parseManifest("mode: migration\nmigration:\n  unitId: '('\n")),
+    ).toThrow(/unitId/);
+    expect(() => readMigrationConfig(parseManifest("mode: migration\n"))).toThrow(
+      /migration block/,
+    );
+  });
+  it("finds the legacy repo and keeps readOnly", () => {
+    const [key, repo] = legacyRepo(parseManifest(MIG))!;
+    expect(key).toBe("legacy_src");
+    expect(repo.readOnly).toBe(true);
+    expect(normalizeRepos(parseManifest(MIG).repos).backend.readOnly).toBeUndefined();
+  });
+});
 
 const LEGACY = `project: shop
 mode: explore
@@ -88,6 +129,15 @@ describe("renderReposBlock", () => {
       "repos:\n  web:\n    path: ../web\n    default_branch: main\n    role: frontend\n    stack: react-vite\n",
     );
     expect(normalizeRepos(parseManifest(text).repos).web.role).toBe("frontend");
+  });
+  it("renders readOnly as an unquoted boolean and round-trips it", () => {
+    const text = renderReposBlock({
+      legacy_src: { path: "../legacy_src", role: "legacy", readOnly: true },
+    });
+    expect(text).toBe(
+      "repos:\n  legacy_src:\n    path: ../legacy_src\n    role: legacy\n    readOnly: true\n",
+    );
+    expect(normalizeRepos(parseManifest(text).repos).legacy_src.readOnly).toBe(true);
   });
 });
 

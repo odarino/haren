@@ -2,7 +2,7 @@ import { basename } from "path";
 
 export type Layout = "monorepo" | "workspace";
 
-export type RepoRole = "frontend" | "backend" | "e2e" | "other";
+export type RepoRole = "frontend" | "backend" | "e2e" | "legacy" | "other";
 
 export interface RepoEntry {
   path: string;
@@ -11,6 +11,7 @@ export interface RepoEntry {
   role?: RepoRole;
   stack?: string;
   test_cmd?: string;
+  readOnly?: boolean;
 }
 
 export interface Manifest {
@@ -23,7 +24,15 @@ export interface Manifest {
   [key: string]: unknown;
 }
 
-const REPO_FIELDS = ["path", "remote", "default_branch", "role", "stack", "test_cmd"] as const;
+const REPO_FIELDS = [
+  "path",
+  "remote",
+  "default_branch",
+  "role",
+  "stack",
+  "test_cmd",
+  "readOnly",
+] as const;
 
 export function parseManifest(text: string): Manifest {
   const data = Bun.YAML.parse(text);
@@ -86,7 +95,11 @@ export function renderReposBlock(repos: Record<string, RepoEntry>): string {
     out += `  ${yamlScalar(key)}:\n`;
     for (const field of REPO_FIELDS) {
       const value = repos[key][field];
-      if (value) out += `    ${field}: ${yamlScalar(value)}\n`;
+      if (typeof value === "boolean") {
+        if (value) out += `    ${field}: true\n`;
+      } else if (value) {
+        out += `    ${field}: ${yamlScalar(value)}\n`;
+      }
     }
   }
   return out;
@@ -189,4 +202,49 @@ iterations:
 `;
   }
   return text;
+}
+
+export interface MigrationConfig {
+  adapter?: string;
+  unitId: RegExp;
+  parentOf?: RegExp;
+  acceptance: "parity" | "parity-with-approved-deviations";
+  liveLegacy: boolean;
+}
+
+function regex(value: unknown, field: string): RegExp {
+  if (typeof value !== "string" || !value) {
+    throw new Error(`manifest migration.${field} must be a regex string`);
+  }
+  try {
+    return new RegExp(value);
+  } catch {
+    throw new Error(`manifest migration.${field} is not a valid regex: ${value}`);
+  }
+}
+
+export function readMigrationConfig(m: Manifest): MigrationConfig | null {
+  if (m.mode !== "migration") return null;
+  const b = m.migration as Record<string, unknown> | undefined;
+  if (!b || typeof b !== "object") {
+    throw new Error("mode: migration needs a migration block in manifest.yaml");
+  }
+  const acceptance = (b.acceptance ?? "parity") as MigrationConfig["acceptance"];
+  if (acceptance !== "parity" && acceptance !== "parity-with-approved-deviations") {
+    throw new Error(
+      "manifest migration.acceptance must be parity or parity-with-approved-deviations",
+    );
+  }
+  return {
+    adapter: typeof b.adapter === "string" && b.adapter ? b.adapter : undefined,
+    unitId: regex(b.unitId, "unitId"),
+    parentOf: b.parentOf === undefined ? undefined : regex(b.parentOf, "parentOf"),
+    acceptance,
+    liveLegacy: b.liveLegacy === true,
+  };
+}
+
+export function legacyRepo(m: Manifest): [string, RepoEntry] | null {
+  const found = Object.entries(normalizeRepos(m.repos)).find(([, r]) => r.role === "legacy");
+  return found ?? null;
 }
