@@ -35,37 +35,36 @@ async function progress(data: unknown): Promise<void> {
   await writeFile(join(harenDir, "progress.json"), JSON.stringify(data));
 }
 
-async function runGate(
-  filePath: string,
+type GateResult = { code: number; out: string; err: string };
+
+async function runRaw(
+  stdin: string,
   env: Record<string, string> = {},
-): Promise<{ code: number; out: string }> {
+  cwd = root,
+): Promise<GateResult> {
   const { HAREN_GATE: _ignored, ...base } = process.env;
   const proc = Bun.spawn(["bun", join(harenDir, "hooks", "brainstorm-gate.ts")], {
-    cwd: root,
+    cwd,
     env: { ...base, ...env },
-    stdin: new Blob([JSON.stringify({ tool_input: { file_path: filePath } })]),
+    stdin: new Blob([stdin]),
     stdout: "pipe",
     stderr: "pipe",
   });
   const out = await new Response(proc.stdout).text();
-  return { code: await proc.exited, out };
+  const err = await new Response(proc.stderr).text();
+  return { code: await proc.exited, out, err };
+}
+
+async function runGate(filePath: string, env: Record<string, string> = {}): Promise<GateResult> {
+  return runRaw(JSON.stringify({ tool_name: "Edit", tool_input: { file_path: filePath } }), env);
 }
 
 async function runShell(
   command: string,
   env: Record<string, string> = {},
   cwd = root,
-): Promise<{ code: number; out: string }> {
-  const { HAREN_GATE: _ignored, ...base } = process.env;
-  const proc = Bun.spawn(["bun", join(harenDir, "hooks", "brainstorm-gate.ts")], {
-    cwd,
-    env: { ...base, ...env },
-    stdin: new Blob([JSON.stringify({ tool_name: "Bash", tool_input: { command } })]),
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const out = await new Response(proc.stdout).text();
-  return { code: await proc.exited, out };
+): Promise<GateResult> {
+  return runRaw(JSON.stringify({ tool_name: "Bash", tool_input: { command } }), env, cwd);
 }
 
 const planned = (repos?: string[]) => ({
@@ -83,14 +82,14 @@ describe("brainstorm-gate hook (generated script)", () => {
     await progress({ version: 2, modules: {} });
     const r = await runGate(join(root, "web", "a.ts"));
     expect(r.code).toBe(2);
-    expect(r.out).toContain("haren track override on");
+    expect(r.err).toContain("haren track override on");
   });
 
   it("blocks code when no module is planned", async () => {
     await progress({ version: 2, modules: { checkout: { status: "decomposed" } } });
     const r = await runGate(join(root, "web", "a.ts"));
     expect(r.code).toBe(2);
-    expect(r.out).toContain("planned");
+    expect(r.err).toContain("planned");
   });
 
   it("allows a file in the repo of a planned module", async () => {
@@ -103,9 +102,9 @@ describe("brainstorm-gate hook (generated script)", () => {
     await progress(planned(["web"]));
     const r = await runGate(join(root, "api", "a.ts"));
     expect(r.code).toBe(2);
-    expect(r.out).toContain("checkout (../web)");
-    expect(r.out).toContain("haren track override on --reason");
-    expect(r.out).toContain("HAREN_GATE=off");
+    expect(r.err).toContain("checkout (../web)");
+    expect(r.err).toContain("haren track override on --reason");
+    expect(r.err).toContain("HAREN_GATE=off");
   });
 
   it("allows a string-valued repo entry", async () => {
@@ -179,7 +178,7 @@ describe("readOnly repos", () => {
     await progress(planned());
     const r = await runGate(join(root, "legacy_src", "a.xml"));
     expect(r.code).toBe(2);
-    expect(r.out).toContain("read-only");
+    expect(r.err).toContain("read-only");
   });
   it("keeps the block when the gate override is on", async () => {
     await progress({ ...planned(), gateOverride: { reason: "hotfix" } });
@@ -203,7 +202,7 @@ describe("readOnly repos and Bash", () => {
   it("denies sed -i into the legacy repo", async () => {
     const r = await runShell("sed -i '' 's/a/b/' legacy_src/x.xml");
     expect(r.code).toBe(2);
-    expect(r.out).toContain("read-only");
+    expect(r.err).toContain("read-only");
   });
   it("allows read-only commands on the legacy repo", async () => {
     for (const cmd of [
@@ -230,9 +229,9 @@ describe("readOnly repos and Bash", () => {
       "git -C legacy_src commit -m x",
       "cd legacy_src && npm install",
       "dd if=/dev/zero of=legacy_src/x",
-      "perl -pi -e 's/a/b/' ../legacy_src/x",
+      "cd web && perl -pi -e 's/a/b/' ../legacy_src/x",
     ]) {
-      expect({ cmd, code: (await runShell(cmd, {}, join(root, "web"))).code }).toEqual({
+      expect({ cmd, code: (await runShell(cmd)).code }).toEqual({
         cmd,
         code: 2,
       });
@@ -253,5 +252,115 @@ describe("Bash without readOnly repos", () => {
   it("allows every Bash command", async () => {
     await progress({ version: 2, modules: {} });
     expect((await runShell("echo hi > web/x; sed -i '' s/a/b/ web/y")).code).toBe(0);
+  });
+});
+
+describe("review fixes", () => {
+  const LEGACY =
+    MANIFEST + "  legacy_src:\n    path: ../legacy_src\n    role: legacy\n    readOnly: true\n";
+
+  it("allows a Bash payload without a command, even when no module is planned", async () => {
+    await progress({ version: 2, modules: {} });
+    expect((await runRaw(JSON.stringify({ tool_name: "Bash", tool_input: {} }))).code).toBe(0);
+    expect((await runRaw(JSON.stringify({ tool_name: "Bash" }))).code).toBe(0);
+    expect((await runRaw(JSON.stringify({ hook_event_name: "beforeShellExecution" }))).code).toBe(
+      0,
+    );
+  });
+
+  it("keeps the Edit gate for an Edit payload", async () => {
+    await progress({ version: 2, modules: {} });
+    expect((await runGate(join(root, "web", "a.ts"))).code).toBe(2);
+  });
+
+  it("writes the Claude denial reason to stderr as plain text", async () => {
+    await progress({ version: 2, modules: {} });
+    const edit = await runGate(join(root, "web", "a.ts"));
+    expect(edit.code).toBe(2);
+    expect(edit.err).toContain("Run the discover phase first");
+    expect(edit.err.trim().startsWith("{")).toBe(false);
+    await writeFile(join(harenDir, "manifest.yaml"), LEGACY);
+    await mkdir(join(root, "legacy_src"), { recursive: true });
+    const bash = await runShell("echo hi > legacy_src/x");
+    expect(bash.code).toBe(2);
+    expect(bash.err).toContain("read-only");
+  });
+
+  it("keeps the Cursor JSON denial on stdout", async () => {
+    await progress({ version: 2, modules: {} });
+    const r = await runRaw(
+      JSON.stringify({ hook_event_name: "beforeFileEdit", file_path: join(root, "web", "a.ts") }),
+    );
+    expect(r.code).toBe(2);
+    const json = JSON.parse(r.out);
+    expect(json.permission).toBe("deny");
+    expect(json.user_message).toContain("discover");
+    expect(json.agent_message).toContain("discover");
+  });
+
+  describe("Bash false denies", () => {
+    beforeEach(async () => {
+      await writeFile(join(harenDir, "manifest.yaml"), LEGACY);
+      await mkdir(join(root, "legacy_src"), { recursive: true });
+      await progress(planned(["web"]));
+    });
+    it("ignores > inside quotes", async () => {
+      expect((await runShell(`echo "a > legacy_src/x" > web/out`)).code).toBe(0);
+      expect((await runShell(`grep 'x>>legacy_src/y' web/f`)).code).toBe(0);
+    });
+    it("does not read a git commit message as a path", async () => {
+      expect((await runShell(`git -C web commit -m "fix legacy_src/x"`)).code).toBe(0);
+      expect((await runShell(`git -C web commit --message legacy_src/x`)).code).toBe(0);
+      expect((await runShell(`git -C web commit -F legacy_src/msg.txt`)).code).toBe(0);
+    });
+    it("does not match a bare directory name in another place", async () => {
+      const other = realpathSync(await mkdtemp(join(tmpdir(), "haren-gate-other-")));
+      try {
+        expect((await runShell(`rm -rf ${join(other, "legacy_src", "x")}`)).code).toBe(0);
+        expect((await runShell("touch legacy_src/x", {}, other)).code).toBe(0);
+      } finally {
+        await rm(other, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe("malformed manifest", () => {
+    it("denies writes when the broken manifest declares readOnly", async () => {
+      await progress({ ...planned(), gateOverride: { reason: "hotfix" } });
+      await writeFile(join(harenDir, "manifest.yaml"), "repos: [unclosed\n  readOnly: true\n  : :");
+      const edit = await runGate(join(root, "api", "a.ts"));
+      expect(edit.code).toBe(2);
+      expect(edit.err).toContain(
+        "manifest.yaml does not parse and declares a readOnly repo. Fix manifest.yaml first.",
+      );
+      expect((await runShell("echo hi > api/x")).code).toBe(2);
+      expect((await runGate(join(harenDir, "manifest.yaml"))).code).toBe(0);
+      expect((await runShell("cat api/x")).code).toBe(0);
+    });
+    it("fails open when the broken manifest has no readOnly", async () => {
+      await progress(planned(["web"]));
+      await writeFile(join(harenDir, "manifest.yaml"), "repos: [unclosed\n  : :");
+      expect((await runGate(join(root, "api", "a.ts"))).code).toBe(0);
+      expect((await runShell("echo hi > api/x")).code).toBe(0);
+    });
+  });
+
+  describe("array-form repos", () => {
+    beforeEach(async () => {
+      await writeFile(
+        join(harenDir, "manifest.yaml"),
+        "repos:\n  - path: ../web\n  - path: ../legacy_src\n    readOnly: true\n",
+      );
+      await mkdir(join(root, "legacy_src"), { recursive: true });
+      await progress(planned());
+    });
+    it("blocks the readOnly entry", async () => {
+      expect((await runGate(join(root, "legacy_src", "a.ts"))).code).toBe(2);
+      expect((await runShell("touch legacy_src/a")).code).toBe(2);
+    });
+    it("still allows the other repo", async () => {
+      expect((await runGate(join(root, "web", "a.ts"))).code).toBe(0);
+      expect((await runShell("touch web/a")).code).toBe(0);
+    });
   });
 });

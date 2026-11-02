@@ -54,13 +54,20 @@ function allow(): never {
   process.exit(0);
 }
 
+// Set by readInput(). Claude Code payloads have tool_name or tool_input.
+let isClaude = false;
+
 function deny(message: string): never {
-  console.log(JSON.stringify({
-    error: message,            // Claude Code
-    permission: "deny",        // Cursor
-    user_message: message,     // Cursor — shown in UI
-    agent_message: message,    // Cursor — sent to model
-  }));
+  if (isClaude) {
+    // Claude Code reads stderr on exit 2 and shows it to the model.
+    console.error(message);
+  } else {
+    console.log(JSON.stringify({
+      permission: "deny",        // Cursor
+      user_message: message,     // Cursor — shown in UI
+      agent_message: message,    // Cursor — sent to model
+    }));
+  }
   process.exit(2);
 }
 
@@ -85,15 +92,26 @@ function normalizeRepos(repos: unknown): Record<string, Repo> {
   return out;
 }
 
-async function readRepos(): Promise<Record<string, Repo>> {
+const BROKEN_MANIFEST_MESSAGE =
+  "manifest.yaml does not parse and declares a readOnly repo. Fix manifest.yaml first.";
+
+// brokenReadOnly: the manifest does not parse but its text declares a readOnly repo.
+// Then writes outside the haren folder are blocked (fail-closed). Otherwise fail-open.
+async function readManifest(): Promise<{ repos: Record<string, Repo>; brokenReadOnly: boolean }> {
+  const file = Bun.file(join(harenDir, "manifest.yaml"));
+  let text = "";
   try {
-    const file = Bun.file(join(harenDir, "manifest.yaml"));
-    if (!(await file.exists())) return {};
-    const data: any = Bun.YAML.parse(await file.text());
-    return normalizeRepos(data?.repos);
+    if (!(await file.exists())) return { repos: {}, brokenReadOnly: false };
+    text = await file.text();
+    const data: any = Bun.YAML.parse(text);
+    return { repos: normalizeRepos(data?.repos), brokenReadOnly: false };
   } catch {
-    return {}; // fail-open: malformed manifest means no repo info
+    return { repos: {}, brokenReadOnly: /readOnly\s*:\s*true/.test(text) };
   }
+}
+
+async function readRepos(): Promise<Record<string, Repo>> {
+  return (await readManifest()).repos;
 }
 
 function realRoot(path: string): string {
@@ -114,41 +132,117 @@ function overrideActive(progress: any): boolean {
 // for a write signal that touches a readOnly repo. A shell can always hide a write,
 // so keep the legacy repo read-only at the filesystem or git level too.
 
-const SHELL_SPLIT = /\s*(?:&&|\|\||[;|\n&])\s*/;
 const GIT_WRITES = ["commit", "add", "rm", "mv", "checkout", "reset", "apply", "am", "stash", "clean", "restore"];
 const PKG_MANAGERS = ["npm", "bun", "pnpm", "yarn"];
 const PLAIN_WRITERS = ["rm", "rmdir", "mv", "touch", "mkdir", "chmod", "chown", "ln", "truncate", "tee"];
 
-function unquote(token: string): string {
-  return token.replace(/^['"]|['"]$/g, "");
+interface Segment { words: string[]; redirects: string[] }
+
+// Splits a command into segments (&&, ||, ;, |, &, newline) with quote awareness.
+// Quotes are removed from words. Redirect targets (> f, >> f, 2> f) go to redirects;
+// fd duplications (>&2, 2>&1) are dropped.
+function parseShell(command: string): Segment[] {
+  const segments: Segment[] = [];
+  let seg: Segment = { words: [], redirects: [] };
+  let word = "";
+  let hasWord = false;
+  let quote = "";
+  let redirectNext = false;
+  const endWord = () => {
+    if (hasWord) {
+      if (redirectNext) seg.redirects.push(word);
+      else seg.words.push(word);
+      redirectNext = false;
+    }
+    word = "";
+    hasWord = false;
+  };
+  const endSegment = () => {
+    endWord();
+    redirectNext = false;
+    if (seg.words.length || seg.redirects.length) segments.push(seg);
+    seg = { words: [], redirects: [] };
+  };
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i];
+    if (quote) {
+      if (c === quote) quote = "";
+      else word += c;
+      continue;
+    }
+    if (c === "'" || c === '"') {
+      quote = c;
+      hasWord = true;
+      continue;
+    }
+    if (c === "\\" && i + 1 < command.length) {
+      word += command[++i];
+      hasWord = true;
+      continue;
+    }
+    if (c === ";" || c === "\n" || c === "|" || c === "&") {
+      if (c === "&" && command[i - 1] === ">") continue;
+      if ((c === "|" || c === "&") && command[i + 1] === c) i++;
+      endSegment();
+      continue;
+    }
+    if (c === ">") {
+      if (/^\d+$/.test(word)) {
+        word = "";
+        hasWord = false;
+      } else endWord();
+      if (command[i + 1] === ">") i++;
+      if (command[i + 1] === "&") {
+        // fd duplication: skip the fd target.
+        i++;
+        while (i + 1 < command.length && /[\w-]/.test(command[i + 1])) i++;
+        continue;
+      }
+      redirectNext = true;
+      continue;
+    }
+    if (c === " " || c === "\t" || c === "<") {
+      endWord();
+      continue;
+    }
+    word += c;
+    hasWord = true;
+  }
+  endSegment();
+  return segments;
 }
 
-function tokens(segment: string): string[] {
-  return (segment.match(/"[^"]*"|'[^']*'|\S+/g) || []).map(unquote);
-}
-
-function makeRefersTo(roots: string[]) {
-  const names = new Set(roots.map((root) => basename(root)));
+// A token refers to a root only when it resolves (relative to cwd) into the root.
+function makeRefersTo(roots: string[], exclude?: string) {
   return (token: string, cwd: string): boolean => {
     if (!token || token.startsWith("-")) return false;
     const abs = realTarget(resolve(cwd, token));
-    if (roots.some((root) => inside(abs, root))) return true;
-    return token.split("/").some((part) => names.has(part));
+    if (exclude && inside(abs, exclude)) return false;
+    return roots.some((root) => inside(abs, root));
   };
 }
 
+// Drops git commit message values (-m/--message/-F/--file and their = forms).
+function gitPathArgs(sub: string, args: string[]): string[] {
+  if (sub !== "commit") return args;
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === "-m" || a === "--message" || a === "-F" || a === "--file" || a === "-C" || a === "-c") i++;
+    else if (/^(-m|-F)./.test(a) || /^--(message|file)=/.test(a)) continue;
+    else out.push(a);
+  }
+  return out;
+}
+
 /** True when the command looks like it writes into one of the roots. */
-function shellWritesTo(command: string, startCwd: string, roots: string[]): boolean {
-  const refersTo = makeRefersTo(roots);
+function shellWritesTo(command: string, startCwd: string, roots: string[], exclude?: string): boolean {
+  const refersTo = makeRefersTo(roots, exclude);
   let cwd = startCwd;
-  let cwdInRoot = roots.some((root) => inside(realTarget(cwd), root));
-  for (const segment of command.split(SHELL_SPLIT)) {
-    // Redirections: > file, >> file, 2> file (not >&2).
-    for (const m of segment.matchAll(/\d*>>?\s*("[^"]*"|'[^']*'|[^\s;&|<>]+)/g)) {
-      const target = unquote(m[1]);
-      if (!target.startsWith("&") && refersTo(target, cwd)) return true;
-    }
-    let words = tokens(segment.replace(/\d*>>?\s*("[^"]*"|'[^']*'|[^\s;&|<>]+)/g, " "));
+  let cwdInRoot = refersTo(cwd, cwd);
+  for (const segment of parseShell(command)) {
+    if (segment.redirects.some((target) => refersTo(target, cwd))) return true;
+    let words = segment.words;
     while (words.length && (/^\w+=/.test(words[0]) || words[0] === "sudo" || words[0] === "env")) words = words.slice(1);
     if (!words.length) continue;
     const [cmd, ...args] = words;
@@ -182,7 +276,8 @@ function shellWritesTo(command: string, startCwd: string, roots: string[]): bool
           i += 2;
         } else i += 1;
       }
-      if (GIT_WRITES.includes(args[i] || "") && (inLegacy || args.slice(i + 1).some((a) => refersTo(a, dir)))) return true;
+      const sub = args[i] || "";
+      if (GIT_WRITES.includes(sub) && (inLegacy || gitPathArgs(sub, args.slice(i + 1)).some((a) => refersTo(a, dir)))) return true;
     }
     if (PKG_MANAGERS.includes(name) && (args.includes("install") || args.includes("i"))) {
       if (cwdInRoot || anyArg()) return true;
@@ -191,13 +286,18 @@ function shellWritesTo(command: string, startCwd: string, roots: string[]): bool
   return false;
 }
 
-interface HookInput { target: string; command: string | null; cwd: string }
+// shell: the payload is a shell event (Claude Bash, Cursor beforeShellExecution).
+interface HookInput { target: string; command: string | null; cwd: string; shell: boolean }
 
 async function readInput(): Promise<HookInput> {
   try {
     const stdin = await Bun.stdin.text();
-    if (!stdin) return { target: "", command: null, cwd: process.cwd() };
+    if (!stdin) return { target: "", command: null, cwd: process.cwd(), shell: false };
     const input = JSON.parse(stdin);
+    isClaude = input?.tool_name !== undefined || input?.tool_input !== undefined;
+    const shell = input?.tool_name === "Bash"
+      || input?.hook_event_name === "beforeShellExecution"
+      || (input !== null && typeof input === "object" && "command" in input);
     const cwd = typeof input?.cwd === "string" && input.cwd ? input.cwd : process.cwd();
     // Claude Code Bash: tool_input.command. Cursor beforeShellExecution: command.
     const command = typeof input?.tool_input?.command === "string"
@@ -208,9 +308,14 @@ async function readInput(): Promise<HookInput> {
       || input?.file_path
       || input?.path
       || "";
-    return { target: filePath ? realTarget(resolve(cwd, filePath)) : "", command: filePath ? null : command, cwd };
+    return {
+      target: filePath ? realTarget(resolve(cwd, filePath)) : "",
+      command: filePath ? null : command,
+      cwd,
+      shell: shell && !filePath,
+    };
   } catch {
-    return { target: "", command: null, cwd: process.cwd() }; // stdin parse failed — continue with gate check
+    return { target: "", command: null, cwd: process.cwd(), shell: false }; // stdin parse failed — continue with gate check
   }
 }
 
@@ -218,13 +323,19 @@ const READ_ONLY_MESSAGE =
   "This repo is read-only (manifest readOnly: true). It is the legacy source of truth. The gate override does not lift this block.";
 
 async function main() {
-  const { target, command, cwd } = await readInput();
+  const { target, command, cwd, shell } = await readInput();
 
   // Shell commands: only the readOnly repo check applies. Everything else is allowed.
-  if (command !== null) {
-    const roots = Object.values(await readRepos())
+  // A shell event without a usable command is allowed too (not the Edit/Write gate).
+  if (command !== null || shell) {
+    if (command === null) allow();
+    const manifest = await readManifest();
+    const roots = Object.values(manifest.repos)
       .filter((repo) => repo.readOnly)
       .map((repo) => realRoot(repo.path));
+    if (manifest.brokenReadOnly && shellWritesTo(command, cwd, [workspaceDir], harenDir)) {
+      deny(BROKEN_MANIFEST_MESSAGE);
+    }
     if (roots.length && shellWritesTo(command, cwd, roots)) {
       deny(READ_ONLY_MESSAGE + " Shell commands that write into it are blocked too.");
     }
@@ -233,6 +344,8 @@ async function main() {
 
   // Allow writes inside the haren folder — planning/discovery phases write artifacts there
   if (target && inside(target, harenDir)) allow();
+
+  if ((await readManifest()).brokenReadOnly) deny(BROKEN_MANIFEST_MESSAGE);
 
   // Read-only repos (legacy source of truth) are blocked before any override check.
   if (target) {
