@@ -110,7 +110,11 @@ export async function planMigration(location: HarenLocation): Promise<MigrationP
     const result = migrateProgress(raw, (name) => keys[name]);
     if (result.changed) {
       progress = { before, after: `${JSON.stringify(result.progress, null, 2)}\n` };
-      steps.push("progress.json: migrate to version 2 (lastCommit per repo)");
+      steps.push(
+        raw.version === 2
+          ? "progress.json: migrate to version 3 (units)"
+          : "progress.json: migrate to version 3 (lastCommit per repo, units)",
+      );
     }
   }
 

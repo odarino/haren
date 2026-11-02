@@ -34,6 +34,7 @@ Do these steps for each unit of the module:
 
 ## Rules
 
+- Never write into the legacy repo (`readOnly: true`). The gate blocks Edit and Write there. For Bash commands, the guard is best effort only, so do not use the shell to change legacy files. Keep the legacy repo read-only at the filesystem or git level where possible.
 - When you find a new platform trap, add a row to `legacy-semantics.md`.
 - The module spec links the unit specs. It does not restate them.
 - Do not write code in this phase.

@@ -254,7 +254,7 @@ Transition sai, module không tồn tại hoặc option sai → lệnh in thông
 • `blueprint` — Project mới (greenfield) đã có sẵn docs/specs để làm việc.
 • `explore` — Project mới, bắt đầu chỉ từ một ý tưởng.
 • `inherit` — Project cũ (brownfield) đã có codebase.
-• `migration` — Viết lại hệ thống legacy, lấy parity với hệ thống cũ làm chuẩn. Repo legacy là `role: legacy`, `readOnly: true`; code gate chặn mọi ghi vào đó.
+• `migration` — Viết lại hệ thống legacy, lấy parity với hệ thống cũ làm chuẩn. Repo legacy là `role: legacy`, `readOnly: true`; code gate chặn mọi Edit/Write vào đó, kể cả khi bật gate override. Với lệnh Bash, guard chỉ ở mức best effort: nó chặn các lệnh ghi phổ biến (redirect, `sed -i`, `rm`, `git commit`, ...), nhưng shell vẫn có thể ghi lén. Nên đặt repo legacy ở chế độ chỉ đọc ở mức filesystem hoặc git khi có thể (ví dụ checkout chỉ đọc, hoặc clone không có quyền push).
 • `undecided` — Để agent giúp bạn chọn ở phiên đầu tiên.
 
 **Các giai đoạn & cổng chặn code** — mỗi module đi qua các giai đoạn **theo đúng thứ tự**, không nhảy cóc được:

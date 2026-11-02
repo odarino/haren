@@ -28,11 +28,12 @@ export function buildArgv(template: string, values: Record<string, string>): str
     .map((tok) => {
       const whole = /^\{(\w+)\}$/.exec(tok);
       if (whole) {
-        if (!(whole[1] in values)) throw new AdapterError(`No value for placeholder {${whole[1]}}`);
+        if (!Object.hasOwn(values, whole[1]))
+          throw new AdapterError(`No value for placeholder {${whole[1]}}`);
         return values[whole[1]];
       }
       return tok.replace(/\{(\w+)\}/g, (_, k) => {
-        if (!(k in values)) throw new AdapterError(`No value for placeholder {${k}}`);
+        if (!Object.hasOwn(values, k)) throw new AdapterError(`No value for placeholder {${k}}`);
         return values[k];
       });
     });

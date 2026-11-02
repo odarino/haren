@@ -2,13 +2,19 @@
 # Fails when staged changes contain terms from the private deny list.
 # The deny list lives OUTSIDE the repo: $HAREN_SCRUB_TERMS (one regex per line).
 # Fails closed: an invalid regex exits 2. Blank lines in the list are ignored.
+# A missing or empty deny list warns on stderr; it exits 1 when $CI is set.
 set -euo pipefail
 terms="${HAREN_SCRUB_TERMS:-$HOME/.config/haren/scrub-terms.txt}"
-[ -f "$terms" ] || { echo "scrub: no deny list at $terms (skipped)"; exit 0; }
+no_list() {
+  echo "scrub: WARNING — no deny list, nothing checked ($terms)" >&2
+  if [ -n "${CI:-}" ]; then exit 1; fi
+  exit 0
+}
+[ -f "$terms" ] || no_list
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 grep -v '^[[:space:]]*$' "$terms" > "$tmp" || true
-if [ ! -s "$tmp" ]; then echo "scrub: PASS"; exit 0; fi
+[ -s "$tmp" ] || no_list
 # Added content lines only: skip the +++ file header.
 added="$(git diff --cached -U0 | grep -E '^\+' | grep -vE '^\+\+\+ ' || true)"
 mrc=0

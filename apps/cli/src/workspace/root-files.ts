@@ -104,7 +104,7 @@ export function mergeClaudeSettings(existing: string | null, command: string): s
   data.hooks ??= {};
   data.hooks.PreToolUse = [
     ...withoutGate(data.hooks.PreToolUse),
-    { matcher: "Edit|Write", hooks: [{ type: "command", command }] },
+    { matcher: "Edit|Write|Bash", hooks: [{ type: "command", command }] },
   ];
   return `${JSON.stringify(data, null, 2)}\n`;
 }
@@ -115,6 +115,10 @@ export function mergeCursorHooks(existing: string | null, command: string): stri
   data.hooks ??= {};
   data.hooks.beforeFileEdit = [
     ...withoutGate(data.hooks.beforeFileEdit),
+    { command, type: "command", timeout: 10 },
+  ];
+  data.hooks.beforeShellExecution = [
+    ...withoutGate(data.hooks.beforeShellExecution),
     { command, type: "command", timeout: 10 },
   ];
   data.hooks.preToolUse = [

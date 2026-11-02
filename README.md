@@ -275,7 +275,8 @@ It never clones and never changes git state. To clone a missing repo, run
 ### Migration mode
 
 Use `--mode migration` to rewrite a legacy system when parity with the old system is the bar.
-The legacy repo has `role: legacy` and `readOnly: true` in `manifest.yaml`. The code gate blocks all writes to it.
+The legacy repo has `role: legacy` and `readOnly: true` in `manifest.yaml`. The code gate blocks all Edit and Write calls into it. The gate override does not lift this block.
+For Bash commands, the guard is best effort: it blocks common writes (redirects, `sed -i`, `rm`, `git commit`, and so on), but a shell can hide a write. Also make the legacy repo read-only at the filesystem or git level where possible, for example a read-only checkout or a clone with no push access.
 
 The unit is the work item, for example one screen. Each unit has a status: `inventoried`, `extracted`, `spec-draft`, `spec-approved`, `built`, `verified`, `parity-signed`. The side statuses are `blocked` and `static-review-only`. Use `haren track unit <module> <unit> <status>` to move it. A module cannot pass a stage while a unit is below it.
 

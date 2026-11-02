@@ -25,7 +25,7 @@ import {
   type UnitStatus,
 } from "../workspace/progress";
 import type { MigrationConfig } from "../workspace/manifest";
-import { readAdapter } from "../plugins/adapter-spec";
+import { adapterMissingMessage, readAdapter } from "../plugins/adapter-spec";
 import { harenDirFlag, resolveHarenDir } from "../workspace/resolve";
 
 export const TRACK_USAGE = `Usage:
@@ -160,14 +160,18 @@ export async function loadMigration(paths: TrackPaths): Promise<MigrationConfig 
   return readMigrationConfig(parseManifest(await readFile(manifestPath, "utf-8")));
 }
 
-/** The command names the migration adapter declares; empty when none is set or installed. */
+/**
+ * The command names the migration adapter declares; empty when none is set.
+ * Null when the manifest names an adapter that is not installed.
+ */
 async function adapterCommands(
   paths: TrackPaths,
   migration: MigrationConfig,
-): Promise<Set<string>> {
+): Promise<Set<string> | null> {
   if (!migration.adapter) return new Set();
   const adapter = await readAdapter(paths.harenDir, migration.adapter);
-  return new Set(Object.keys(adapter?.commands ?? {}));
+  if (!adapter) return null;
+  return new Set(Object.keys(adapter.commands));
 }
 
 async function trackUnit(paths: TrackPaths, rest: string[]): Promise<void> {
@@ -183,7 +187,11 @@ async function trackUnit(paths: TrackPaths, rest: string[]): Promise<void> {
     throw new Error(`Unit '${unit}' does not match migration.unitId`);
   }
   const commands = await adapterCommands(paths, migration);
-  if (
+  if (!commands) {
+    if (to === "extracted" || to === "spec-approved") {
+      throw new Error(adapterMissingMessage(migration.adapter as string));
+    }
+  } else if (
     (to === "extracted" && commands.has("extract")) ||
     (to === "spec-approved" && commands.has("gate"))
   ) {
@@ -506,6 +514,15 @@ export async function checkWorkspace(paths: TrackPaths): Promise<CheckResult> {
   if (manifest.mode === "migration" && mig) {
     if (!legacyRepo(manifest)) {
       errors.push("mode: migration needs one repo with role: legacy in manifest.yaml");
+    }
+    if (mig.adapter) {
+      try {
+        if (!(await readAdapter(paths.harenDir, mig.adapter))) {
+          errors.push(adapterMissingMessage(mig.adapter));
+        }
+      } catch (e) {
+        errors.push((e as Error).message);
+      }
     }
     for (const [name, mod] of Object.entries(progress.modules)) {
       for (const [unit, status] of Object.entries(mod.units ?? {})) {

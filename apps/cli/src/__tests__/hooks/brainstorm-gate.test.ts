@@ -51,6 +51,23 @@ async function runGate(
   return { code: await proc.exited, out };
 }
 
+async function runShell(
+  command: string,
+  env: Record<string, string> = {},
+  cwd = root,
+): Promise<{ code: number; out: string }> {
+  const { HAREN_GATE: _ignored, ...base } = process.env;
+  const proc = Bun.spawn(["bun", join(harenDir, "hooks", "brainstorm-gate.ts")], {
+    cwd,
+    env: { ...base, ...env },
+    stdin: new Blob([JSON.stringify({ tool_name: "Bash", tool_input: { command } })]),
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const out = await new Response(proc.stdout).text();
+  return { code: await proc.exited, out };
+}
+
 const planned = (repos?: string[]) => ({
   version: 2,
   modules: { checkout: { status: "planned", ...(repos ? { repos } : {}) } },
@@ -171,5 +188,70 @@ describe("readOnly repos", () => {
   it("keeps the block with HAREN_GATE=off", async () => {
     await progress(planned());
     expect((await runGate(join(root, "legacy_src", "a.xml"), { HAREN_GATE: "off" })).code).toBe(2);
+  });
+});
+
+describe("readOnly repos and Bash", () => {
+  beforeEach(async () => {
+    await writeFile(
+      join(harenDir, "manifest.yaml"),
+      MANIFEST + "  legacy_src:\n    path: ../legacy_src\n    role: legacy\n    readOnly: true\n",
+    );
+    await mkdir(join(root, "legacy_src"), { recursive: true });
+    await progress(planned(["web"]));
+  });
+  it("denies sed -i into the legacy repo", async () => {
+    const r = await runShell("sed -i '' 's/a/b/' legacy_src/x.xml");
+    expect(r.code).toBe(2);
+    expect(r.out).toContain("read-only");
+  });
+  it("allows read-only commands on the legacy repo", async () => {
+    for (const cmd of [
+      "cat legacy_src/x",
+      "grep -rn foo legacy_src 2>/dev/null",
+      "ls legacy_src",
+      "git -C legacy_src log --oneline",
+      "git -C legacy_src diff",
+      "cp legacy_src/x web/x",
+    ]) {
+      expect((await runShell(cmd)).code).toBe(0);
+    }
+  });
+  it("denies a redirect into the legacy repo even with the override on", async () => {
+    await progress({ ...planned(["web"]), gateOverride: { reason: "hotfix" } });
+    expect((await runShell("echo hi > legacy_src/x")).code).toBe(2);
+    expect((await runShell("echo hi >> legacy_src/x", { HAREN_GATE: "off" })).code).toBe(2);
+  });
+  it("denies other writes into the legacy repo", async () => {
+    for (const cmd of [
+      `rm -rf ${join(root, "legacy_src", "a")}`,
+      "cp web/x legacy_src/x",
+      "echo hi | tee legacy_src/x",
+      "git -C legacy_src commit -m x",
+      "cd legacy_src && npm install",
+      "dd if=/dev/zero of=legacy_src/x",
+      "perl -pi -e 's/a/b/' ../legacy_src/x",
+    ]) {
+      expect({ cmd, code: (await runShell(cmd, {}, join(root, "web"))).code }).toEqual({
+        cmd,
+        code: 2,
+      });
+    }
+  });
+  it("denies git writes run inside the legacy repo", async () => {
+    expect((await runShell("git add .", {}, join(root, "legacy_src"))).code).toBe(2);
+    expect((await runShell("git status", {}, join(root, "legacy_src"))).code).toBe(0);
+  });
+  it("allows unrelated Bash commands, also when no module is planned", async () => {
+    expect((await runShell("echo hi > web/x && rm -rf web/tmp")).code).toBe(0);
+    await progress({ version: 2, modules: {} });
+    expect((await runShell("echo hi > web/x")).code).toBe(0);
+  });
+});
+
+describe("Bash without readOnly repos", () => {
+  it("allows every Bash command", async () => {
+    await progress({ version: 2, modules: {} });
+    expect((await runShell("echo hi > web/x; sed -i '' s/a/b/ web/y")).code).toBe(0);
   });
 });

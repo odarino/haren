@@ -85,6 +85,7 @@ describe("hook merges", () => {
     expect(out.model).toBe("opus");
     expect(out.hooks.PreToolUse).toHaveLength(2);
     expect(out.hooks.PreToolUse[1].hooks[0].command).toBe("bun rules/hooks/brainstorm-gate.ts");
+    expect(out.hooks.PreToolUse[1].matcher).toBe("Edit|Write|Bash");
   });
   it("throws on invalid JSON", () => {
     expect(() => mergeClaudeSettings("{nope", "x")).toThrow();
@@ -104,6 +105,7 @@ describe("hook merges", () => {
     expect(out.version).toBe(1);
     expect(out.hooks.beforeFileEdit[0].command).toBe("bun rules/hooks/brainstorm-gate.ts");
     expect(out.hooks.preToolUse[0].matcher).toBe("write");
+    expect(out.hooks.beforeShellExecution[0].command).toBe("bun rules/hooks/brainstorm-gate.ts");
   });
 });
 

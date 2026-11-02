@@ -31,6 +31,11 @@ describe("buildArgv", () => {
   it("throws AdapterError for a placeholder with no value", () => {
     expect(() => buildArgv("bun gate.ts {specPath}", {})).toThrow(AdapterError);
   });
+
+  it("does not take inherited keys as placeholder values", () => {
+    expect(() => buildArgv("bun gate.ts {constructor}", {})).toThrow(AdapterError);
+    expect(() => buildArgv("bun gate.ts --x={toString}", {})).toThrow(AdapterError);
+  });
 });
 
 describe("runAdapter", () => {

@@ -148,6 +148,26 @@ describe("haren migrate", () => {
     ]);
   });
 
+  it("inventory keeps the text after the unit table on re-run", async () => {
+    await migrate(["inventory", "--module", "orders"], root);
+    const mapPath = join(harenDir, "artifacts/02-discovery/unit-map.md");
+    const custom =
+      "## Shared components\n\n| Component | Used by units | Module |\n|---|---|---|\n| ORDER_TBL | SCR_A001 | orders |";
+    await writeFile(mapPath, `${await readFile(mapPath, "utf-8")}\n${custom}\n`);
+    await migrate(["inventory"], root);
+    const map = await readFile(mapPath, "utf-8");
+    expect(map).toContain(custom);
+    expect(map).toContain("| SCR_A001_P1 | SCR_A001 |");
+    expect(map.match(/## Shared components/g)?.length).toBe(1);
+  });
+
+  it("fails closed with the install hint when the adapter is not installed", async () => {
+    await rm(join(plugin, "haren-plugin.json"));
+    await expect(migrate(["inventory"], root)).rejects.toThrow(
+      "Adapter 'fake' is named in manifest.yaml but not installed. Run `haren plugin add <source>`, or remove migration.adapter to work by hand.",
+    );
+  });
+
   it("inventory warns about units whose module is not in progress.json", async () => {
     await mkdir(join(harenDir, "artifacts", "02-discovery"), { recursive: true });
     await writeFile(

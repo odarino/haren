@@ -331,10 +331,21 @@ describe("haren track unit with an adapter", () => {
       /Adapter plugin 'sample': .*Unknown adapter command/,
     );
   });
-  it("does not refuse when the adapter is not installed", async () => {
+  it("fails closed when the named adapter is not installed", async () => {
+    const msg =
+      /Adapter 'sample' is named in manifest\.yaml but not installed\. Run `haren plugin add <source>`, or remove migration\.adapter to work by hand\./;
     await run("unit", "checkout", "SCR_A001", "inventoried");
-    await run("unit", "checkout", "SCR_A001", "extracted");
-    expect((await progress()).modules.checkout.units.SCR_A001).toBe("extracted");
+    await expect(run("unit", "checkout", "SCR_A001", "extracted")).rejects.toThrow(msg);
+    await expect(run("unit", "checkout", "SCR_A001", "spec-approved")).rejects.toThrow(msg);
+    expect((await progress()).modules.checkout.units.SCR_A001).toBe("inventoried");
+  });
+  it("fails closed when the adapter is registered but haren-plugin.json is missing", async () => {
+    await install({ extract: "x {unit}" });
+    await rm(join(harenDir, ".plugins", "sample", "haren-plugin.json"));
+    await run("unit", "checkout", "SCR_A001", "inventoried");
+    await expect(run("unit", "checkout", "SCR_A001", "extracted")).rejects.toThrow(
+      /Adapter 'sample' is named in manifest\.yaml but not installed/,
+    );
   });
 });
 
@@ -419,6 +430,24 @@ describe("track check in migration mode", () => {
       `haren:\n  version: "1.5.0"\nmode: migration\n${legacy}${unitId.replace("migration:\n", "migration:\n  adapter: sample\n")}`,
     );
     await writeUnits({ SCR_A001: "spec-approved" });
+    await expect(run("check")).rejects.toThrow(/Adapter 'sample' is named in manifest\.yaml/);
+    await writeFile(
+      join(harenDir, "plugins.json"),
+      JSON.stringify({
+        version: 1,
+        plugins: { sample: { source: "x", version: "0.1.0", enabled: true, config: {} } },
+      }),
+    );
+    await mkdir(join(harenDir, ".plugins", "sample"), { recursive: true });
+    await writeFile(
+      join(harenDir, ".plugins", "sample", "haren-plugin.json"),
+      JSON.stringify({
+        name: "sample",
+        version: "0.1.0",
+        harenApi: "2",
+        adapter: { unitKind: "screen", commands: { gate: "y {specPath}" } },
+      }),
+    );
     await expect(run("check")).rejects.toThrow(/SCR_A001.*gate\.json/);
     const dir = join(harenDir, "artifacts", "02-discovery", "units", "SCR_A001");
     await mkdir(dir, { recursive: true });

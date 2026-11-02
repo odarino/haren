@@ -9,7 +9,12 @@ import {
   writeProgress,
   type Progress,
 } from "../workspace/progress";
-import { readAdapter, type AdapterCommand, type AdapterSpec } from "../plugins/adapter-spec";
+import {
+  adapterMissingMessage,
+  readAdapter,
+  type AdapterCommand,
+  type AdapterSpec,
+} from "../plugins/adapter-spec";
 import {
   runAdapter,
   type ExtractOut,
@@ -60,12 +65,27 @@ function parseMigrateArgs(args: string[]) {
 const cell = (v: string | null | undefined) => (v ? v.replaceAll("|", "\\|") : "-");
 
 /** The unit map table. `moduleOf` maps unit id to module name. */
-export function renderUnitMap(units: InventoryUnit[], moduleOf: Record<string, string>): string {
+export function renderUnitMap(
+  units: InventoryUnit[],
+  moduleOf: Record<string, string>,
+  previous = "",
+): string {
   const rows = units.map(
     (u) =>
       `| ${cell(u.id)} | ${cell(u.parent)} | ${cell(u.family)} | ${cell(u.title)} | ${cell(moduleOf[u.id])} |`,
   );
-  return `# Unit Map\n\n${UNIT_MAP_HEADER}\n${rows.join("\n")}\n`;
+  const tail = afterUnitTable(previous);
+  return `# Unit Map\n\n${UNIT_MAP_HEADER}\n${rows.join("\n")}\n${tail ? `\n${tail}\n` : ""}`;
+}
+
+/** The text after the unit table of an existing unit map (for example a "Shared components" section). */
+function afterUnitTable(text: string): string {
+  const lines = text.split("\n");
+  const start = lines.findIndex((l) => /^\|\s*Unit\s*\|/.test(l.trim()));
+  if (start < 0) return "";
+  let end = start;
+  while (end < lines.length && lines[end].trim().startsWith("|")) end++;
+  return lines.slice(end).join("\n").trim();
 }
 
 /** Rows of an existing unit map, keyed by unit id. */
@@ -122,11 +142,7 @@ async function loadContext(harenDir: string): Promise<Ctx> {
   if (!legacy) throw new Error("haren migrate needs a repo with role: legacy in manifest.yaml");
   if (!migration.adapter) throw new Error("manifest migration.adapter is not set");
   const adapter = await readAdapter(harenDir, migration.adapter);
-  if (!adapter) {
-    throw new Error(
-      `Adapter plugin '${migration.adapter}' is not installed or has no adapter block`,
-    );
-  }
+  if (!adapter) throw new Error(adapterMissingMessage(migration.adapter));
   return {
     paths,
     migration,
@@ -169,7 +185,8 @@ async function inventory(ctx: Ctx, moduleFlag: string | undefined): Promise<void
   }
   const mapRel = "artifacts/02-discovery/unit-map.md";
   const mapPath = join(ctx.paths.harenDir, mapRel);
-  const known = existsSync(mapPath) ? parseUnitMap(await readFile(mapPath, "utf-8")) : new Map();
+  const previous = existsSync(mapPath) ? await readFile(mapPath, "utf-8") : "";
+  const known = parseUnitMap(previous);
 
   const moduleOf: Record<string, string> = {};
   const units: InventoryUnit[] = [];
@@ -193,7 +210,7 @@ async function inventory(ctx: Ctx, moduleFlag: string | undefined): Promise<void
   }
 
   await mkdir(dirname(mapPath), { recursive: true });
-  await writeFile(mapPath, renderUnitMap(units, moduleOf));
+  await writeFile(mapPath, renderUnitMap(units, moduleOf, previous));
 
   const added: [string, string][] = [];
   const skipped: string[] = [];

@@ -61,6 +61,28 @@ describe("planMigration", () => {
     expect(plan.editor).toBe("claude-code");
   });
 
+  it("names the progress.json step for a version 1 file", async () => {
+    const haren = await legacyWorkspace();
+    const plan = await planMigration({ harenDir: haren, workspaceDir: ws, legacy: true });
+    expect(plan.steps).toContain(
+      "progress.json: migrate to version 3 (lastCommit per repo, units)",
+    );
+  });
+
+  it("names the progress.json step for a version 2 file", async () => {
+    const haren = await legacyWorkspace();
+    await writeFile(
+      join(haren, "progress.json"),
+      JSON.stringify({
+        project: "shop",
+        version: 2,
+        modules: { checkout: { status: "implementing", lastCommit: { backend: "abc" } } },
+      }),
+    );
+    const plan = await planMigration({ harenDir: haren, workspaceDir: ws, legacy: true });
+    expect(plan.steps).toContain("progress.json: migrate to version 3 (units)");
+  });
+
   it("reports a corrupt progress.json with its path", async () => {
     const haren = await legacyWorkspace();
     await writeFile(join(haren, "progress.json"), "{nope");

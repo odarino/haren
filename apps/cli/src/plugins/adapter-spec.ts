@@ -74,6 +74,11 @@ export function validateAdapter(raw: unknown): AdapterSpec {
 }
 
 /** The adapter block of an installed plugin; null when not installed or it has none. */
+/** The message for a manifest that names an adapter haren cannot load. */
+export function adapterMissingMessage(name: string): string {
+  return `Adapter '${name}' is named in manifest.yaml but not installed. Run \`haren plugin add <source>\`, or remove migration.adapter to work by hand.`;
+}
+
 export async function readAdapter(harenDir: string, name: string): Promise<AdapterSpec | null> {
   const { plugins } = await readPlugins(harenDir);
   if (!plugins[name]) return null;
