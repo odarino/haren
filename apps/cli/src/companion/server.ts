@@ -3,6 +3,7 @@
 import { randomBytes, timingSafeEqual } from "crypto";
 import {
   appendFileSync,
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -72,6 +73,22 @@ const FORBIDDEN_PAGE = `<!DOCTYPE html>
 const WAITING_CONTENT = `<h2>haren companion</h2>
 <p class="subtitle">Waiting for the agent to push a screen...</p>`;
 const HELPER_TAG = '<script src="/helper.js"></script>';
+
+/** Create a folder only the owner can use (0700); an existing folder gets its mode set. */
+export function makePrivateDir(dir: string): void {
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try {
+    chmodSync(dir, 0o700);
+  } catch {}
+}
+
+/** Write a file only the owner can read (0600), also when the file exists already. */
+export function writePrivateFile(path: string, data: string): void {
+  writeFileSync(path, data, { mode: 0o600 });
+  try {
+    chmodSync(path, 0o600);
+  } catch {}
+}
 
 export function isFullDocument(html: string): boolean {
   const t = html.trimStart().toLowerCase();
@@ -146,11 +163,11 @@ function urlHostForHttp(host: string): string {
 export async function startCompanion(opts: CompanionOptions): Promise<CompanionHandle> {
   const contentDir = join(opts.sessionDir, "content");
   const stateDir = join(opts.sessionDir, "state");
-  mkdirSync(contentDir, { recursive: true });
-  mkdirSync(stateDir, { recursive: true });
+  for (const dir of [opts.sessionDir, contentDir, stateDir]) makePrivateDir(dir);
   const stoppedFile = join(stateDir, "server-stopped");
   const eventsFile = join(stateDir, "events");
   rmSync(stoppedFile, { force: true });
+  if (existsSync(eventsFile)) chmodSync(eventsFile, 0o600);
 
   const key = opts.key ?? randomBytes(16).toString("hex");
   const idleTimeoutMs = opts.idleTimeoutMs ?? 240 * 60_000;
@@ -252,7 +269,7 @@ export async function startCompanion(opts: CompanionOptions): Promise<CompanionH
         const { choice, text = "" } = event;
         if (typeof choice !== "string" || typeof text !== "string") return;
         const line = { type: "click", choice, text, timestamp: Math.floor(Date.now() / 1000) };
-        appendFileSync(eventsFile, `${JSON.stringify(line)}\n`);
+        appendFileSync(eventsFile, `${JSON.stringify(line)}\n`, { mode: 0o600 });
       },
     },
   });
@@ -272,7 +289,7 @@ export async function startCompanion(opts: CompanionOptions): Promise<CompanionH
     const current = newestScreen(contentDir);
     const sig = signature(current);
     if (sig === lastSig) return;
-    if (current !== lastPath) writeFileSync(eventsFile, "");
+    if (current !== lastPath) writePrivateFile(eventsFile, "");
     lastPath = current;
     lastSig = sig;
     const msg = JSON.stringify({ type: "reload" });
@@ -287,7 +304,7 @@ export async function startCompanion(opts: CompanionOptions): Promise<CompanionH
     screen_dir: contentDir,
     state_dir: stateDir,
   };
-  writeFileSync(join(stateDir, "server-info"), `${JSON.stringify(info)}\n`);
+  writePrivateFile(join(stateDir, "server-info"), `${JSON.stringify(info)}\n`);
 
   async function stop(reason = "stopped"): Promise<void> {
     if (stopped) return;

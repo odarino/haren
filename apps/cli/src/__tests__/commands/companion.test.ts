@@ -1,17 +1,22 @@
-import { describe, it, expect, beforeEach, afterEach, spyOn } from "bun:test";
-import { existsSync, statSync } from "fs";
+import { describe, it, expect, beforeEach, afterEach, spyOn, type Mock } from "bun:test";
+import { existsSync, readdirSync, statSync } from "fs";
 import { mkdtemp, rm, mkdir, writeFile, readFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
-import { companion, latestSession } from "../../commands/companion";
+import { buildServeArgs, companion, companionDeps, latestSession } from "../../commands/companion";
 import { scaffoldWorkspace } from "../../commands/init";
-import { parseArgs } from "../../index";
 
 describe("haren companion", () => {
   let root: string;
   let harenDir: string;
+  // Captured, so no server-started JSON leaks into the test output.
+  let log: Mock<typeof console.log>;
+  let err: Mock<typeof console.error>;
+  const deps = { ...companionDeps };
 
   beforeEach(async () => {
+    log = spyOn(console, "log").mockImplementation(() => {});
+    err = spyOn(console, "error").mockImplementation(() => {});
     root = await mkdtemp(join(tmpdir(), "haren-companion-"));
     harenDir = join(root, "haren-dev");
     await mkdir(harenDir, { recursive: true });
@@ -25,6 +30,9 @@ describe("haren companion", () => {
   afterEach(async () => {
     const s = latestSession(harenDir);
     if (s?.running) await companion(["stop"], root);
+    Object.assign(companionDeps, deps);
+    log.mockRestore();
+    err.mockRestore();
     await rm(root, { recursive: true, force: true });
   });
 
@@ -76,7 +84,6 @@ describe("haren companion", () => {
       port: a.info!.port,
       fetch: () => new Response(""),
     });
-    const err = spyOn(console, "error").mockImplementation(() => {});
     try {
       await companion(["start"], root);
       const b = latestSession(harenDir)!;
@@ -89,7 +96,6 @@ describe("haren companion", () => {
         "port changed, give the user the new URL",
       );
     } finally {
-      err.mockRestore();
       blocker.stop(true);
       await companion(["stop"], root);
     }
@@ -124,36 +130,28 @@ describe("haren companion", () => {
   it("prints status lines while running", async () => {
     await companion(["start"], root);
     const info = latestSession(harenDir)!.info!;
-    const log = spyOn(console, "log").mockImplementation(() => {});
-    try {
-      await companion(["status"], root);
-      expect(log.mock.calls.map((c) => c.join(" ")).join("\n")).toBe(
-        `running ${info.url}\nscreen_dir ${info.screen_dir}\nstate_dir ${info.state_dir}`,
-      );
-    } finally {
-      log.mockRestore();
-    }
+    log.mockClear();
+    await companion(["status"], root);
+    expect(log.mock.calls.map((c) => c.join(" ")).join("\n")).toBe(
+      `running ${info.url}\nscreen_dir ${info.screen_dir}\nstate_dir ${info.state_dir}`,
+    );
   }, 15000);
 
   it("start while running reuses the session and notes ignored flags", async () => {
     await companion(["start"], root);
     const first = latestSession(harenDir)!;
-    const err = spyOn(console, "error").mockImplementation(() => {});
-    try {
-      await companion(["start"], root);
-      expect(err).not.toHaveBeenCalled();
-      await companion(["start", "--port", "1", "--open"], root);
-      expect(String(err.mock.calls[0]?.[0])).toContain("ignored --port, --open");
-    } finally {
-      err.mockRestore();
-    }
+    err.mockClear();
+    await companion(["start"], root);
+    expect(err).not.toHaveBeenCalled();
+    await companion(["start", "--port", "1", "--open"], root);
+    expect(String(err.mock.calls[0]?.[0])).toContain("ignored --port, --open");
     const now = latestSession(harenDir)!;
     expect(now.dir).toBe(first.dir);
     expect(now.running).toBe(true);
   }, 15000);
 
-  it("--foreground serves in-process until the idle timeout", async () => {
-    const run = companion(["start", "--foreground", "--idle-timeout-minutes", "0.01"], root);
+  it("--foreground serves in-process until server-stopped appears", async () => {
+    const run = companion(["start", "--foreground"], root);
     let s = latestSession(harenDir);
     for (let i = 0; i < 100 && !s?.running; i++) {
       await Bun.sleep(20);
@@ -161,6 +159,7 @@ describe("haren companion", () => {
     }
     expect(s!.running).toBe(true);
     expect((await fetch(s!.info!.url)).status).toBe(200);
+    await writeFile(join(s!.dir, "state", "server-stopped"), '{"reason":"idle"}\n');
     await run;
     expect(latestSession(harenDir)!.running).toBe(false);
   }, 15000);
@@ -209,7 +208,181 @@ describe("haren companion", () => {
     expect(lines).toContain(".companion/");
   });
 
-  it("is wired in the CLI", () => {
+  const ignoreTerm = async () => {
+    const script = join(root, "ignore-term.ts");
+    await writeFile(script, 'process.on("SIGTERM", () => {});\nsetInterval(() => {}, 1000);\n');
+    const child = Bun.spawn([process.execPath, script], { stdio: ["ignore", "ignore", "ignore"] });
+    await Bun.sleep(400); // let it install the SIGTERM handler
+    return child;
+  };
+  const alive = (pid: number) => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const deadPid = async () => {
+    const p = Bun.spawn(["true"]);
+    await p.exited;
+    return p.pid;
+  };
+
+  it("start rejects a bad --port or --idle-timeout-minutes with a JSON error", async () => {
+    for (const bad of [
+      ["--port", "abc"],
+      ["--port", "70000"],
+      ["--port", "1.5"],
+      ["--idle-timeout-minutes", "0"],
+      ["--idle-timeout-minutes", "1.5"],
+      ["--idle-timeout-minutes", "x"],
+    ]) {
+      log.mockClear();
+      await expect(companion(["start", ...bad], root)).rejects.toThrow(/must be/);
+      const out = JSON.parse(String(log.mock.calls[0]?.[0]));
+      expect(out.error).toContain(bad[0]);
+    }
+    expect(existsSync(join(harenDir, ".companion"))).toBe(false);
+    await expect(
+      companion(["__serve", "--session", join(root, "x"), "--port", "-1"], root),
+    ).rejects.toThrow(/--port must be/);
+    await expect(
+      companion(["__serve", "--session", join(root, "x"), "--idle-timeout-minutes", "0"], root),
+    ).rejects.toThrow(/positive/);
+  });
+
+  it("buildServeArgs passes a key file, never the key", () => {
+    const args = buildServeArgs("/s", {
+      port: 0,
+      host: "127.0.0.1",
+      keyFile: "/s/state/key",
+      ownerPid: 42,
+    });
+    expect(args).toContain("--key-file");
+    expect(args).not.toContain("--key");
+    expect(args[args.indexOf("--owner-pid") + 1]).toBe("42");
+  });
+
+  it("start writes state/key before the spawn and keeps the key off argv", async () => {
+    const seen: { args: string[]; key: boolean; info: boolean; dir: string }[] = [];
+    const pid = await deadPid();
+    companionDeps.spawnServe = (args) => {
+      const dir = args[args.indexOf("--session") + 1];
+      seen.push({
+        args,
+        dir,
+        key: existsSync(join(dir, "state", "key")),
+        info: existsSync(join(dir, "state", "server-info")),
+      });
+      return { pid, exitCode: 1 };
+    };
+    await expect(companion(["start", "--key", "s3cret-value"], root)).rejects.toThrow();
+    expect(seen.length).toBe(1);
+    expect(seen[0].key).toBe(true);
+    expect(seen[0].info).toBe(false);
+    expect(seen[0].args.join(" ")).not.toContain("s3cret-value");
+    expect(seen[0].args).toContain("--owner-pid");
+    expect(existsSync(seen[0].dir)).toBe(false);
+  });
+
+  it("--no-owner-watch passes no owner pid", async () => {
+    let seen: string[] = [];
+    const pid = await deadPid();
+    companionDeps.spawnServe = (args) => {
+      seen = args;
+      return { pid, exitCode: 1 };
+    };
+    await expect(companion(["start", "--no-owner-watch"], root)).rejects.toThrow();
+    expect(seen).not.toContain("--owner-pid");
+  });
+
+  it("__serve writes state/key before server-info", async () => {
+    const dir = join(harenDir, ".companion", `1-${Date.now()}`);
+    await companion(["__serve", "--session", dir, "--idle-timeout-minutes", "0.005"], root);
+    const st = join(dir, "state");
+    expect(statSync(join(st, "key")).mtimeMs).toBeLessThanOrEqual(
+      statSync(join(st, "server-info")).mtimeMs,
+    );
+    const key = (await readFile(join(st, "key"), "utf-8")).trim();
+    const info = JSON.parse(await readFile(join(st, "server-info"), "utf-8"));
+    expect(new URL(info.url).searchParams.get("key")).toBe(key);
+  }, 15000);
+
+  it("__serve stops with owner-exited when the owner process ends", async () => {
+    const owner = Bun.spawn(["sleep", "30"]);
+    const dir = join(harenDir, ".companion", `1-${Date.now()}`);
+    const run = companion(["__serve", "--session", dir, "--owner-pid", String(owner.pid)], root);
+    await Bun.sleep(300);
+    expect(latestSession(harenDir)!.running).toBe(true);
+    owner.kill("SIGKILL");
+    await owner.exited;
+    await run;
+    const stopped = JSON.parse(await readFile(join(dir, "state", "server-stopped"), "utf-8"));
+    expect(stopped.reason).toBe("owner-exited");
+  }, 15000);
+
+  it.skipIf(process.platform === "win32")(
+    "uses 0700 folders and 0600 files",
+    async () => {
+      await companion(["start"], root);
+      const s = latestSession(harenDir)!;
+      await writeFile(join(s.info!.screen_dir, "a.html"), "<p>a</p>");
+      await Bun.sleep(800); // the poll writes the events file for a new screen
+      for (const d of [s.dir, s.info!.screen_dir, s.info!.state_dir])
+        expect(statSync(d).mode & 0o777).toBe(0o700);
+      for (const f of ["server-info", "events", "pid", "key", "options.json"])
+        expect(statSync(join(s.info!.state_dir, f)).mode & 0o777).toBe(0o600);
+    },
+    15000,
+  );
+
+  it("restart keeps --host, --url-host and --idle-timeout-minutes", async () => {
+    await companion(
+      ["start", "--host", "127.0.0.1", "--url-host", "127.0.0.1", "--idle-timeout-minutes", "7"],
+      root,
+    );
+    const a = latestSession(harenDir)!;
+    expect(a.info!.url.startsWith("http://127.0.0.1:")).toBe(true);
+    await companion(["stop"], root);
+    await companion(["start"], root);
+    const b = latestSession(harenDir)!;
+    expect(b.dir).toBe(a.dir);
+    expect(b.info!.url).toBe(a.info!.url);
+    const opts = JSON.parse(await readFile(join(b.dir, "state", "options.json"), "utf-8"));
+    expect(opts).toEqual({ host: "127.0.0.1", urlHost: "127.0.0.1", idleTimeoutMinutes: "7" });
+  }, 15000);
+
+  it("a start timeout kills a child that ignores SIGTERM and leaves no folder", async () => {
+    const child = await ignoreTerm();
+    companionDeps.startTimeoutMs = 200;
+    companionDeps.startKillWaitMs = 200;
+    companionDeps.spawnServe = () => child;
+    await expect(companion(["start"], root)).rejects.toThrow(/did not start/);
+    await child.exited;
+    expect(alive(child.pid)).toBe(false);
+    expect(readdirSync(join(harenDir, ".companion"))).toEqual([]);
+  }, 15000);
+
+  it("stop forces a server that ignores SIGTERM", async () => {
+    await companion(["start"], root);
+    const s = latestSession(harenDir)!;
+    await companion(["stop"], root);
+    // Make the session look running again, owned by a process that ignores SIGTERM.
+    const child = await ignoreTerm();
+    await rm(join(s.dir, "state", "server-stopped"));
+    await writeFile(join(s.dir, "state", "pid"), `${child.pid}\n`);
+    companionDeps.stopWaitMs = 200;
+    log.mockClear();
+    await companion(["stop"], root);
+    expect(log.mock.calls.at(-1)?.[0]).toBe("stopped (forced)");
+    await child.exited;
+    expect(alive(child.pid)).toBe(false);
+  }, 15000);
+
+  it("is wired in the CLI", async () => {
+    // Imported here: importing index prints the help text, and the console is captured now.
+    const { parseArgs } = await import("../../index");
     expect(parseArgs(["companion", "start"])).toEqual({ command: "companion", args: ["start"] });
   });
 });

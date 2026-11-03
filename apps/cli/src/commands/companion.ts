@@ -1,8 +1,7 @@
 // `haren companion start|status|stop`: run the visual companion server for a haren folder.
+import { randomBytes } from "crypto";
 import {
-  chmodSync,
   existsSync,
-  mkdirSync,
   readdirSync,
   readFileSync,
   renameSync,
@@ -10,18 +9,56 @@ import {
   statSync,
   writeFileSync,
 } from "fs";
+import { spawnSync } from "child_process";
 import { join, resolve } from "path";
-import { type CompanionInfo, newestScreen, startCompanion } from "../companion/server";
+import {
+  type CompanionInfo,
+  makePrivateDir,
+  newestScreen,
+  startCompanion,
+  writePrivateFile,
+} from "../companion/server";
 import { ExitCode } from "../lib/exit-code";
 import { harenDirFlag, resolveHarenDir } from "../workspace/resolve";
 
 const USAGE = `Usage: haren companion <start|status|stop> [--haren-dir <path>]
   start   [--foreground] [--open] [--port <n>] [--host <h>] [--url-host <u>] [--idle-timeout-minutes <m>]
+          [--key <k>] [--no-owner-watch]
   status  print the URL of the running server (exit 1 when stopped)
   stop    stop the running server`;
 
-const START_TIMEOUT_MS = 5000;
-const START_FLAGS = ["--port", "--open", "--key", "--idle-timeout-minutes", "--host", "--url-host"];
+const START_FLAGS = [
+  "--port",
+  "--open",
+  "--key",
+  "--idle-timeout-minutes",
+  "--host",
+  "--url-host",
+  "--no-owner-watch",
+];
+
+/** Process hooks. Tests replace them to reach the timeout and forced-kill paths. */
+export const companionDeps = {
+  startTimeoutMs: 5000,
+  /** Wait for the child to exit after SIGTERM, then SIGKILL. */
+  startKillWaitMs: 1000,
+  stopWaitMs: 3000,
+  spawnServe(serveArgs: string[]): { pid: number; exitCode: number | null } {
+    const child = Bun.spawn([process.execPath, cliEntry(), "companion", ...serveArgs], {
+      stdio: ["ignore", "ignore", "ignore"],
+      detached: true,
+    });
+    child.unref();
+    return child;
+  },
+};
+
+/** Options a restart reuses, kept in state/options.json. */
+interface StartOptions {
+  host: string;
+  urlHost?: string;
+  idleTimeoutMinutes?: string;
+}
 
 export interface CompanionSession {
   dir: string;
@@ -49,8 +86,9 @@ function pidAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (e) {
+    // EPERM: the process exists but belongs to another user.
+    return (e as NodeJS.ErrnoException).code === "EPERM";
   }
 }
 
@@ -110,6 +148,7 @@ async function portFree(port: number, host: string): Promise<boolean> {
 }
 
 /** The CLI entry file to re-invoke: src/index.ts from source, the bundle file from dist. */
+/** The CLI entry file to re-invoke: src/index.ts from source, the bundle file from dist. */
 function cliEntry(): string {
   const here = import.meta.path;
   if (/[\\/]commands[\\/]companion\.ts$/.test(here))
@@ -129,15 +168,89 @@ function openBrowser(url: string): void {
   } catch {}
 }
 
+/** A bad flag value: print a JSON error line to stdout and exit 1. */
+function badValue(message: string): never {
+  console.log(JSON.stringify({ error: message }));
+  throw new ExitCode(1, message);
+}
+
+function checkPort(value: string | undefined): void {
+  if (value === undefined) return;
+  const n = Number(value);
+  if (!/^\d+$/.test(value) || n > 65535) badValue("--port must be an integer from 0 to 65535");
+}
+
+/**
+ * The agent harness process that owns this CLI call. The parent is often a short-lived shell
+ * the harness started for one command, so use the grandparent (as superpowers start-server.sh).
+ */
+function ownerPid(): number | undefined {
+  if (process.platform === "win32") return undefined;
+  const parent = process.ppid;
+  try {
+    const r = spawnSync("ps", ["-o", "ppid=", "-p", String(parent)], { encoding: "utf-8" });
+    const gp = Number.parseInt(String(r.stdout).trim(), 10);
+    if (Number.isFinite(gp) && gp > 1) return gp;
+  } catch {}
+  return parent > 1 ? parent : undefined;
+}
+
+export interface ServeArgOptions {
+  port: number;
+  host: string;
+  keyFile: string;
+  urlHost?: string;
+  idleTimeoutMinutes?: string;
+  open?: boolean;
+  portFallback?: boolean;
+  ownerPid?: number;
+}
+
+/** The `__serve` arguments. The key goes in a file, never on the command line. */
+export function buildServeArgs(dir: string, o: ServeArgOptions): string[] {
+  const args = ["__serve", "--session", dir, "--port", String(o.port), "--host", o.host];
+  args.push("--key-file", o.keyFile);
+  if (o.urlHost !== undefined) args.push("--url-host", o.urlHost);
+  if (o.idleTimeoutMinutes !== undefined) args.push("--idle-timeout-minutes", o.idleTimeoutMinutes);
+  if (o.ownerPid !== undefined) args.push("--owner-pid", String(o.ownerPid));
+  if (o.open) args.push("--open");
+  if (o.portFallback) args.push("--port-fallback");
+  return args;
+}
+
+const OWNER_CHECK_MS = 1000;
+
 async function serve(args: string[]): Promise<void> {
   const sessionDir = flag(args, "--session");
   if (!sessionDir) throw new Error("__serve needs --session <dir>");
-  const port = Number(flag(args, "--port") ?? "0");
+  const portText = flag(args, "--port") ?? "0";
+  checkPort(portText);
+  const port = Number(portText);
   const minutes = flag(args, "--idle-timeout-minutes");
+  // __serve is internal: a fraction of a minute is allowed (tests use short timeouts).
+  if (minutes !== undefined && !(Number(minutes) > 0))
+    badValue("--idle-timeout-minutes must be a positive number");
+  const ownerText = flag(args, "--owner-pid");
+  let owner = ownerText === undefined ? undefined : Number(ownerText);
+  if (owner !== undefined && !(Number.isInteger(owner) && owner > 0))
+    badValue("--owner-pid must be a positive integer");
+  // An owner that is gone already means a wrong pid: watch nothing, rely on the idle timeout.
+  if (owner !== undefined && !pidAlive(owner)) owner = undefined;
+
+  const stateDir = join(sessionDir, "state");
+  for (const d of [sessionDir, join(sessionDir, "content"), stateDir]) makePrivateDir(d);
+  // The key file is written before the server writes server-info.
+  const keyPath = join(stateDir, "key");
+  const keyFile = flag(args, "--key-file");
+  let key = keyFile ? readKey(keyFile) : undefined;
+  if (keyFile && !key) throw new Error(`No key in ${keyFile}`);
+  key ??= randomBytes(16).toString("hex");
+  if (!keyFile || resolve(keyFile) !== resolve(keyPath)) writePrivateFile(keyPath, `${key}\n`);
+
   const opts = {
     sessionDir,
     port,
-    key: flag(args, "--key"),
+    key,
     host: flag(args, "--host"),
     urlHost: flag(args, "--url-host"),
     idleTimeoutMs: minutes ? Number(minutes) * 60_000 : undefined,
@@ -150,17 +263,12 @@ async function serve(args: string[]): Promise<void> {
     if (!args.includes("--port-fallback") || port === 0) throw e;
     handle = await startCompanion({ ...opts, port: 0 });
   }
-  writeFileSync(join(sessionDir, "state", "pid"), `${process.pid}\n`);
-  const key = keyOf(handle.info.url);
-  if (key) {
-    const keyPath = join(sessionDir, "state", "key");
-    writeFileSync(keyPath, `${key}\n`, { mode: 0o600 });
-    chmodSync(keyPath, 0o600);
-  }
+  writePrivateFile(join(stateDir, "pid"), `${process.pid}\n`);
 
   await new Promise<void>((done) => {
     const stopFile = join(handle.info.state_dir, "server-stopped");
     let opened = !args.includes("--open");
+    let lastOwnerCheck = Date.now();
     const finish = () => {
       clearInterval(timer);
       process.off("SIGTERM", onSignal);
@@ -173,6 +281,13 @@ async function serve(args: string[]): Promise<void> {
         opened = true;
         openBrowser(handle.info.url);
       }
+      if (owner !== undefined && Date.now() - lastOwnerCheck >= OWNER_CHECK_MS) {
+        lastOwnerCheck = Date.now();
+        if (!pidAlive(owner)) {
+          void handle.stop("owner-exited").then(finish);
+          return;
+        }
+      }
       // The server writes server-stopped on idle timeout; end the process then.
       if (existsSync(stopFile)) finish();
     }, 100);
@@ -182,9 +297,9 @@ async function serve(args: string[]): Promise<void> {
   await handle.stop("stop");
 }
 
-function storedKey(dir: string): string | undefined {
+function readKey(path: string): string | undefined {
   try {
-    return readFileSync(join(dir, "state", "key"), "utf-8").trim() || undefined;
+    return readFileSync(path, "utf-8").trim() || undefined;
   } catch {
     return undefined;
   }
@@ -213,7 +328,32 @@ function notePortChange(restart: CompanionSession | null, info: CompanionInfo): 
   }
 }
 
+async function waitExit(pid: number, ms: number): Promise<boolean> {
+  const deadline = Date.now() + ms;
+  while (pidAlive(pid) && Date.now() < deadline) await Bun.sleep(25);
+  return !pidAlive(pid);
+}
+
+/** SIGTERM, wait, then SIGKILL. True when SIGKILL was needed. */
+async function terminate(pid: number, waitMs: number): Promise<boolean> {
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch {}
+  if (await waitExit(pid, waitMs)) return false;
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch {}
+  await waitExit(pid, 1000);
+  return true;
+}
+
 async function start(harenDir: string, args: string[]): Promise<void> {
+  const askedPort = flag(args, "--port");
+  checkPort(askedPort);
+  const askedMinutes = flag(args, "--idle-timeout-minutes");
+  if (askedMinutes !== undefined && (!/^\d+$/.test(askedMinutes) || Number(askedMinutes) < 1))
+    badValue("--idle-timeout-minutes must be a positive integer");
+
   const current = latestSession(harenDir);
   if (current?.running && current.info) {
     const ignored = START_FLAGS.filter((f) => args.includes(f));
@@ -225,16 +365,20 @@ async function start(harenDir: string, args: string[]): Promise<void> {
     console.log(JSON.stringify(current.info));
     return;
   }
-  const host = flag(args, "--host") ?? "127.0.0.1";
-  let port = 0;
-  let reused = false;
-  const asked = flag(args, "--port");
   const askedKey = flag(args, "--key");
   // Restart the stopped latest session in place: same dirs, key and port, so the open tab reconnects.
-  const restart = current?.info && asked === undefined && askedKey === undefined ? current : null;
-  const oldKey = restart ? (storedKey(restart.dir) ?? keyOf(restart.info!.url)) : undefined;
-  if (asked !== undefined) port = Number(asked);
-  else if (current?.info && (await portFree(current.info.port, host))) {
+  const restart =
+    current?.info && askedPort === undefined && askedKey === undefined ? current : null;
+  const saved = restart ? readJson<StartOptions>(join(restart.dir, "state", "options.json")) : null;
+  const options: StartOptions = {
+    host: flag(args, "--host") ?? saved?.host ?? "127.0.0.1",
+    urlHost: flag(args, "--url-host") ?? saved?.urlHost,
+    idleTimeoutMinutes: askedMinutes ?? saved?.idleTimeoutMinutes,
+  };
+  let port = 0;
+  let reused = false;
+  if (askedPort !== undefined) port = Number(askedPort);
+  else if (current?.info && (await portFree(current.info.port, options.host))) {
     port = current.info.port;
     reused = true;
   } else if (restart) {
@@ -244,40 +388,56 @@ async function start(harenDir: string, args: string[]): Promise<void> {
 
   const dir = restart ? restart.dir : join(harenDir, ".companion", `${process.pid}-${Date.now()}`);
   const fresh = !restart;
-  mkdirSync(join(dir, "state"), { recursive: true });
+  const stateDir = join(dir, "state");
+  for (const d of [dir, join(dir, "content"), stateDir]) makePrivateDir(d);
+  const keyPath = join(stateDir, "key");
+  const oldKey = restart ? (readKey(keyPath) ?? keyOf(restart.info!.url)) : undefined;
+  writePrivateFile(keyPath, `${askedKey ?? oldKey ?? randomBytes(16).toString("hex")}\n`);
   if (restart) {
-    rmSync(join(dir, "state", "server-stopped"), { force: true });
+    rmSync(join(stateDir, "server-stopped"), { force: true });
     // Move the old info aside (not delete it), so a failed restart can restore it.
-    const infoPath = join(dir, "state", "server-info");
+    const infoPath = join(stateDir, "server-info");
     if (existsSync(infoPath)) renameSync(infoPath, `${infoPath}.prev`);
   }
-  const serveArgs = ["__serve", "--session", dir, "--port", String(port), "--host", host];
-  for (const name of ["--key", "--url-host", "--idle-timeout-minutes"]) {
-    const v = flag(args, name);
-    if (v !== undefined) serveArgs.push(name, v);
-  }
-  if (oldKey && askedKey === undefined) serveArgs.push("--key", oldKey);
-  if (args.includes("--open")) serveArgs.push("--open");
-  if (reused) serveArgs.push("--port-fallback");
+  const foreground = args.includes("--foreground");
+  const serveArgs = buildServeArgs(dir, {
+    port,
+    host: options.host,
+    keyFile: keyPath,
+    urlHost: options.urlHost,
+    idleTimeoutMinutes: options.idleTimeoutMinutes,
+    open: args.includes("--open"),
+    portFallback: reused,
+    // --foreground: the owner is this process, so a watch adds nothing.
+    ownerPid: foreground || args.includes("--no-owner-watch") ? undefined : ownerPid(),
+  });
+  const fail = () => {
+    // A failed new session must not become the latest session.
+    if (fresh) rmSync(dir, { recursive: true, force: true });
+    else restoreInfo(dir);
+  };
+  const succeed = (info: CompanionInfo) => {
+    rmSync(join(stateDir, "server-info.prev"), { force: true });
+    writePrivateFile(join(stateDir, "options.json"), `${JSON.stringify(options)}\n`);
+    notePortChange(restart, info);
+  };
 
-  if (args.includes("--foreground")) {
+  if (foreground) {
     // Print the info line once the server writes it, then block until stopped.
-    const infoFile = join(dir, "state", "server-info");
+    const infoFile = join(stateDir, "server-info");
     const printer = setInterval(() => {
       if (existsSync(infoFile)) {
-        clearInterval(printer);
-        const text = readFileSync(infoFile, "utf-8").trim();
         const info = readJson<CompanionInfo>(infoFile);
-        if (info) notePortChange(restart, info);
-        rmSync(`${infoFile}.prev`, { force: true });
-        console.log(text);
+        if (!info) return;
+        clearInterval(printer);
+        succeed(info);
+        console.log(JSON.stringify(info));
       }
     }, 50);
     try {
       await serve(serveArgs);
     } catch (e) {
-      if (fresh) rmSync(dir, { recursive: true, force: true });
-      else restoreInfo(dir);
+      fail();
       throw e;
     } finally {
       clearInterval(printer);
@@ -285,32 +445,25 @@ async function start(harenDir: string, args: string[]): Promise<void> {
     return;
   }
 
-  const child = Bun.spawn([process.execPath, cliEntry(), "companion", ...serveArgs], {
-    stdio: ["ignore", "ignore", "ignore"],
-    detached: true,
-  });
-  child.unref();
-  writeFileSync(join(dir, "state", "pid"), `${child.pid}\n`);
+  const child = companionDeps.spawnServe(serveArgs);
+  writePrivateFile(join(stateDir, "pid"), `${child.pid}\n`);
 
-  const deadline = Date.now() + START_TIMEOUT_MS;
+  const deadline = Date.now() + companionDeps.startTimeoutMs;
   while (Date.now() < deadline) {
     const s = sessionOf(dir);
-    if (s.info && s.running && existsSync(join(dir, "state", "server-info"))) {
-      rmSync(join(dir, "state", "server-info.prev"), { force: true });
-      notePortChange(restart, s.info);
+    if (s.info && s.running && existsSync(join(stateDir, "server-info"))) {
+      succeed(s.info);
       console.log(JSON.stringify(s.info));
       return;
     }
     if (child.exitCode !== null) break;
     await Bun.sleep(50);
   }
-  try {
-    process.kill(child.pid, "SIGTERM");
-  } catch {}
-  // A failed new session must not become the latest session.
-  if (fresh) rmSync(dir, { recursive: true, force: true });
-  else restoreInfo(dir);
-  throw new Error(`The companion server did not start within ${START_TIMEOUT_MS / 1000} s.`);
+  await terminate(child.pid, companionDeps.startKillWaitMs);
+  fail();
+  throw new Error(
+    `The companion server did not start within ${companionDeps.startTimeoutMs / 1000} s.`,
+  );
 }
 
 function status(harenDir: string): void {
@@ -330,19 +483,7 @@ async function stop(harenDir: string): Promise<void> {
   if (s) {
     const pid = readPid(s.dir);
     // Signal only a running session: after an idle stop the pid may belong to another process.
-    if (s.running && pid !== null) {
-      try {
-        process.kill(pid, "SIGTERM");
-      } catch {}
-      const deadline = Date.now() + 3000;
-      while (pidAlive(pid) && Date.now() < deadline) await Bun.sleep(25);
-      if (pidAlive(pid)) {
-        try {
-          process.kill(pid, "SIGKILL");
-        } catch {}
-        forced = true;
-      }
-    }
+    if (s.running && pid !== null) forced = await terminate(pid, companionDeps.stopWaitMs);
     const stopped = join(s.dir, "state", "server-stopped");
     if (existsSync(join(s.dir, "state")) && !existsSync(stopped)) {
       writeFileSync(stopped, `${JSON.stringify({ reason: "stop" })}\n`);
