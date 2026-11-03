@@ -1,5 +1,13 @@
 // `haren companion start|status|stop`: run the visual companion server for a haren folder.
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "fs";
 import { join, resolve } from "path";
 import { type CompanionInfo, newestScreen, startCompanion } from "../companion/server";
 import { ExitCode } from "../lib/exit-code";
@@ -11,6 +19,7 @@ const USAGE = `Usage: haren companion <start|status|stop> [--haren-dir <path>]
   stop    stop the running server`;
 
 const START_TIMEOUT_MS = 5000;
+const START_FLAGS = ["--port", "--open", "--key", "--idle-timeout-minutes", "--host", "--url-host"];
 
 export interface CompanionSession {
   dir: string;
@@ -120,36 +129,44 @@ async function serve(args: string[]): Promise<void> {
   if (!sessionDir) throw new Error("__serve needs --session <dir>");
   const port = Number(flag(args, "--port") ?? "0");
   const minutes = flag(args, "--idle-timeout-minutes");
-  const handle = await startCompanion({
+  const opts = {
     sessionDir,
     port,
     key: flag(args, "--key"),
     host: flag(args, "--host"),
     urlHost: flag(args, "--url-host"),
     idleTimeoutMs: minutes ? Number(minutes) * 60_000 : undefined,
-  });
+  };
+  let handle: Awaited<ReturnType<typeof startCompanion>>;
+  try {
+    handle = await startCompanion(opts);
+  } catch (e) {
+    // A port reused from a previous session may be taken now; an explicit --port is not retried.
+    if (!args.includes("--port-fallback") || port === 0) throw e;
+    handle = await startCompanion({ ...opts, port: 0 });
+  }
   writeFileSync(join(sessionDir, "state", "pid"), `${process.pid}\n`);
 
   await new Promise<void>((done) => {
     const stopFile = join(handle.info.state_dir, "server-stopped");
     let opened = !args.includes("--open");
+    const finish = () => {
+      clearInterval(timer);
+      process.off("SIGTERM", onSignal);
+      process.off("SIGINT", onSignal);
+      done();
+    };
+    const onSignal = () => void handle.stop("stop").then(finish);
     const timer = setInterval(() => {
       if (!opened && newestScreen(handle.info.screen_dir)) {
         opened = true;
         openBrowser(handle.info.url);
       }
       // The server writes server-stopped on idle timeout; end the process then.
-      if (existsSync(stopFile)) {
-        clearInterval(timer);
-        done();
-      }
-    }, 500);
-    const onSignal = () => {
-      clearInterval(timer);
-      void handle.stop("stop").then(done);
-    };
-    process.once("SIGTERM", onSignal);
-    process.once("SIGINT", onSignal);
+      if (existsSync(stopFile)) finish();
+    }, 100);
+    process.on("SIGTERM", onSignal);
+    process.on("SIGINT", onSignal);
   });
   await handle.stop("stop");
 }
@@ -157,14 +174,24 @@ async function serve(args: string[]): Promise<void> {
 async function start(harenDir: string, args: string[]): Promise<void> {
   const current = latestSession(harenDir);
   if (current?.running && current.info) {
+    const ignored = START_FLAGS.filter((f) => args.includes(f));
+    if (ignored.length > 0) {
+      console.error(
+        `A companion session is already running; reused it and ignored ${ignored.join(", ")}.`,
+      );
+    }
     console.log(JSON.stringify(current.info));
     return;
   }
   const host = flag(args, "--host") ?? "127.0.0.1";
   let port = 0;
+  let reused = false;
   const asked = flag(args, "--port");
   if (asked !== undefined) port = Number(asked);
-  else if (current?.info && (await portFree(current.info.port, host))) port = current.info.port;
+  else if (current?.info && (await portFree(current.info.port, host))) {
+    port = current.info.port;
+    reused = true;
+  }
 
   const dir = join(harenDir, ".companion", `${process.pid}-${Date.now()}`);
   mkdirSync(join(dir, "state"), { recursive: true });
@@ -174,6 +201,7 @@ async function start(harenDir: string, args: string[]): Promise<void> {
     if (v !== undefined) serveArgs.push(name, v);
   }
   if (args.includes("--open")) serveArgs.push("--open");
+  if (reused) serveArgs.push("--port-fallback");
 
   if (args.includes("--foreground")) {
     // Print the info line once the server writes it, then block until stopped.
@@ -184,8 +212,14 @@ async function start(harenDir: string, args: string[]): Promise<void> {
         console.log(readFileSync(infoFile, "utf-8").trim());
       }
     }, 50);
-    await serve(serveArgs);
-    clearInterval(printer);
+    try {
+      await serve(serveArgs);
+    } catch (e) {
+      rmSync(dir, { recursive: true, force: true });
+      throw e;
+    } finally {
+      clearInterval(printer);
+    }
     return;
   }
 
@@ -209,6 +243,8 @@ async function start(harenDir: string, args: string[]): Promise<void> {
   try {
     process.kill(child.pid, "SIGTERM");
   } catch {}
+  // A failed session must not become the latest session.
+  rmSync(dir, { recursive: true, force: true });
   throw new Error(`The companion server did not start within ${START_TIMEOUT_MS / 1000} s.`);
 }
 
@@ -225,21 +261,29 @@ function status(harenDir: string): void {
 
 async function stop(harenDir: string): Promise<void> {
   const s = latestSession(harenDir);
+  let forced = false;
   if (s) {
     const pid = readPid(s.dir);
-    if (pid !== null && pidAlive(pid)) {
+    // Signal only a running session: after an idle stop the pid may belong to another process.
+    if (s.running && pid !== null) {
       try {
         process.kill(pid, "SIGTERM");
       } catch {}
       const deadline = Date.now() + 3000;
       while (pidAlive(pid) && Date.now() < deadline) await Bun.sleep(25);
+      if (pidAlive(pid)) {
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch {}
+        forced = true;
+      }
     }
     const stopped = join(s.dir, "state", "server-stopped");
     if (existsSync(join(s.dir, "state")) && !existsSync(stopped)) {
       writeFileSync(stopped, `${JSON.stringify({ reason: "stop" })}\n`);
     }
   }
-  console.log("stopped");
+  console.log(forced ? "stopped (forced)" : "stopped");
 }
 
 export async function companion(args: string[], cwd: string = process.cwd()): Promise<void> {

@@ -331,7 +331,8 @@ Master registry of all artifacts in this Haren workspace.
 
   // Keep agent state (team code, user id) out of the haren repo
   const gitignore = join(targetDir, ".gitignore");
-  if (!existsSync(gitignore)) await writeFile(gitignore, ".agent.json\n.agent.pid\n.plugins/\n.companion/\n");
+  if (!existsSync(gitignore))
+    await writeFile(gitignore, ".agent.json\n.agent.pid\n.plugins/\n.companion/\n");
 
   // Write brainstorm-gate hook script (works with both Claude Code and Cursor)
   await writeGateScript(targetDir);
