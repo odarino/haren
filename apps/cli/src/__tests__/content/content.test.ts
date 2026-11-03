@@ -205,3 +205,26 @@ describe("content: extract exit codes", () => {
     expect(text.indexOf("Exit code 3")).toBeLessThan(text.indexOf("6. Show the spec"));
   });
 });
+
+describe("content: no hand edit of progress.json", () => {
+  it("no skill or agent tells the agent to update progress.json by hand", () => {
+    const { readdirSync, statSync } = require("fs");
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const full = resolve(dir, name);
+        if (statSync(full).isDirectory()) walk(full);
+        else if (name.endsWith(".md")) files.push(full);
+      }
+    };
+    walk(resolve(CONTENT, "skills"));
+    walk(resolve(CONTENT, "agents"));
+    const bad = /^\s*(\d+\.|-)?\s*\**(update|edit|write|ensure)\**\s+(the\s+)?`?progress\.json/im;
+    for (const file of files) {
+      expect(`${file}: ${bad.test(readFileSync(file, "utf-8"))}`).toBe(`${file}: false`);
+    }
+    expect(read("skills/plan/SKILL.md")).toContain(
+      "Check that `currentIteration` in progress.json is 1",
+    );
+  });
+});

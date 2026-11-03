@@ -171,7 +171,7 @@ After creating the master spec and design, and after all tasks are defined:
    - Planned deliverables: the tasks for this iteration
    - Demo script: outline of what can be demonstrated
 
-5. **Update progress.json**: Ensure `currentIteration` is set to 1 (should already be set by init)
+5. **Check progress.json**: Check that `currentIteration` in progress.json is 1. If it is not, tell the user. Do not edit the file by hand.
 
 ## Rules
 
