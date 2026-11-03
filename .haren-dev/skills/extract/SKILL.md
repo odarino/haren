@@ -15,6 +15,8 @@ Never set `spec-approved` without user approval.
 
 ## Process
 
+Resolve repo paths in manifest.yaml from the haren folder, not from the workspace root.
+
 Do these steps for each unit of the module:
 
 1. Get the legacy source of the unit:
@@ -24,7 +26,7 @@ Do these steps for each unit of the module:
 3. Write `artifacts/02-discovery/units/<unit>/spec.md`:
    - With an adapter: use the adapter skill named in the plugin's `haren-plugin.json`, key `adapter.skills.spec`.
    - Without an adapter: use the `unit-spec.md` template.
-4. Run `haren track unit <module> <unit> spec-draft`. Get the next artifact ID with the `resolve-next-id` skill. Register the spec now, before approval: `haren track artifact <id> --type unit-spec --path artifacts/02-discovery/units/<unit>/spec.md --module <module>`. Then `haren track check` passes while the unit waits for approval.
+4. Run `haren track unit <module> <unit> spec-draft`. Use the ID `UNITSPEC-<unit>` (see the `resolve-next-id` skill). Register the spec now, before approval: `haren track artifact <id> --type unit-spec --path artifacts/02-discovery/units/<unit>/spec.md --module <module>`. Then `haren track check` passes while the unit waits for approval.
 5. Run `haren migrate gate <unit>`. Fix the spec for each finding. Run the gate again until it shows PASS. Exit code 3 means the gate passed but the user did not approve yet. Go to step 6. Do not treat it as a failure.
 6. Show the spec and the gate result to the user. Wait for approval.
 7. Only after the user approves:

@@ -19,6 +19,8 @@ Determine the next available ID for a given artifact type to prevent conflicts.
 | Type | Format | Example |
 |------|--------|---------|
 | RESEARCH | RESEARCH-{NNN}-{slug} | RESEARCH-001-auth-approach |
+| unit-spec | `UNITSPEC-<unit>` (one per unit, no number) | UNITSPEC-SCR_A001 |
+| legacy-semantics | `LSEM-NNN` | LSEM-001 |
 
 ## Rules
 

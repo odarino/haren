@@ -182,6 +182,7 @@ const MIGRATION_SCAFFOLD = (withLegacyExample: boolean) =>
       : ""
   }
 migration:
+  # repo paths are relative to this folder
   # adapter: <plugin-name>   # optional: a plugin that provides inventory, extract and gate
   unitId: '^SCR_[A-Z]\\d{3}(_P\\d+)?$'   # change it to match your legacy unit ids; change or remove parentOf below to match
   parentOf: '^(SCR_[A-Z]\\d{3})_P\\d+$'

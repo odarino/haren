@@ -11,7 +11,7 @@ The legacy repo is read-only. Do not write to it.
 
 ## Process
 
-1. Read `manifest.yaml`. Find the `migration` block and the legacy repo.
+1. Read `manifest.yaml`. Find the `migration` block and the legacy repo. Resolve repo paths in manifest.yaml from the haren folder, not from the workspace root.
 2. Make the unit inventory:
    - With an adapter (`migration.adapter` is set): run `haren migrate inventory`. It writes `artifacts/02-discovery/unit-map.md`. No module exists yet, so it registers no unit status. The decompose phase does that.
    - Without an adapter: list the units from the legacy source. Write `unit-map.md` from the `unit-map.md` template. Do not run `haren track unit` yet: the modules do not exist before the decompose phase.
@@ -22,9 +22,9 @@ The legacy repo is read-only. Do not write to it.
 4. Write the module of each unit into the Module column of `unit-map.md`. Do not run `haren migrate inventory` again here. The decompose phase creates the modules and registers the units.
 5. Record the shared components (tables and routines that units in more than one module use).
 6. Make sure that the semantics rulebook exists:
-   - If `artifacts/01-research/legacy-semantics.md` is missing, copy the semantics file of the adapter plugin. Find its path in the plugin's `haren-plugin.json`, key `adapter.semantics`, inside the installed plugin folder.
+   - If `artifacts/01-research/legacy-semantics.md` is missing, copy the semantics file from the installed plugin: `<haren>/.plugins/<adapter>/<adapter.semantics>`. Read the `adapter.semantics` path in `<haren>/.plugins/<adapter>/haren-plugin.json`. Do not copy from the adapter source folder.
    - If there is no adapter, start from the `legacy-semantics.md` template.
-   - Get the next artifact ID with the `resolve-next-id` skill. Register it: `haren track artifact <id> --type legacy-semantics --path artifacts/01-research/legacy-semantics.md`.
+   - Use the ID `LSEM-NNN` (see the `resolve-next-id` skill). Register it: `haren track artifact <id> --type legacy-semantics --path artifacts/01-research/legacy-semantics.md`.
 7. Write the context brief. Include the legacy stack, the unit counts per family, the shared components, and the suggested modules.
    - discover/SKILL.md step 6 registers the context brief. Do not register it again.
 8. After step 6 of `discover/SKILL.md` registers the context brief, run `haren track check`. Then go to the `decompose` phase.

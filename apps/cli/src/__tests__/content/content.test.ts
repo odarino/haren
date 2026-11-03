@@ -197,6 +197,29 @@ describe("content: discover registers the context brief once", () => {
   });
 });
 
+describe("content: migration notes from retest", () => {
+  const PATH_RULE =
+    "Resolve repo paths in manifest.yaml from the haren folder, not from the workspace root.";
+  it("extract and migration.md say repo paths are relative to the haren folder", () => {
+    expect(read("skills/extract/SKILL.md")).toContain(PATH_RULE);
+    expect(read("skills/discover/migration.md")).toContain(PATH_RULE);
+  });
+  it("resolve-next-id lists unit-spec and legacy-semantics formats", () => {
+    const text = read("skills/resolve-next-id/SKILL.md");
+    expect(text).toContain("UNITSPEC-<unit>");
+    expect(text).toContain("LSEM-NNN");
+  });
+  it("migration.md copies semantics from the installed plugin", () => {
+    const text = read("skills/discover/migration.md");
+    expect(text).toContain("<haren>/.plugins/<adapter>/");
+    expect(text).toContain("adapter.semantics");
+    expect(text).toContain("LSEM-NNN");
+  });
+  it("extract uses the UNITSPEC id", () => {
+    expect(read("skills/extract/SKILL.md")).toContain("UNITSPEC-<unit>");
+  });
+});
+
 describe("content: extract exit codes", () => {
   it("puts exit code 3 at the gate step, once", () => {
     const text = read("skills/extract/SKILL.md");
