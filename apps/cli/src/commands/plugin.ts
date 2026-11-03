@@ -120,7 +120,14 @@ export async function plugin(args: string[]): Promise<void> {
       try {
         await installPlugin(opts.target!, ctx);
       } catch (err) {
-        console.error(`  ${(err as Error).message}`);
+        const message = (err as Error).message;
+        console.error(
+          `  ${
+            message === "Plugin install cancelled" && !opts.yes && !process.stdin.isTTY
+              ? "Plugin install cancelled: no TTY for the confirmation prompt. Re-run with --yes after you review the plugin."
+              : message
+          }`,
+        );
         process.exit(1);
       }
       await syncEditors();

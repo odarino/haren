@@ -259,6 +259,40 @@ describe("buildManifestText", () => {
     expect((m.iterations as { enabled: boolean }).enabled).toBe(true);
   });
 
+  it("scaffolds a valid migration block and a commented legacy repo example", () => {
+    const text = buildManifestText({
+      version: "1.5.0",
+      layout: "workspace",
+      project: "shop",
+      mode: "migration",
+      language: "English",
+      repos: {},
+    });
+    const m = parseManifest(text);
+    const cfg = readMigrationConfig(m)!;
+    expect(cfg.unitId.test("SCR_A001")).toBe(true);
+    expect(cfg.unitId.test("SCR_A001_P2")).toBe(true);
+    expect(cfg.parentOf).toBeDefined();
+    expect(cfg.acceptance).toBe("parity-with-approved-deviations");
+    expect(cfg.liveLegacy).toBe(false);
+    expect(cfg.adapter).toBeUndefined();
+    expect(text).toContain("# adapter:");
+    expect(text).toContain("#   legacy_src: { path: ../legacy_src, role: legacy, readOnly: true }");
+    expect(legacyRepo(m)).toBeNull();
+  });
+
+  it("adds no migration block for other modes", () => {
+    const text = buildManifestText({
+      version: "1.5.0",
+      layout: "workspace",
+      project: "shop",
+      mode: "explore",
+      language: "English",
+      repos: {},
+    });
+    expect(text).not.toContain("migration:");
+  });
+
   it("keeps special scalar values as strings on round-trip", () => {
     const text = buildManifestText({
       version: "1.2.0",

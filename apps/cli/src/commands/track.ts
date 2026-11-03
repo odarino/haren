@@ -557,7 +557,9 @@ export async function checkWorkspace(paths: TrackPaths): Promise<CheckResult> {
   if (manifest.mode === "migration" && mig) {
     try {
       if (!legacyRepo(manifest)) {
-        errors.push("mode: migration needs one repo with role: legacy in manifest.yaml");
+        errors.push(
+          "mode: migration needs one repo with role: legacy in manifest.yaml. Add it under repos, for example: legacy_src: { path: ../legacy_src, role: legacy, readOnly: true }",
+        );
       }
     } catch (e) {
       errors.push((e as Error).message);

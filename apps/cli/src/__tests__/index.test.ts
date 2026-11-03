@@ -90,6 +90,85 @@ describe("haren CLI", () => {
     expect(r.out).not.toContain("Plan:");
   });
 
+  it("lists every init mode in help", async () => {
+    const r = await haren(["init", "--help"], ws);
+    expect(r.out).toContain("--mode <undecided|explore|blueprint|inherit|migration>");
+  });
+
+  it("exits 3 for gate PASS without approval", async () => {
+    const h = join(ws, "haren");
+    await mkdir(join(ws, "legacy_src"), { recursive: true });
+    await mkdir(join(h, ".plugins", "fake", "tools"), { recursive: true });
+    await mkdir(join(h, "artifacts", "02-discovery", "units", "SCR_A001"), { recursive: true });
+    await mkdir(join(h, "events"), { recursive: true });
+    await writeFile(
+      join(h, "manifest.yaml"),
+      'haren:\n  version: "1.5.0"\nmode: migration\nrepos:\n  legacy_src: { path: ../legacy_src, role: legacy, readOnly: true }\nmigration:\n  adapter: fake\n  unitId: "^SCR_[A-Z]\\\\d{3}$"\n',
+    );
+    await writeFile(
+      join(h, "progress.json"),
+      JSON.stringify({
+        project: "p",
+        version: 3,
+        modules: {
+          m: {
+            status: "decomposed",
+            currentPhase: "decompose",
+            features: {},
+            lastCommit: {},
+            units: { SCR_A001: "spec-draft" },
+          },
+        },
+        dependencies: {},
+      }),
+    );
+    await writeFile(join(h, "events", "events.jsonl"), "");
+    await writeFile(
+      join(h, "plugins.json"),
+      JSON.stringify({
+        version: 1,
+        plugins: { fake: { source: "x", version: "0.1.0", enabled: true, config: {} } },
+      }),
+    );
+    await writeFile(
+      join(h, ".plugins", "fake", "haren-plugin.json"),
+      JSON.stringify({
+        name: "fake",
+        version: "0.1.0",
+        harenApi: "2",
+        adapter: {
+          unitKind: "screen",
+          commands: { gate: "bun tools/gate.ts {specPath} --ir {unitDir}" },
+        },
+      }),
+    );
+    await writeFile(
+      join(h, ".plugins", "fake", "tools", "gate.ts"),
+      'console.log(JSON.stringify({ unit: "SCR_A001", pass: true, findings: [] }));',
+    );
+    await writeFile(
+      join(h, "artifacts", "02-discovery", "units", "SCR_A001", "spec.md"),
+      "# spec\n",
+    );
+    const r = await haren(["migrate", "gate", "SCR_A001", "--haren-dir", h], ws);
+    expect(r.err).toContain(
+      "Gate PASS. Not approved yet. Review the spec, then re-run with --approve.",
+    );
+    expect(r.code).toBe(3);
+  });
+
+  it("explains plugin add without a TTY", async () => {
+    await haren(
+      ["init", "--yes", "--layout", "workspace", "--project", "p", "--mode", "explore"],
+      ws,
+    );
+    const r = await haren(["plugin", "add", "file:./nowhere"], ws);
+    expect(r.code).toBe(1);
+    expect(r.err).toContain(
+      "Plugin install cancelled: no TTY for the confirmation prompt. Re-run with --yes after you review the plugin.",
+    );
+  });
+
   it("prints the stack of an unhandled error only with HAREN_DEBUG=1", async () => {
     await mkdir(join(ws, ".claude"));
     await writeFile(join(ws, ".claude", "settings.json"), "{nope");

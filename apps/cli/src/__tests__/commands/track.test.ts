@@ -4,6 +4,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { track, upsertArtifactRow } from "../../commands/track";
 import { parseArgs } from "../../index";
+import { buildManifestText } from "../../workspace/manifest";
 
 let root: string;
 let harenDir: string;
@@ -415,6 +416,24 @@ describe("track check in migration mode", () => {
       'haren:\n  version: "1.5.0"\nmode: migration\nmigration:\n  unitId: "^SCR_"\n',
     );
     await expect(run("check")).rejects.toThrow(/role: legacy/);
+  });
+  it("gives an actionable error on a fresh migration scaffold", async () => {
+    await writeFile(
+      join(harenDir, "manifest.yaml"),
+      buildManifestText({
+        version: "1.5.0",
+        layout: "workspace",
+        project: "shop",
+        mode: "migration",
+        language: "English",
+        repos: {},
+      }),
+    );
+    const err = await run("check").catch((e) => e);
+    expect(err.message).toContain("role: legacy");
+    expect(err.message).toContain(
+      "legacy_src: { path: ../legacy_src, role: legacy, readOnly: true }",
+    );
   });
   it("fails when a unit id does not match unitId", async () => {
     await writeFile(

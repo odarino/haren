@@ -26,6 +26,7 @@ Existing codebase plus documentation — understand what exists before planning 
    - What's been built but isn't in the docs?
 5. Ask the user to clarify goals for the next phase of work
 6. Synthesize into context-brief.md format
+7. Register it: get the next artifact ID with the `resolve-next-id` skill. Run `haren track artifact <id> --type context-brief --path artifacts/02-discovery/context-brief.md`.
 
 ## Tips
 

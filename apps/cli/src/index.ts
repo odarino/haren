@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
 
+import { ExitCode } from "./lib/exit-code";
+
 interface ParsedCommand {
   command: "init" | "upgrade" | "agent" | "plugin" | "track" | "migrate" | "help" | "unknown";
   args: string[];
@@ -73,6 +75,7 @@ async function main() {
       console.log(
         "                  --dir <path>  --layout monorepo|workspace  --haren-dir <name>",
       );
+      console.log("                  --mode <undecided|explore|blueprint|inherit|migration>");
       console.log("                  --yes|-y  --dry-run  --force");
       console.log("                  --plugin <name|source>  (repeatable)");
       console.log(
@@ -94,7 +97,12 @@ async function main() {
       console.log("                  unit <module> <unit> <status>   (migration mode)");
       console.log('                  override on --reason "<text>" [--hours <n>] | override off');
       console.log("  haren migrate   Run the migration adapter:");
-      console.log("                  inventory [--module <m>] | extract <unit> | gate <unit> [--approve]");
+      console.log(
+        "                  inventory [--module <m>] | extract <unit> | gate <unit> [--approve]",
+      );
+      console.log(
+        "                  gate exit codes: 0 approved, 1 failed, 3 PASS but not approved yet",
+      );
       break;
     case "unknown":
       console.error(`Unknown command: ${parsed.args[0]}`);
@@ -107,5 +115,5 @@ main().catch((err) => {
   const debug = process.env.HAREN_DEBUG === "1";
   const message = err instanceof Error ? (debug && err.stack) || err.message : String(err);
   console.error(`  ${message}`);
-  process.exit(1);
+  process.exit(err instanceof ExitCode ? err.code : 1);
 });

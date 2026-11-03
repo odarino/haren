@@ -25,6 +25,7 @@ After brainstorming completes, register all output artifacts using the create-ar
 3. After brainstorming produces the design, register artifacts via create-artifact skill
 4. Validate output with validate-artifact skill
 5. Synthesize into context-brief.md format if brainstorming didn't produce one directly
+6. Register it: get the next artifact ID with the `resolve-next-id` skill. Run `haren track artifact <id> --type context-brief --path artifacts/02-discovery/context-brief.md`.
 
 ## Tips
 

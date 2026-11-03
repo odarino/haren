@@ -149,3 +149,31 @@ describe("content: migration mode", () => {
     expect(text).toContain("`spec-draft`");
   });
 });
+
+describe("content: discover registers the context brief", () => {
+  for (const rel of [
+    "skills/discover/migration.md",
+    "skills/discover/blueprint.md",
+    "skills/discover/explore.md",
+    "skills/discover/inherit.md",
+  ]) {
+    it(`${rel} registers context-brief.md`, () => {
+      const text = read(rel);
+      expect(text).toContain("resolve-next-id");
+      expect(text).toContain(
+        "haren track artifact <id> --type context-brief --path artifacts/02-discovery/context-brief.md",
+      );
+    });
+  }
+  it("discover SKILL gets the ID first", () => {
+    expect(read("skills/discover/SKILL.md")).toContain("resolve-next-id");
+  });
+});
+
+describe("content: extract exit codes", () => {
+  it("tells the agent that exit 3 means ask the user", () => {
+    const text = read("skills/extract/SKILL.md");
+    expect(text).toContain("exit code 3");
+    expect(text).toContain("ask the user");
+  });
+});

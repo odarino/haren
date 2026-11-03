@@ -19,6 +19,7 @@ You have existing documentation to work from.
 3. Identify gaps — requirements that are mentioned but not detailed
 4. Ask the user to clarify gaps (one question at a time)
 5. Synthesize into context-brief.md format
+6. Register it: get the next artifact ID with the `resolve-next-id` skill. Run `haren track artifact <id> --type context-brief --path artifacts/02-discovery/context-brief.md`.
 
 ## Tips
 

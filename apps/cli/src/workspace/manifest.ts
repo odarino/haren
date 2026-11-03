@@ -175,6 +175,20 @@ export interface NewManifestOptions {
   iterations?: { duration: string; startDate: string; demoDay: string };
 }
 
+const MIGRATION_SCAFFOLD = (withLegacyExample: boolean) =>
+  `${
+    withLegacyExample
+      ? `  # Add the read-only legacy repo, then remove the # marks:\n  #   legacy_src: { path: ../legacy_src, role: legacy, readOnly: true }\n`
+      : ""
+  }
+migration:
+  # adapter: <plugin-name>   # optional: a plugin that provides inventory, extract and gate
+  unitId: '^SCR_[A-Z]\\d{3}(_P\\d+)?$'   # change it to match your legacy unit ids
+  parentOf: '^(SCR_[A-Z]\\d{3})_P\\d+$'
+  acceptance: parity-with-approved-deviations
+  liveLegacy: false
+`;
+
 export function buildManifestText(o: NewManifestOptions): string {
   let text = `haren:
   version: ${JSON.stringify(o.version)}
@@ -183,7 +197,7 @@ project: ${yamlScalar(o.project)}
 mode: ${yamlScalar(o.mode)}
 language: ${yamlScalar(o.language)}
 
-${renderReposBlock(o.repos)}
+${renderReposBlock(o.repos)}${o.mode === "migration" ? MIGRATION_SCAFFOLD(Object.keys(o.repos).length === 0) : ""}
 sources:
   # Mode-specific inputs
   # docs: ./artifacts/00-baseline/requirements.pdf

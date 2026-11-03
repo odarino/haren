@@ -18,6 +18,7 @@ import {
   type GateOut,
   type InventoryOut,
 } from "../plugins/adapter-run";
+import { ExitCode } from "../lib/exit-code";
 import { pluginDir } from "../plugins/state";
 import { harenDirFlag, resolveHarenDir } from "../workspace/resolve";
 import { emit, loadMigration, pathsFor, upsertArtifactRow, type TrackPaths } from "./track";
@@ -333,7 +334,10 @@ async function gate(ctx: Ctx, unit: string, approve: boolean): Promise<void> {
 
   if (!approve) {
     if (!process.stdin.isTTY) {
-      throw new Error("Not approved. Review the spec, then re-run with --approve.");
+      throw new ExitCode(
+        3,
+        "Gate PASS. Not approved yet. Review the spec, then re-run with --approve.",
+      );
     }
     const answer = prompt(`  Approve the spec of ${unit}? [y/N]`);
     if (answer?.trim().toLowerCase() !== "y") {

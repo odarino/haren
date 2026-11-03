@@ -6,6 +6,7 @@ import { tmpdir } from "os";
 import { migrate, renderUnitMap } from "../../commands/migrate";
 import { pluginDir } from "../../plugins/state";
 import { parseArgs } from "../../index";
+import { ExitCode } from "../../lib/exit-code";
 
 let root: string;
 let harenDir: string;
@@ -240,7 +241,12 @@ describe("haren migrate", () => {
 
   it("gate PASS without --approve and no TTY refuses", async () => {
     await readyForGate();
-    await expect(migrate(["gate", "SCR_A001"], root)).rejects.toThrow(/--approve/);
+    const err = await migrate(["gate", "SCR_A001"], root).catch((e) => e);
+    expect(err).toBeInstanceOf(ExitCode);
+    expect(err.code).toBe(3);
+    expect(err.message).toBe(
+      "Gate PASS. Not approved yet. Review the spec, then re-run with --approve.",
+    );
     expect((await progress()).modules.orders.units.SCR_A001).toBe("spec-draft");
   });
 
