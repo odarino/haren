@@ -152,9 +152,27 @@ export function readUiMode(m: Manifest): UiMode {
   return UI_MODES.find((mode) => mode === v) ?? "ask";
 }
 
-/** Replace the top-level `ui` block, or append it. Other text stays. */
+/**
+ * Set `ui.mockups`. Only the value changes: other `ui.*` keys and an inline comment stay.
+ * A missing `ui` block is appended; a `ui` block without `mockups` gets the line added.
+ */
 export function setUiModeText(text: string, mode: UiMode): string {
-  return replaceTopLevelBlock(text, "ui", `ui:\n  mockups: ${mode}\n`);
+  const lines = text.split("\n");
+  const start = lines.findIndex((l) => /^ui:\s*(#.*)?\r?$/.test(l));
+  // No block form (missing, or an inline `ui: {...}`): write a fresh block.
+  if (start === -1) return replaceTopLevelBlock(text, "ui", `ui:\n  mockups: ${mode}\n`);
+  let end = start + 1;
+  while (end < lines.length && (/^\r?$/.test(lines[end]) || /^\s/.test(lines[end]))) end++;
+  for (let i = start + 1; i < end; i++) {
+    const m = /^(\s+mockups:\s*)([^\s#]*)(.*)$/.exec(lines[i]);
+    if (m) {
+      lines[i] = `${m[1]}${mode}${m[3]}`;
+      return lines.join("\n");
+    }
+  }
+  const cr = lines[start].endsWith("\r") ? "\r" : "";
+  lines.splice(start + 1, 0, `  mockups: ${mode}${cr}`);
+  return lines.join("\n");
 }
 
 export interface ManifestMigration {

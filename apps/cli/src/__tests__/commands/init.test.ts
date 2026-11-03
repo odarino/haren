@@ -70,6 +70,9 @@ describe("scaffoldWorkspace", () => {
     const manifest = await readFile(join(testDir, "manifest.yaml"), "utf-8");
     expect(manifest).toContain("project: my-app");
     expect(manifest).toContain("mode: explore");
+    expect(manifest).toMatch(/^\s+mockups: ask\b/m);
+    const ignore = (await readFile(join(testDir, ".gitignore"), "utf-8")).split("\n");
+    expect(ignore).toContain(".companion/");
   });
 
   it("creates empty progress.json", async () => {

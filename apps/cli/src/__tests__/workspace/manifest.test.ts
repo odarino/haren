@@ -398,6 +398,20 @@ describe("ui mode", () => {
     expect(readUiMode(parseManifest(out))).toBe("ascii");
     expect(readUiMode(parseManifest(setUiModeText(out, "browser")))).toBe("browser");
   });
+  it("changes only ui.mockups and keeps other ui keys and the comment", () => {
+    const src =
+      "haren:\n  version: 1\nui:\n  theme: dark\n  mockups: ask   # ask | ascii | browser\n  extra: 1\nrepos: {}\n";
+    const out = setUiModeText(src, "browser");
+    expect(out).toBe(src.replace("mockups: ask ", "mockups: browser "));
+    expect(out).toContain("  mockups: browser   # ask | ascii | browser");
+    expect(out).toContain("  theme: dark\n");
+    expect(out).toContain("  extra: 1\n");
+  });
+  it("adds mockups to a ui block without it, appends a missing block", () => {
+    const out = setUiModeText("ui:\n  theme: dark\n", "ascii");
+    expect(out).toBe("ui:\n  mockups: ascii\n  theme: dark\n");
+    expect(setUiModeText("haren:\n  version: 1\n", "ascii")).toContain("ui:\n  mockups: ascii\n");
+  });
   it("scaffolds mockups: ask in a new manifest", () => {
     const text = buildManifestText({
       version: "1.0.0",
