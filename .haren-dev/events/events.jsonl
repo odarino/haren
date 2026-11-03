@@ -14,3 +14,6 @@
 {"type":"artifact","id":"TASKS-002","artifactType":"tasks","path":"artifacts/04-plans/visual-companion/tasks.md","status":"draft","timestamp":"2026-11-03T02:27:48.774Z"}
 {"type":"gate-override","action":"on","reason":"user approved: execute visual-companion plan (TASKS-002)","until":"2026-11-03T14:30:15.618Z","timestamp":"2026-11-03T02:30:15.621Z"}
 {"type":"gate-override","action":"off","timestamp":"2026-11-03T03:27:36.686Z"}
+{"type":"gate-override","action":"on","reason":"smoke test blocker: companion helper key placeholder","until":"2026-11-03T05:33:32.929Z","timestamp":"2026-11-03T03:33:32.930Z"}
+{"type":"gate-override","action":"on","reason":"smoke test follow-ups: owner grace, companion polish","until":"2026-11-03T06:45:17.168Z","timestamp":"2026-11-03T03:45:17.169Z"}
+{"type":"gate-override","action":"off","timestamp":"2026-11-03T03:56:24.631Z"}
