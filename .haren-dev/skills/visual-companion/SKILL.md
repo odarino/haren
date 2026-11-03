@@ -78,6 +78,8 @@ haren companion start --open --host 0.0.0.0 --url-host localhost
 
 Other options: `--port <n>`, `--idle-timeout-minutes <n>`.
 
+The server stops when the agent process that started it exits. If the owner check is wrong (the server stops right after the start command), or the server must outlive the agent, add `--no-owner-watch`. Then only the idle timeout and `haren companion stop` stop it.
+
 ## The Loop
 
 1. **Check the server**: run `haren companion status` before every push. Exit 0 means it runs. If it stopped, run `haren companion start --open`. It restarts the same session with the same URL, key, port, `screen_dir` and `state_dir`. The open tab connects again, and you do not need to send a new URL. If the CLI prints "port changed, give the user the new URL", the old port was busy. Then give the user the new URL.

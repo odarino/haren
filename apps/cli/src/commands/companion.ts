@@ -180,19 +180,54 @@ function checkPort(value: string | undefined): void {
   if (!/^\d+$/.test(value) || n > 65535) badValue("--port must be an integer from 0 to 65535");
 }
 
+const SHELLS = new Set(["sh", "bash", "zsh", "dash", "fish", "ksh", "tcsh", "csh", "env"]);
+
+export interface PsEntry {
+  ppid: number;
+  comm: string;
+}
+
+/** `ps -o ppid=,comm= -p <pid>`, or null when ps fails. */
+function readPs(pid: number): PsEntry | null {
+  try {
+    const r = spawnSync("ps", ["-o", "ppid=,comm=", "-p", String(pid)], { encoding: "utf-8" });
+    const m = /^\s*(\d+)\s+(.+?)\s*$/.exec(String(r.stdout));
+    return m ? { ppid: Number(m[1]), comm: m[2] } : null;
+  } catch {
+    return null;
+  }
+}
+
+function isShell(comm: string): boolean {
+  const base = comm.split("/").pop() ?? comm;
+  return SHELLS.has(base.replace(/^-/, ""));
+}
+
 /**
- * The agent harness process that owns this CLI call. The parent is often a short-lived shell
- * the harness started for one command, so use the grandparent (as superpowers start-server.sh).
+ * The agent harness process that owns this CLI call: the first ancestor from `start` that is
+ * not a shell or `env`. Agent tool calls run the CLI through short-lived shells (and maybe a
+ * wrapper script), so those do not count. Without a non-shell ancestor, fall back to the
+ * grandparent (as superpowers start-server.sh), then the parent.
  */
+export function pickOwnerPid(
+  start: number,
+  ps: (pid: number) => PsEntry | null = readPs,
+): number | undefined {
+  let pid = start;
+  for (let hops = 0; pid > 1 && hops < 64; hops++) {
+    const e = ps(pid);
+    if (!e) break;
+    if (!isShell(e.comm)) return pid;
+    pid = e.ppid;
+  }
+  const gp = ps(start)?.ppid;
+  if (gp !== undefined && gp > 1) return gp;
+  return start > 1 ? start : undefined;
+}
+
 function ownerPid(): number | undefined {
   if (process.platform === "win32") return undefined;
-  const parent = process.ppid;
-  try {
-    const r = spawnSync("ps", ["-o", "ppid=", "-p", String(parent)], { encoding: "utf-8" });
-    const gp = Number.parseInt(String(r.stdout).trim(), 10);
-    if (Number.isFinite(gp) && gp > 1) return gp;
-  } catch {}
-  return parent > 1 ? parent : undefined;
+  return pickOwnerPid(process.ppid);
 }
 
 export interface ServeArgOptions {

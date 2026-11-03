@@ -3,7 +3,13 @@ import { existsSync, readdirSync, statSync } from "fs";
 import { mkdtemp, rm, mkdir, writeFile, readFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
-import { buildServeArgs, companion, companionDeps, latestSession } from "../../commands/companion";
+import {
+  buildServeArgs,
+  companion,
+  companionDeps,
+  latestSession,
+  pickOwnerPid,
+} from "../../commands/companion";
 import { scaffoldWorkspace } from "../../commands/init";
 
 describe("haren companion", () => {
@@ -379,6 +385,46 @@ describe("haren companion", () => {
     await child.exited;
     expect(alive(child.pid)).toBe(false);
   }, 15000);
+
+  it("pickOwnerPid skips shells and env, then falls back", () => {
+    const tree: Record<number, { ppid: number; comm: string }> = {
+      50: { ppid: 40, comm: "/bin/sh" },
+      40: { ppid: 30, comm: "-zsh" },
+      30: { ppid: 20, comm: "/usr/bin/env" },
+      20: { ppid: 1, comm: "claude" },
+      60: { ppid: 70, comm: "bash" },
+      70: { ppid: 1, comm: "sh" },
+    };
+    const ps = (pid: number) => tree[pid] ?? null;
+    expect(pickOwnerPid(50, ps)).toBe(20);
+    expect(pickOwnerPid(20, ps)).toBe(20);
+    // Only shells up to pid 1: fall back to the grandparent.
+    expect(pickOwnerPid(60, ps)).toBe(70);
+    expect(pickOwnerPid(99, () => null)).toBe(99);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "start through an sh wrapper in a short-lived sh -c picks the test process as owner",
+    async () => {
+      const wrapper = join(root, "haren-wrapper");
+      const entry = join(import.meta.dir, "..", "..", "index.ts");
+      await writeFile(wrapper, `#!/bin/sh\n"${process.execPath}" "${entry}" "$@"\n`, {
+        mode: 0o755,
+      });
+      const sh = Bun.spawn(["sh", "-c", `"${wrapper}" companion start --haren-dir "${harenDir}"`], {
+        stdio: ["ignore", "ignore", "ignore"],
+      });
+      await sh.exited;
+      const s = latestSession(harenDir)!;
+      expect(s.running).toBe(true);
+      const pid = (await readFile(join(s.dir, "state", "pid"), "utf-8")).trim();
+      const args = Bun.spawnSync(["ps", "-o", "args=", "-p", pid]).stdout.toString();
+      expect(args).toContain(`--owner-pid ${process.pid}`);
+      await Bun.sleep(1500); // past one owner check
+      expect(latestSession(harenDir)!.running).toBe(true);
+    },
+    20000,
+  );
 
   it("is wired in the CLI", async () => {
     // Imported here: importing index prints the help text, and the console is captured now.
