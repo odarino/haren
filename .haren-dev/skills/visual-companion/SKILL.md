@@ -66,7 +66,7 @@ haren companion start --open
 
 **Caution:** the URL contains a session key (`?key=...`). The server rejects requests without the key. Always give the complete URL. Never strip the query string. Never give a bare `http://host:port`.
 
-If the companion runs already, `haren companion start` uses the same session again. To find the connection data later, run `haren companion status`, or read `state_dir/server-info`.
+If the companion runs already, `haren companion start` uses the same session again. It ignores extra flags (for example `--port`) and prints a warning. To find the connection data later, run `haren companion status`, or read `state_dir/server-info`.
 
 **Windows, and hosts that stop background processes:** run `haren companion start --open --foreground` in a background shell (for example `run_in_background: true` on the Bash tool). The process must stay alive across turns.
 
@@ -80,7 +80,7 @@ Other options: `--port <n>`, `--idle-timeout-minutes <n>`.
 
 ## The Loop
 
-1. **Check the server**: run `haren companion status` before every push. Exit 0 means it runs. If it stopped, run `haren companion start --open`. It uses the same port, so the open tab connects again. You do not need to send a new URL.
+1. **Check the server**: run `haren companion status` before every push. Exit 0 means it runs. If it stopped, run `haren companion start --open`. It restarts the same session with the same URL, key, port, `screen_dir` and `state_dir`. The open tab connects again, and you do not need to send a new URL. If the CLI prints "port changed, give the user the new URL", the old port was busy. Then give the user the new URL.
 2. **Write the screen**: write a new HTML file in `screen_dir` with your file tool. Do not use cat or a heredoc.
    - Use a semantic name: `layout.html`, `visual-style.html`, `navigation.html`.
    - Never use a file name again. For a new version, write `layout-v2.html`, `layout-v3.html`.

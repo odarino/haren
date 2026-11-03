@@ -49,6 +49,52 @@ describe("haren companion", () => {
     await companion(["stop"], root);
   }, 15000);
 
+  it("restarts the same session: same dirs, key, url and port", async () => {
+    await companion(["start"], root);
+    const a = latestSession(harenDir)!;
+    await companion(["stop"], root);
+    await companion(["start"], root);
+    const b = latestSession(harenDir)!;
+    expect(b.running).toBe(true);
+    expect(b.dir).toBe(a.dir);
+    expect(b.info!.screen_dir).toBe(a.info!.screen_dir);
+    expect(b.info!.state_dir).toBe(a.info!.state_dir);
+    expect(b.info!.url).toBe(a.info!.url);
+    expect(b.info!.port).toBe(a.info!.port);
+    expect(existsSync(join(b.dir, "state", "server-stopped"))).toBe(false);
+    const r = await fetch(a.info!.url);
+    expect(r.status).toBe(200);
+    await companion(["stop"], root);
+  }, 15000);
+
+  it("restart with a taken port keeps dirs and key and notes the new port", async () => {
+    await companion(["start"], root);
+    const a = latestSession(harenDir)!;
+    await companion(["stop"], root);
+    const blocker = Bun.serve({
+      hostname: "127.0.0.1",
+      port: a.info!.port,
+      fetch: () => new Response(""),
+    });
+    const err = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await companion(["start"], root);
+      const b = latestSession(harenDir)!;
+      expect(b.dir).toBe(a.dir);
+      expect(b.info!.port).not.toBe(a.info!.port);
+      expect(new URL(b.info!.url).searchParams.get("key")).toBe(
+        new URL(a.info!.url).searchParams.get("key"),
+      );
+      expect(err.mock.calls.map((c) => c.join(" ")).join("\n")).toContain(
+        "port changed, give the user the new URL",
+      );
+    } finally {
+      err.mockRestore();
+      blocker.stop(true);
+      await companion(["stop"], root);
+    }
+  }, 15000);
+
   it("prints status lines while running", async () => {
     await companion(["start"], root);
     const info = latestSession(harenDir)!.info!;

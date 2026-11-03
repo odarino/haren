@@ -171,6 +171,22 @@ async function serve(args: string[]): Promise<void> {
   await handle.stop("stop");
 }
 
+function keyOf(url: string): string | undefined {
+  try {
+    return new URL(url).searchParams.get("key") ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function notePortChange(restart: CompanionSession | null, info: CompanionInfo): void {
+  if (restart?.info && restart.info.port !== info.port) {
+    console.error(
+      `The companion port changed from ${restart.info.port} to ${info.port}: port changed, give the user the new URL.`,
+    );
+  }
+}
+
 async function start(harenDir: string, args: string[]): Promise<void> {
   const current = latestSession(harenDir);
   if (current?.running && current.info) {
@@ -187,19 +203,32 @@ async function start(harenDir: string, args: string[]): Promise<void> {
   let port = 0;
   let reused = false;
   const asked = flag(args, "--port");
+  const askedKey = flag(args, "--key");
+  // Restart the stopped latest session in place: same dirs, key and port, so the open tab reconnects.
+  const restart = current?.info && asked === undefined && askedKey === undefined ? current : null;
+  const oldKey = restart ? keyOf(restart.info!.url) : undefined;
   if (asked !== undefined) port = Number(asked);
   else if (current?.info && (await portFree(current.info.port, host))) {
     port = current.info.port;
     reused = true;
+  } else if (restart) {
+    reused = true; // let __serve fall back to a random port
+    port = restart.info!.port;
   }
 
-  const dir = join(harenDir, ".companion", `${process.pid}-${Date.now()}`);
+  const dir = restart ? restart.dir : join(harenDir, ".companion", `${process.pid}-${Date.now()}`);
+  const fresh = !restart;
   mkdirSync(join(dir, "state"), { recursive: true });
+  if (restart) {
+    rmSync(join(dir, "state", "server-stopped"), { force: true });
+    rmSync(join(dir, "state", "server-info"), { force: true });
+  }
   const serveArgs = ["__serve", "--session", dir, "--port", String(port), "--host", host];
   for (const name of ["--key", "--url-host", "--idle-timeout-minutes"]) {
     const v = flag(args, name);
     if (v !== undefined) serveArgs.push(name, v);
   }
+  if (oldKey && askedKey === undefined) serveArgs.push("--key", oldKey);
   if (args.includes("--open")) serveArgs.push("--open");
   if (reused) serveArgs.push("--port-fallback");
 
@@ -209,13 +238,16 @@ async function start(harenDir: string, args: string[]): Promise<void> {
     const printer = setInterval(() => {
       if (existsSync(infoFile)) {
         clearInterval(printer);
-        console.log(readFileSync(infoFile, "utf-8").trim());
+        const text = readFileSync(infoFile, "utf-8").trim();
+        const info = readJson<CompanionInfo>(infoFile);
+        if (info) notePortChange(restart, info);
+        console.log(text);
       }
     }, 50);
     try {
       await serve(serveArgs);
     } catch (e) {
-      rmSync(dir, { recursive: true, force: true });
+      if (fresh) rmSync(dir, { recursive: true, force: true });
       throw e;
     } finally {
       clearInterval(printer);
@@ -234,6 +266,7 @@ async function start(harenDir: string, args: string[]): Promise<void> {
   while (Date.now() < deadline) {
     const s = sessionOf(dir);
     if (s.info && s.running) {
+      notePortChange(restart, s.info);
       console.log(JSON.stringify(s.info));
       return;
     }
@@ -243,8 +276,8 @@ async function start(harenDir: string, args: string[]): Promise<void> {
   try {
     process.kill(child.pid, "SIGTERM");
   } catch {}
-  // A failed session must not become the latest session.
-  rmSync(dir, { recursive: true, force: true });
+  // A failed new session must not become the latest session.
+  if (fresh) rmSync(dir, { recursive: true, force: true });
   throw new Error(`The companion server did not start within ${START_TIMEOUT_MS / 1000} s.`);
 }
 
