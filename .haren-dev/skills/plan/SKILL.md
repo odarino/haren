@@ -133,6 +133,14 @@ Using `templates/tasks.md`:
 - Tasks should be small enough for one implementation session
 - Include test tasks alongside implementation tasks
 
+#### Register the drafts
+
+Register each artifact right after you write it, before the user approves it. Then `haren track check` passes while you wait for the approval:
+
+- `haren track artifact <id> --type design --path artifacts/04-plans/{module}/design.md --module <module> --status draft`
+- `haren track artifact <id> --type tasks --path <path of tasks.md> --module <module> --status draft`
+- If you wrote spec.md: `haren track artifact <id> --type spec --path artifacts/03-modules/{module}/spec.md --module <module> --status draft`
+
 ### Step 7: Review with user
 
 **Small module:** the module has 3 tasks or fewer, each task changes about 30 lines or fewer, it adds no new external dependency and it has no schema migration. For a small module, show the design and the tasks in one message and ask for one approval. Write "Size: small" in the design. The implement skill then uses its fast path.
@@ -145,7 +153,7 @@ The user can always ask for the full path. Then review section by section.
 ### Step 8: Finalize
 
 1. Validate all three artifacts with validate-artifact skill. This runs `haren track check`
-2. Register each new artifact: `haren track artifact <id> --type <type> --path <path> --module <module>`
+2. After the user approves an artifact, run the same `haren track artifact <id> ...` command with `--status approved`. Register an artifact that has no row yet in the same way
 3. Set the module status: `haren track status <module> planned`. Never edit progress.json by hand
 4. If `plugins.json` exists in the haren folder, run `haren plugin run after-plan --payload '{"module":"<module>","tasksFile":"<path of tasks.md relative to the haren folder>"}'` and show its output lines. A warning does not block the plan. The CLI adds the missing features to progress.json, so do not add them yourself
 

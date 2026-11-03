@@ -408,7 +408,8 @@ The mode is stored in `manifest.yaml` as `ui.mockups`. The default is `ask`.
 
 ```bash
 haren companion start [--open] [--foreground] [--host <h>] [--url-host <h>] \
-                      [--idle-timeout-minutes <n>] [--port <n>] [--key <k>] [--no-owner-watch]
+                      [--idle-timeout-minutes <n>] [--port <n>] [--key <k>] [--no-owner-watch] \
+                      [--owner-grace-minutes <n>]
 haren companion status    # exit 0 when a server runs, 1 when not
 haren companion stop
 ```
@@ -416,10 +417,14 @@ haren companion stop
 - `start` prints one JSON line:
   `{"type":"server-started","port","url","screen_dir","state_dir"}`.
 - A restart of a stopped session reuses its folder, key and port. It also reuses
-  `--host`, `--url-host` and `--idle-timeout-minutes` from `state/options.json`. If the
+  `--host`, `--url-host`, `--idle-timeout-minutes` and `--owner-grace-minutes` from `state/options.json`. If the
   port is busy, the server takes a new port and prints a note on stderr.
-- The server stops when the agent process that started it exits. Use `--no-owner-watch`
-  to keep it running. `--idle-timeout-minutes` must be a positive integer.
+- When the agent process that started the server exits, a grace period starts
+  (default 10 minutes, `--owner-grace-minutes <n>`). The server stops after the grace
+  period only when no browser tab is connected and no request came in. Use
+  `--no-owner-watch` to keep it running. Both minute flags must be positive integers.
+- A restart moves old screens to `content/archive/<epoch>/`.
+- `stop` with no running server prints `No companion server is running.` and exits 0.
 - Session files are in `<haren folder>/.companion/<pid>-<epoch>/`. The agent writes
   HTML screens to `content/`. Your clicks go to `state/events` as JSON lines:
   `{"type":"click","choice","text","timestamp"}`.

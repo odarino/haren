@@ -46,7 +46,7 @@ Read `ui.mockups` in `manifest.yaml`. If the key is missing, use `ask`.
 
 ```
 ┌─────────────────────────────────────────────┐  ← outer border
-│ Page Title                          [Button] │  ← header bar
+│ Page Title                         [Button] │  ← header bar
 ├─────────────────────────────────────────────┤  ← divider
 │ ┌──────────┐  ┌───────────────────────────┐ │  ← two-column
 │ │ Sidebar  │  │ Main Content              │ │
@@ -172,6 +172,7 @@ After the pick, put the chosen wireframe and the option table in the `## Screens
 - Keep wireframes simple — communicate layout, not pixel-perfect design
 - Use placeholder text: `[Field Label]`, `[Button Text]`, `Row data`
 - Show realistic column counts and proportions
+- Alignment: Every row in a box has the same width as its border. Pad cells with spaces. Check the column widths before you output the wireframe. Count the characters of each row when you are not sure.
 - Max width: 60 characters for wireframe content (30 characters per option when options are side by side)
 - If a screen has tabs or states, show the primary state unless asked
 - **Ask the user** if the layout looks right before moving to the next screen

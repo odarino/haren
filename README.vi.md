@@ -256,14 +256,17 @@ Transition sai, module không tồn tại hoặc option sai → lệnh in thông
 
 ```bash
 haren companion start [--open] [--foreground] [--host <h>] [--url-host <h>] \
-                      [--idle-timeout-minutes <n>] [--port <n>] [--key <k>] [--no-owner-watch]
+                      [--idle-timeout-minutes <n>] [--port <n>] [--key <k>] [--no-owner-watch] \
+                      [--owner-grace-minutes <n>]
 haren companion status    # exit 0 nếu server đang chạy, 1 nếu không
 haren companion stop
 ```
 
 • `start` in một dòng JSON: `{"type":"server-started","port","url","screen_dir","state_dir"}`.
-• Khởi động lại một session đã dừng sẽ dùng lại thư mục, key, port, và `--host`, `--url-host`, `--idle-timeout-minutes` (lưu ở `state/options.json`).
-• Server tự dừng khi tiến trình agent đã khởi động nó thoát. Dùng `--no-owner-watch` để giữ server chạy. `--idle-timeout-minutes` phải là số nguyên dương.
+• Khởi động lại một session đã dừng sẽ dùng lại thư mục, key, port, và `--host`, `--url-host`, `--idle-timeout-minutes`, `--owner-grace-minutes` (lưu ở `state/options.json`).
+• Khi tiến trình agent đã khởi động server thoát, server bắt đầu một khoảng chờ (mặc định 10 phút, `--owner-grace-minutes <n>`). Server chỉ dừng sau khoảng chờ khi không còn tab trình duyệt nào kết nối và không có request nào. Dùng `--no-owner-watch` để giữ server chạy. Hai cờ phút phải là số nguyên dương.
+• Restart sẽ chuyển các màn hình cũ vào `content/archive/<epoch>/`.
+• `stop` khi không có server chạy in `No companion server is running.` và exit 0.
 • Restart một session đã dừng sẽ dùng lại thư mục, key và port. Nếu port bận, server lấy port mới và ghi chú ra stderr.
 • File session nằm ở `<thư mục haren>/.companion/<pid>-<epoch>/`. Agent ghi màn hình HTML vào `content/`. Lượt bấm của bạn được ghi vào `state/events` dạng JSON lines: `{"type":"click","choice","text","timestamp"}`.
 • Skill `visual-companion` điều khiển server, skill `ui-review` kiểm tra màn hình theo rubric. Các skill plan, evaluate, generate-mockup dùng UI mode.

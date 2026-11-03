@@ -78,12 +78,20 @@ haren companion start --open --host 0.0.0.0 --url-host localhost
 
 Other options: `--port <n>`, `--idle-timeout-minutes <n>`.
 
-The server stops when the agent process that started it exits. If the owner check is wrong (the server stops right after the start command), or the server must outlive the agent, add `--no-owner-watch`. Then only the idle timeout and `haren companion stop` stop it.
+The server watches the agent process that started it (the owner). When the owner exits, the server does not stop at once. It starts a grace period of 10 minutes. The server stops with reason `owner-exited` only when all of these are true:
+
+- The owner is gone.
+- No browser tab is connected.
+- No request came in during the grace period.
+
+A print-mode agent (for example `claude -p`) exits after each turn. The URL stays valid for the grace period, so the user can review the screen. To change the grace period, add `--owner-grace-minutes <n>` (a positive integer). A restart uses the same value again.
+
+If the owner check is wrong, or the server must outlive the agent, add `--no-owner-watch`. Then only the idle timeout and `haren companion stop` stop it.
 
 ## The Loop
 
 1. **Check the server**: run `haren companion status` before every push. Exit 0 means it runs. If it stopped, run `haren companion start --open`. It restarts the same session with the same URL, key, port, `screen_dir` and `state_dir`. The open tab connects again, and you do not need to send a new URL. If the CLI prints "port changed, give the user the new URL", the old port was busy. Then give the user the new URL.
-2. **Write the screen**: write a new HTML file in `screen_dir` with your file tool. Do not use cat or a heredoc.
+2. **Write the screen**: write a new HTML file in `screen_dir` with your file tool. Do not use cat or a heredoc. Write each screen with the file-write tool under a new file name. Do not copy a file with cp -p or a clone: the server picks the newest file by modification time.
    - Use a semantic name: `layout.html`, `visual-style.html`, `navigation.html`.
    - Never use a file name again. For a new version, write `layout-v2.html`, `layout-v3.html`.
 3. **Tell the user and end the turn**:
@@ -242,6 +250,8 @@ Use this to show ui-review/ results.
 
 ## Events Format
 
+The `text` field is a short label: the option heading, or the letter and the title, or the first 200 characters of the text.
+
 The server writes the user's clicks to `state_dir/events`, one JSON object for each line. The server clears the file when a new screen appears.
 
 ```jsonl
@@ -265,6 +275,7 @@ The server writes the user's clicks to `state_dir/events`, one JSON object for e
 - Never use a file name again. Each screen is a new file.
 - For versions, add a suffix: `layout-v2.html`, `layout-v3.html`.
 - The server shows the newest file by modification time.
+- A restart of a stopped session moves the old screens to `content/archive/<epoch>/`. The server does not show archived screens.
 
 ## Cleanup
 
