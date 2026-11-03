@@ -38,6 +38,12 @@ date: {date}
 |--------|-----------|--------|
 | A | {one line} | chosen / rejected: {reason} |
 
+## UI Review
+<!-- Only if the module adds or changes screens. Use the ui-review skill. Severity: blocker | major | minor. A blocker needs a fix or "accepted by user". -->
+
+| ID | Screen | Heuristic | Severity | Finding | Fix |
+|----|--------|-----------|----------|---------|-----|
+
 ## File Structure
 ```
 {planned file layout in target repo}

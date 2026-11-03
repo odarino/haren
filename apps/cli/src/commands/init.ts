@@ -390,6 +390,8 @@ You are operating within the Haren agentic SDLC framework.
    - Rewrite of a legacy system with parity as the bar → \`migration\`
 6. Suggest next action based on current state
 
+Visual questions follow the ui mode in manifest.yaml (\`ui.mockups\`: ask | ascii | browser). See the visual-companion skill.
+
 ## Available Actions
 
 | Intent | Skill | Agent |

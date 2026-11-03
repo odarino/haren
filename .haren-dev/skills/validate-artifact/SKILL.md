@@ -45,6 +45,7 @@ Required sections:
 - [ ] Key technical decisions
 - [ ] Existing Code section (reuse inventory). For each table that the module writes and each side effect that it triggers, the section lists the existing writers and callers in all target repos with `file:line`, or states "none found" with the search command. A design that says "new" for a behavior must name what it leaves behind. Missing or empty section → FAIL
 - [ ] Cheap mechanical check: for each table under "Data Model → Owned (write)", search all target repos for writes to it (for example `INSERT INTO <table>`, `UPDATE <table>`, ORM save calls). A hit that the Existing Code section does not mention → FAIL
+- [ ] If the design has `## Screens`, it must have `## UI Review` with the findings table. A blocker row must have a fix or "accepted by user" in the Fix column. A missing section or an open blocker → FAIL
 
 ### Tasks (04-plans)
 Required:

@@ -139,6 +139,8 @@ Review research findings for significant problems:
    }
    ```
 
+For a visual question (screen flow, layout, diagram), use the visual-companion skill. Decide per question.
+
 ## Output
 
 - Research artifacts: `artifacts/01-research/RESEARCH-{NNN}-{slug}.md` (1-3 per ideation)

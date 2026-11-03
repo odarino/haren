@@ -44,6 +44,8 @@ Before starting discovery, determine the intent:
 5. Validate output with validate-artifact skill
 6. Register the context brief. Get the next artifact ID with the `resolve-next-id` skill. Run `haren track artifact <id> --type context-brief --path artifacts/02-discovery/context-brief.md`. Append the phase event: `haren track event discover-complete --phase discover`
 
+For a visual question (screen flow, layout, diagram), use the visual-companion skill. Decide per question.
+
 ## Output
 
 A single `context-brief.md` that contains:

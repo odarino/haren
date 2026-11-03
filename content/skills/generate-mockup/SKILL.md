@@ -32,8 +32,15 @@ Generate ASCII wireframes for UI screens described in specs or designs. Output i
 3. Mark one variant as recommended and say why in one sentence
 4. Show the variants side by side in one message (see Output Format). If the terminal is narrow, show them one under the other
 5. Ask the user to pick one. Do not continue to the next screen before the pick
-6. Optional browser view: if the user asks, or if the screens are hard to read as ASCII, write `artifacts/04-plans/{module}/mockups/{screen-slug}.html`. The file shows the options side by side in columns, with the label and the trade-off over each. Use plain HTML and inline CSS only, with no external scripts. Tell the user the file path to open in a browser
-7. Use only synthetic data in mockups (for example "Alex Sample", `user@example.com`). Never copy real third-party personal data
+6. Use only synthetic data in mockups (for example "Alex Sample", `user@example.com`). Never copy real third-party personal data
+
+## Mode
+
+Read `ui.mockups` in `manifest.yaml`. If the key is missing, use `ask`.
+
+- `ascii`: use the ASCII steps in this skill only.
+- `browser`: write the ASCII wireframes into design.md as before. Also push one options screen with the visual-companion skill. Use `.options` or `.cards`, with one `.mockup` per option. Build each mockup from the HTML mock elements of the visual-companion skill. Read the click from `state_dir/events`.
+- `ask`: follow the offer in the visual-companion skill. Then use the `ascii` or the `browser` path.
 
 ## ASCII Wireframe Conventions
 
@@ -168,4 +175,4 @@ After the pick, put the chosen wireframe and the option table in the `## Screens
 - Max width: 60 characters for wireframe content (30 characters per option when options are side by side)
 - If a screen has tabs or states, show the primary state unless asked
 - **Ask the user** if the layout looks right before moving to the next screen
-- Wireframes go into `design.md`. The only separate file is the optional HTML view in options mode
+- Wireframes go into `design.md`. Do not write separate mockup files

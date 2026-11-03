@@ -10,9 +10,15 @@ Determine the next available ID for a given artifact type to prevent conflicts.
 
 ## Process
 
+For numbered types (for example RESEARCH and LSEM):
+
 1. Scan the target directory for existing artifacts
 2. Extract numeric IDs from filenames (e.g., RESEARCH-001 → 1)
 3. Return next sequential ID, zero-padded to 3 digits
+
+For `UNITSPEC-<unit>`, use the unit ID. It has no number.
+
+For LSEM, scan the registered legacy-semantics artifacts in `artifacts/_registry/artifact-index.md`. A workspace has one rulebook, so the ID is normally LSEM-001.
 
 ## ID Formats
 
@@ -24,6 +30,6 @@ Determine the next available ID for a given artifact type to prevent conflicts.
 
 ## Rules
 
-- Always zero-pad to 3 digits (001, 002, etc.)
+- For numbered types, always zero-pad to 3 digits (001, 002, etc.)
 - Scan actual files, not just the registry (registry might be stale)
 - Return both the ID and suggested filename

@@ -65,11 +65,16 @@ mockup option per changed screen before you write the spec or the design.
 5. Document each decision in the design artifact with rationale
 
 **UI decisions (only if the module adds or changes screens):**
-1. List the changed screens from the spec, the module definition and the stories
-2. For each screen, use the `generate-mockup` skill in options mode. Make 2-3 labeled options (A, B, C). Give each option a one-line trade-off and mark your recommendation
-3. Show the options side by side in one message. If the user wants a browser view, also write the HTML file that the skill describes
-4. Ask the user to pick one option. One screen at a time
-5. Record the chosen option and the rejected options with the reason in the `## Screens` section of the design. Add the same to the `## Screens` section of the spec, and add a Changelog row for that spec edit
+1. Read `ui.mockups` in `manifest.yaml` (`ask` | `ascii` | `browser`, default `ask`). On `ask`, follow the offer in the visual-companion skill
+2. List the changed screens from the spec, the module definition and the stories
+3. For each screen, use the `generate-mockup` skill in options mode. Make 2-3 labeled options (A, B, C). Give each option a one-line trade-off and mark your recommendation
+4. Show the options:
+   - ASCII path: show the options side by side in one message
+   - Browser path: push the options screen with the visual-companion skill. Read the click from `state_dir/events`. Confirm the choice with the user in the terminal
+5. Ask the user to pick one option. One screen at a time
+6. Record the chosen option and the rejected options with the reason in the `## Screens` section of the design. Add the same to the `## Screens` section of the spec, and add a Changelog row for that spec edit
+7. After the choice, run the `ui-review` skill on the chosen option. Write the findings table under `## UI Review` in the design. In the browser path, also push the `.findings` screen
+8. **Caution:** a blocker stops the module. Fix each blocker in the mockup, or write "accepted by user" in the Fix column, before the module goes to `planned`
 
 **Example flow:**
 ```
@@ -114,6 +119,7 @@ Using `templates/design.md`:
 - Data model
 - **Key technical decisions with rationale** (from step 5 — include what was chosen and why)
 - **Screens** (if the module adds or changes screens): the chosen mockup per screen and the rejected options with the reason
+- **UI Review** (if screens): the findings table from the `ui-review` skill
 - File structure plan
 - External dependencies
 
@@ -177,6 +183,7 @@ After creating the master spec and design, and after all tasks are defined:
 
 - **Never silently pick a technology** — present options, let the user choose
 - **Never silently pick a screen layout** — show 2-3 mockup options, let the user choose
+- Never skip the UI review for a changed screen.
 - **One question at a time** — don't overwhelm with multiple decisions
 - The spec is the contract the evaluator checks against — be precise and testable
 - Tasks should reference exact file paths in the target repo

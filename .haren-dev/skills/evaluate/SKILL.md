@@ -38,6 +38,9 @@ Run through each criterion:
    - If the app can run, start it and take a screenshot of each changed screen. Save it under `artifacts/06-evaluation/{module}/screens/` and link it in the review
    - If the app cannot run, say so in the review and compare the code with the mockup
    - A difference from the chosen mockup is a fail unless the session log records a reason the user approved
+   - Browser mode (`ui.mockups` is `browser`, or the user chose the browser): push one `.compare` screen per changed screen with the visual-companion skill (chosen mockup | screenshot). Read the `pass` or `fail` click from `state_dir/events`. Confirm the verdict with the user in the terminal
+   - ASCII mode: compare as above in the terminal
+   - Both modes: run the `ui-review` skill on each screenshot. Add the findings table to the review
 6. **Privacy**: fixtures, examples, seeds, test data and screenshots contain no real third-party personal data (names, emails, phone numbers, addresses, handles, photos). Synthetic data only. Real personal data is a fail
 
 ### Migration mode only

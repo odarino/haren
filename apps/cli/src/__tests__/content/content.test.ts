@@ -260,3 +260,38 @@ describe("content: no hand edit of progress.json", () => {
     for (const s of ["blocker", "major", "minor", "## UI Review", "empty", "loading", "contrast"]) expect(ur).toContain(s);
   });
 });
+
+describe("content: ui modes wired into skills", () => {
+  it("wires ui modes into plan, generate-mockup, evaluate and validate-artifact", () => {
+    const gm = read("skills/generate-mockup/SKILL.md");
+    expect(gm).toContain("ui.mockups");
+    expect(gm).not.toContain("mockups/{screen-slug}.html");
+    const plan = read("skills/plan/SKILL.md");
+    for (const s of ["ui.mockups", "ui-review", "## UI Review", "Never skip the UI review for a changed screen."]) expect(plan).toContain(s);
+    const ev = read("skills/evaluate/SKILL.md");
+    for (const s of [".compare", "ui-review"]) expect(ev).toContain(s);
+    expect(read("skills/validate-artifact/SKILL.md")).toContain("## UI Review");
+    expect(read("templates/design.md")).toContain("## UI Review");
+    expect(read("templates/design.md")).toContain("| ID | Screen | Heuristic | Severity | Finding | Fix |");
+    expect(read("skills/ideate/SKILL.md")).toContain("visual-companion");
+    expect(read("skills/discover/SKILL.md")).toContain("visual-companion");
+    expect(read("skills/read-context/SKILL.md")).toContain("ui.mockups");
+  });
+  it("init skill.md mentions the ui mode", () => {
+    const init = readFileSync(resolve(import.meta.dir, "..", "..", "commands", "init.ts"), "utf-8");
+    expect(init).toContain("Visual questions follow the ui mode in manifest.yaml");
+  });
+});
+
+describe("content: migration ID and plugin rules", () => {
+  it("migration.md copies only from the installed plugin", () => {
+    const m = read("skills/discover/migration.md");
+    expect(m).toContain("Do not copy from the adapter source folder.");
+    expect(m).toContain("the haren folder");
+  });
+  it("resolve-next-id scopes numbering and covers LSEM", () => {
+    const r = read("skills/resolve-next-id/SKILL.md");
+    expect(r).toContain("numbered types");
+    expect(r).toContain("normally LSEM-001");
+  });
+});
