@@ -150,30 +150,36 @@ describe("content: migration mode", () => {
   });
 });
 
-describe("content: discover registers the context brief", () => {
+describe("content: discover registers the context brief once", () => {
   for (const rel of [
     "skills/discover/migration.md",
     "skills/discover/blueprint.md",
     "skills/discover/explore.md",
     "skills/discover/inherit.md",
   ]) {
-    it(`${rel} registers context-brief.md`, () => {
+    it(`${rel} leaves registration to discover/SKILL.md`, () => {
       const text = read(rel);
-      expect(text).toContain("resolve-next-id");
-      expect(text).toContain(
-        "haren track artifact <id> --type context-brief --path artifacts/02-discovery/context-brief.md",
-      );
+      expect(text).toContain("discover/SKILL.md step 6 registers the context brief");
+      expect(text).not.toContain("--type context-brief");
     });
   }
-  it("discover SKILL gets the ID first", () => {
-    expect(read("skills/discover/SKILL.md")).toContain("resolve-next-id");
+  it("discover SKILL registers it with a resolved ID", () => {
+    const text = read("skills/discover/SKILL.md");
+    expect(text).toContain("resolve-next-id");
+    expect(text).toContain(
+      "haren track artifact <id> --type context-brief --path artifacts/02-discovery/context-brief.md",
+    );
+  });
+  it("migration runs track check after the registration step", () => {
+    expect(read("skills/discover/migration.md")).toContain("After step 6 of `discover/SKILL.md`");
   });
 });
 
 describe("content: extract exit codes", () => {
-  it("tells the agent that exit 3 means ask the user", () => {
+  it("puts exit code 3 at the gate step, once", () => {
     const text = read("skills/extract/SKILL.md");
-    expect(text).toContain("exit code 3");
-    expect(text).toContain("ask the user");
+    expect(text.match(/Exit code 3/g)?.length).toBe(1);
+    expect(text).toContain("Go to step 6");
+    expect(text.indexOf("Exit code 3")).toBeLessThan(text.indexOf("6. Show the spec"));
   });
 });

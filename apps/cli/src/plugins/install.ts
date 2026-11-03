@@ -52,13 +52,15 @@ async function commit(manifest: PluginManifest, ctx: InstallContext): Promise<vo
   await rename(incomingDir(ctx), dest);
 }
 
+export const INSTALL_CANCELLED = "Plugin install cancelled";
+
 export async function installPlugin(ref: string, ctx: InstallContext): Promise<PluginManifest> {
   const { source, official } = resolvePluginRef(ref);
   if (!official) {
     ctx.io.log(
       "This plugin is not in the haren registry. Its hooks run as code with your user permissions.",
     );
-    if (!(await ctx.io.confirm("Install it?"))) throw new Error("Plugin install cancelled");
+    if (!(await ctx.io.confirm("Install it?"))) throw new Error(INSTALL_CANCELLED);
   }
   const manifest = await stage(source, ctx);
   try {
@@ -165,7 +167,7 @@ export async function restorePlugins(
       restored.push(manifest.name);
     } catch (err) {
       const message = (err as Error).message;
-      if (message === "Plugin install cancelled") {
+      if (message === INSTALL_CANCELLED) {
         report.warn(`plugin ${name}: skipped, not confirmed. Run again with --yes to install it.`);
       } else {
         report.error(`plugin ${name}: ${message}`);

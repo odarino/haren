@@ -2,6 +2,7 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import { HOOK_NAMES, type HookName, readInstalledManifest } from "../plugins/manifest";
 import {
+  INSTALL_CANCELLED,
   installPlugin,
   removeEditorCopies,
   removePlugin,
@@ -123,7 +124,7 @@ export async function plugin(args: string[]): Promise<void> {
         const message = (err as Error).message;
         console.error(
           `  ${
-            message === "Plugin install cancelled" && !opts.yes && !process.stdin.isTTY
+            message === INSTALL_CANCELLED && !opts.yes && !process.stdin.isTTY
               ? "Plugin install cancelled: no TTY for the confirmation prompt. Re-run with --yes after you review the plugin."
               : message
           }`,

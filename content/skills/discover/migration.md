@@ -26,8 +26,8 @@ The legacy repo is read-only. Do not write to it.
    - If there is no adapter, start from the `legacy-semantics.md` template.
    - Get the next artifact ID with the `resolve-next-id` skill. Register it: `haren track artifact <id> --type legacy-semantics --path artifacts/01-research/legacy-semantics.md`.
 7. Write the context brief. Include the legacy stack, the unit counts per family, the shared components, and the suggested modules.
-   - Register it: get the next artifact ID with the `resolve-next-id` skill. Run `haren track artifact <id> --type context-brief --path artifacts/02-discovery/context-brief.md`.
-8. Run `haren track check`. Then go to the `decompose` phase.
+   - discover/SKILL.md step 6 registers the context brief. Do not register it again.
+8. After step 6 of `discover/SKILL.md` registers the context brief, run `haren track check`. Then go to the `decompose` phase.
 
 ## Output
 

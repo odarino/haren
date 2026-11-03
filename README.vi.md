@@ -203,7 +203,7 @@ haren migrate extract <unit>           # trích unit rồi viết spec
 haren migrate gate <unit> [--approve]  # chạy spec gate; --approve ghi nhận người duyệt
 ```
 
-Exit code của `haren migrate gate`: 0 = gate đạt và spec đã được duyệt. 1 = gate FAIL hoặc lỗi adapter. 3 = gate đạt nhưng spec chưa được duyệt (không có TTY và không có `--approve`). Exit 3 không phải lỗi: xem lại spec rồi chạy lại với `--approve`. Agent phải hỏi người dùng khi gặp exit 3.
+Exit code của `haren migrate gate`: 0 = gate đạt và spec đã được duyệt. 1 = gate FAIL hoặc lỗi adapter. 3 = gate đạt nhưng spec chưa được duyệt (không có TTY và không có `--approve`). Exit 3 không phải lỗi: xem lại spec rồi chạy lại với `--approve`. Agent phải hỏi người dùng khi gặp exit 3. Khi có TTY, từ chối câu hỏi duyệt sẽ exit 0 với "Not approved". Exit 3 chỉ áp dụng khi không có TTY và không có `--approve`.
 
 Gate FAIL và lỗi adapter là hai kết quả khác nhau; lỗi adapter không đổi status nào. Gate FAIL trên unit đang `spec-approved` sẽ đưa unit về `spec-draft`. Command của adapter bị dừng sau 300 giây theo mặc định; đặt `HAREN_ADAPTER_TIMEOUT_MS` để đổi giới hạn.
 

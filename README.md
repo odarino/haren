@@ -289,7 +289,7 @@ haren migrate gate <unit> [--approve]  # run the spec gate; --approve records th
 haren track check                      # also checks unit rules in migration mode
 ```
 
-`haren migrate gate` exit codes: 0 = the gate passed and the spec is approved. 1 = a gate FAIL or an adapter error. 3 = the gate passed but the spec is not approved yet (no TTY and no `--approve`). Exit 3 is not a failure: review the spec, then re-run with `--approve`. An agent must ask the user on exit 3.
+`haren migrate gate` exit codes: 0 = the gate passed and the spec is approved. 1 = a gate FAIL or an adapter error. 3 = the gate passed but the spec is not approved yet (no TTY and no `--approve`). Exit 3 is not a failure: review the spec, then re-run with `--approve`. An agent must ask the user on exit 3. With a TTY, declining the approval prompt exits 0 with "Not approved". Exit 3 is only the no-TTY case without `--approve`.
 
 A gate FAIL and an adapter error are different results. An adapter error changes no status. A gate FAIL on a `spec-approved` unit moves it back to `spec-draft`. An adapter command stops after 300 seconds by default. Set `HAREN_ADAPTER_TIMEOUT_MS` to change the limit.
 
