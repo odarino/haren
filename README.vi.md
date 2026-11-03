@@ -265,6 +265,7 @@ haren companion stop
 • `start` in một dòng JSON: `{"type":"server-started","port","url","screen_dir","state_dir"}`.
 • Khởi động lại một session đã dừng sẽ dùng lại thư mục, key, port, và `--host`, `--url-host`, `--idle-timeout-minutes`, `--owner-grace-minutes` (lưu ở `state/options.json`).
 • Khi tiến trình agent đã khởi động server thoát, server bắt đầu một khoảng chờ (mặc định 10 phút, `--owner-grace-minutes <n>`). Server chỉ dừng sau khoảng chờ khi không còn tab trình duyệt nào kết nối và không có request nào. Dùng `--no-owner-watch` để giữ server chạy. Hai cờ phút phải là số nguyên dương.
+• Khi chạy ở chế độ print-mode với `--open`, tab trình duyệt vẫn kết nối, nên server tiếp tục chạy cho đến khi bạn đóng tab (sau đó khoảng chờ được áp dụng) hoặc chạy `haren companion stop`.
 • Restart sẽ chuyển các màn hình cũ vào `content/archive/<epoch>/`.
 • `stop` khi không có server chạy in `No companion server is running.` và exit 0.
 • Restart một session đã dừng sẽ dùng lại thư mục, key và port. Nếu port bận, server lấy port mới và ghi chú ra stderr.

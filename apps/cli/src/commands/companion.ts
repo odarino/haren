@@ -58,8 +58,8 @@ export const companionDeps = {
 interface StartOptions {
   host: string;
   urlHost?: string;
-  idleTimeoutMinutes?: string;
-  ownerGraceMinutes?: string;
+  idleTimeoutMinutes?: number;
+  ownerGraceMinutes?: number;
 }
 
 export interface CompanionSession {
@@ -82,6 +82,12 @@ function readJson<T>(path: string): T | null {
   } catch {
     return null;
   }
+}
+
+/** A saved minute count: a JSON number, or a numeric string from an older options.json. */
+function savedMinutes(value: unknown): number | undefined {
+  const n = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
 function pidAlive(pid: number): boolean {
@@ -237,8 +243,8 @@ export interface ServeArgOptions {
   host: string;
   keyFile: string;
   urlHost?: string;
-  idleTimeoutMinutes?: string;
-  ownerGraceMinutes?: string;
+  idleTimeoutMinutes?: number | string;
+  ownerGraceMinutes?: number | string;
   open?: boolean;
   portFallback?: boolean;
   ownerPid?: number;
@@ -249,9 +255,11 @@ export function buildServeArgs(dir: string, o: ServeArgOptions): string[] {
   const args = ["__serve", "--session", dir, "--port", String(o.port), "--host", o.host];
   args.push("--key-file", o.keyFile);
   if (o.urlHost !== undefined) args.push("--url-host", o.urlHost);
-  if (o.idleTimeoutMinutes !== undefined) args.push("--idle-timeout-minutes", o.idleTimeoutMinutes);
+  if (o.idleTimeoutMinutes !== undefined)
+    args.push("--idle-timeout-minutes", String(o.idleTimeoutMinutes));
   if (o.ownerPid !== undefined) args.push("--owner-pid", String(o.ownerPid));
-  if (o.ownerGraceMinutes !== undefined) args.push("--owner-grace-minutes", o.ownerGraceMinutes);
+  if (o.ownerGraceMinutes !== undefined)
+    args.push("--owner-grace-minutes", String(o.ownerGraceMinutes));
   if (o.open) args.push("--open");
   if (o.portFallback) args.push("--port-fallback");
   return args;
@@ -433,8 +441,10 @@ async function start(harenDir: string, args: string[]): Promise<void> {
   const options: StartOptions = {
     host: flag(args, "--host") ?? saved?.host ?? "127.0.0.1",
     urlHost: flag(args, "--url-host") ?? saved?.urlHost,
-    idleTimeoutMinutes: askedMinutes ?? saved?.idleTimeoutMinutes,
-    ownerGraceMinutes: askedGrace ?? saved?.ownerGraceMinutes,
+    idleTimeoutMinutes:
+      askedMinutes !== undefined ? Number(askedMinutes) : savedMinutes(saved?.idleTimeoutMinutes),
+    ownerGraceMinutes:
+      askedGrace !== undefined ? Number(askedGrace) : savedMinutes(saved?.ownerGraceMinutes),
   };
   let port = 0;
   let reused = false;

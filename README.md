@@ -423,6 +423,8 @@ haren companion stop
   (default 10 minutes, `--owner-grace-minutes <n>`). The server stops after the grace
   period only when no browser tab is connected and no request came in. Use
   `--no-owner-watch` to keep it running. Both minute flags must be positive integers.
+  With `--open` in a print-mode run, the browser tab stays connected, so the server keeps
+  running until the user closes the tab (then the grace period applies) or runs `haren companion stop`.
 - A restart moves old screens to `content/archive/<epoch>/`.
 - `stop` with no running server prints `No companion server is running.` and exits 0.
 - Session files are in `<haren folder>/.companion/<pid>-<epoch>/`. The agent writes

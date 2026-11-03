@@ -402,7 +402,7 @@ describe("haren companion", () => {
     await companion(["start", "--owner-grace-minutes", "3"], root);
     const a = latestSession(harenDir)!;
     const opts = JSON.parse(await readFile(join(a.dir, "state", "options.json"), "utf-8"));
-    expect(opts.ownerGraceMinutes).toBe("3");
+    expect(opts.ownerGraceMinutes).toBe(3);
     await companion(["stop"], root);
     const seen: string[][] = [];
     companionDeps.startTimeoutMs = 100;
@@ -490,7 +490,28 @@ describe("haren companion", () => {
     expect(b.dir).toBe(a.dir);
     expect(b.info!.url).toBe(a.info!.url);
     const opts = JSON.parse(await readFile(join(b.dir, "state", "options.json"), "utf-8"));
-    expect(opts).toEqual({ host: "127.0.0.1", urlHost: "127.0.0.1", idleTimeoutMinutes: "7" });
+    expect(opts).toEqual({ host: "127.0.0.1", urlHost: "127.0.0.1", idleTimeoutMinutes: 7 });
+    await companion(["stop"], root);
+  }, 15000);
+
+  it("options.json stores minutes as numbers and reads old string values", async () => {
+    await companion(["start", "--idle-timeout-minutes", "7", "--owner-grace-minutes", "3"], root);
+    const a = latestSession(harenDir)!;
+    let opts = JSON.parse(await readFile(join(a.dir, "state", "options.json"), "utf-8"));
+    expect(opts.idleTimeoutMinutes).toBe(7);
+    expect(opts.ownerGraceMinutes).toBe(3);
+    expect(typeof opts.idleTimeoutMinutes).toBe("number");
+    expect(typeof opts.ownerGraceMinutes).toBe("number");
+    await companion(["stop"], root);
+    // An options.json written by an older version holds strings.
+    await writeFile(
+      join(a.dir, "state", "options.json"),
+      '{"host":"127.0.0.1","idleTimeoutMinutes":"7","ownerGraceMinutes":"3"}\n',
+    );
+    await companion(["start"], root);
+    opts = JSON.parse(await readFile(join(a.dir, "state", "options.json"), "utf-8"));
+    expect(opts).toEqual({ host: "127.0.0.1", idleTimeoutMinutes: 7, ownerGraceMinutes: 3 });
+    await companion(["stop"], root);
   }, 15000);
 
   it("a start timeout kills a child that ignores SIGTERM and leaves no folder", async () => {

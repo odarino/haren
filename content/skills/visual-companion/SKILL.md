@@ -84,7 +84,7 @@ The server watches the agent process that started it (the owner). When the owner
 - No browser tab is connected.
 - No request came in during the grace period.
 
-A print-mode agent (for example `claude -p`) exits after each turn. The URL stays valid for the grace period, so the user can review the screen. To change the grace period, add `--owner-grace-minutes <n>` (a positive integer). A restart uses the same value again.
+A print-mode agent (for example `claude -p`) exits after each turn. The URL stays valid for the grace period, so the user can review the screen. With `--open` in a print-mode run, the browser tab stays connected. The server keeps running until the user closes the tab. Then the grace period applies. To stop it at once, run `haren companion stop`. To change the grace period, add `--owner-grace-minutes <n>` (a positive integer). A restart uses the same value again.
 
 If the owner check is wrong, or the server must outlive the agent, add `--no-owner-watch`. Then only the idle timeout and `haren companion stop` stop it.
 
