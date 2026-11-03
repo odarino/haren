@@ -22,7 +22,7 @@
   let everConnected = false;
   let tombstoneShown = false;
 
-  // The server replaces __COMPANION_KEY__ with the session key when it serves this file.
+  // The server injects the session key below when it serves this file.
   const COMPANION_KEY = '__COMPANION_KEY__';
 
   function websocketUrl() {

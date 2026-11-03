@@ -171,7 +171,8 @@ export async function startCompanion(opts: CompanionOptions): Promise<CompanionH
 
   const key = opts.key ?? randomBytes(16).toString("hex");
   const idleTimeoutMs = opts.idleTimeoutMs ?? 240 * 60_000;
-  const helperScript = helperSource.replace("__COMPANION_KEY__", key);
+  // Replace the whole quoted literal with a JSON string; a function replacer avoids $-expansion.
+  const helperScript = helperSource.replaceAll("'__COMPANION_KEY__'", () => JSON.stringify(key));
   const clients = new Set<ServerWebSocket<unknown>>();
 
   let idleTimer: ReturnType<typeof setTimeout> | null = null;

@@ -90,6 +90,34 @@ describe("companion server", () => {
     expect((await readFile(join(dir, "state", "events"), "utf-8")).trim()).toBe("");
     ws.close();
   });
+  it("serves helper.js with the session key injected and no placeholder", async () => {
+    await setup({ key: "abc123def456" });
+    const body = await (await fetch(`${base()}/helper.js?key=abc123def456`)).text();
+    expect(body).not.toContain("__COMPANION_KEY__");
+    expect(body).toContain('"abc123def456"');
+  });
+  it("browser path: the key in the served helper opens the WebSocket and records a click", async () => {
+    await setup({ key: "abc123def456" });
+    await writeFile(join(dir, "content", "a.html"), "<p>a</p>");
+    const page = await (await fetch(`${base()}/?key=abc123def456`)).text();
+    expect(page).toContain("/helper.js");
+    const helper = await (await fetch(`${base()}/helper.js?key=abc123def456`)).text();
+    const m = /const COMPANION_KEY = ("(?:[^"\\]|\\.)*");/.exec(helper);
+    expect(m).not.toBeNull();
+    const served = JSON.parse(m![1]) as string;
+    const ws = new WebSocket(
+      `ws://127.0.0.1:${h!.info.port}/ws?key=${encodeURIComponent(served)}`,
+    );
+    await new Promise((res, rej) => {
+      ws.onopen = res;
+      ws.onerror = () => rej(new Error("websocket rejected"));
+    });
+    ws.send(JSON.stringify({ type: "click", choice: "a", text: "A" }));
+    await Bun.sleep(200);
+    const line = JSON.parse((await readFile(join(dir, "state", "events"), "utf-8")).trim());
+    expect(line).toMatchObject({ type: "click", choice: "a" });
+    ws.close();
+  });
   it("rejects a WebSocket without the key", async () => {
     await setup();
     const ws = new WebSocket(`ws://127.0.0.1:${h!.info.port}/ws`);
