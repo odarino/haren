@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, spyOn } from "bun:test";
-import { existsSync } from "fs";
+import { existsSync, statSync } from "fs";
 import { mkdtemp, rm, mkdir, writeFile, readFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -94,6 +94,32 @@ describe("haren companion", () => {
       await companion(["stop"], root);
     }
   }, 15000);
+
+  it("stores the key in state/key with mode 0600", async () => {
+    await companion(["start"], root);
+    const s = latestSession(harenDir)!;
+    const keyPath = join(s.dir, "state", "key");
+    expect((await readFile(keyPath, "utf-8")).trim()).toBe(
+      new URL(s.info!.url).searchParams.get("key")!,
+    );
+    expect(statSync(keyPath).mode & 0o777).toBe(0o600);
+  }, 15000);
+
+  it("a failed restart still lets the next start reuse the same dir and key", async () => {
+    await companion(["start"], root);
+    const a = latestSession(harenDir)!;
+    await companion(["stop"], root);
+    // An address that cannot bind makes the child exit.
+    await expect(companion(["start", "--host", "256.256.256.256"], root)).rejects.toThrow();
+    const mid = latestSession(harenDir)!;
+    expect(mid.dir).toBe(a.dir);
+    expect(existsSync(join(a.dir, "state", "server-info"))).toBe(true);
+    await companion(["start"], root);
+    const b = latestSession(harenDir)!;
+    expect(b.running).toBe(true);
+    expect(b.dir).toBe(a.dir);
+    expect(b.info!.url).toBe(a.info!.url);
+  }, 20000);
 
   it("prints status lines while running", async () => {
     await companion(["start"], root);

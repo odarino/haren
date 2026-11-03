@@ -1,9 +1,11 @@
 // `haren companion start|status|stop`: run the visual companion server for a haren folder.
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -63,7 +65,10 @@ function readPid(dir: string): number | null {
 
 function sessionOf(dir: string): CompanionSession {
   const stateDir = join(dir, "state");
-  const info = readJson<CompanionInfo>(join(stateDir, "server-info"));
+  // server-info.prev holds the last info while a restart is in progress (or after a crash in it).
+  const info =
+    readJson<CompanionInfo>(join(stateDir, "server-info")) ??
+    readJson<CompanionInfo>(join(stateDir, "server-info.prev"));
   const pid = readPid(dir);
   const running =
     info !== null && !existsSync(join(stateDir, "server-stopped")) && pid !== null && pidAlive(pid);
@@ -146,6 +151,12 @@ async function serve(args: string[]): Promise<void> {
     handle = await startCompanion({ ...opts, port: 0 });
   }
   writeFileSync(join(sessionDir, "state", "pid"), `${process.pid}\n`);
+  const key = keyOf(handle.info.url);
+  if (key) {
+    const keyPath = join(sessionDir, "state", "key");
+    writeFileSync(keyPath, `${key}\n`, { mode: 0o600 });
+    chmodSync(keyPath, 0o600);
+  }
 
   await new Promise<void>((done) => {
     const stopFile = join(handle.info.state_dir, "server-stopped");
@@ -169,6 +180,21 @@ async function serve(args: string[]): Promise<void> {
     process.on("SIGINT", onSignal);
   });
   await handle.stop("stop");
+}
+
+function storedKey(dir: string): string | undefined {
+  try {
+    return readFileSync(join(dir, "state", "key"), "utf-8").trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** After a failed restart: put the previous server-info back, unless a new one exists. */
+function restoreInfo(dir: string): void {
+  const infoPath = join(dir, "state", "server-info");
+  if (!existsSync(infoPath) && existsSync(`${infoPath}.prev`))
+    renameSync(`${infoPath}.prev`, infoPath);
 }
 
 function keyOf(url: string): string | undefined {
@@ -206,7 +232,7 @@ async function start(harenDir: string, args: string[]): Promise<void> {
   const askedKey = flag(args, "--key");
   // Restart the stopped latest session in place: same dirs, key and port, so the open tab reconnects.
   const restart = current?.info && asked === undefined && askedKey === undefined ? current : null;
-  const oldKey = restart ? keyOf(restart.info!.url) : undefined;
+  const oldKey = restart ? (storedKey(restart.dir) ?? keyOf(restart.info!.url)) : undefined;
   if (asked !== undefined) port = Number(asked);
   else if (current?.info && (await portFree(current.info.port, host))) {
     port = current.info.port;
@@ -221,7 +247,9 @@ async function start(harenDir: string, args: string[]): Promise<void> {
   mkdirSync(join(dir, "state"), { recursive: true });
   if (restart) {
     rmSync(join(dir, "state", "server-stopped"), { force: true });
-    rmSync(join(dir, "state", "server-info"), { force: true });
+    // Move the old info aside (not delete it), so a failed restart can restore it.
+    const infoPath = join(dir, "state", "server-info");
+    if (existsSync(infoPath)) renameSync(infoPath, `${infoPath}.prev`);
   }
   const serveArgs = ["__serve", "--session", dir, "--port", String(port), "--host", host];
   for (const name of ["--key", "--url-host", "--idle-timeout-minutes"]) {
@@ -241,6 +269,7 @@ async function start(harenDir: string, args: string[]): Promise<void> {
         const text = readFileSync(infoFile, "utf-8").trim();
         const info = readJson<CompanionInfo>(infoFile);
         if (info) notePortChange(restart, info);
+        rmSync(`${infoFile}.prev`, { force: true });
         console.log(text);
       }
     }, 50);
@@ -248,6 +277,7 @@ async function start(harenDir: string, args: string[]): Promise<void> {
       await serve(serveArgs);
     } catch (e) {
       if (fresh) rmSync(dir, { recursive: true, force: true });
+      else restoreInfo(dir);
       throw e;
     } finally {
       clearInterval(printer);
@@ -265,7 +295,8 @@ async function start(harenDir: string, args: string[]): Promise<void> {
   const deadline = Date.now() + START_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const s = sessionOf(dir);
-    if (s.info && s.running) {
+    if (s.info && s.running && existsSync(join(dir, "state", "server-info"))) {
+      rmSync(join(dir, "state", "server-info.prev"), { force: true });
       notePortChange(restart, s.info);
       console.log(JSON.stringify(s.info));
       return;
@@ -278,6 +309,7 @@ async function start(harenDir: string, args: string[]): Promise<void> {
   } catch {}
   // A failed new session must not become the latest session.
   if (fresh) rmSync(dir, { recursive: true, force: true });
+  else restoreInfo(dir);
   throw new Error(`The companion server did not start within ${START_TIMEOUT_MS / 1000} s.`);
 }
 
