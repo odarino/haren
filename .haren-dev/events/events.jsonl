@@ -9,3 +9,5 @@
 {"type":"gate-override","action":"on","reason":"user asked: fix 5 doc/UX notes from smoke test","until":"2026-11-03T04:44:52.520Z","timestamp":"2026-11-03T01:44:52.523Z"}
 {"type":"gate-override","action":"off","timestamp":"2026-11-03T02:03:04.681Z"}
 {"type":"gate-override","action":"on","reason":"user asked: fix decompose hand-edit, extract spec registration order, parentOf hint","until":"2026-11-03T05:14:53.056Z","timestamp":"2026-11-03T02:14:53.057Z"}
+{"type":"gate-override","action":"off","timestamp":"2026-11-03T02:23:00.624Z"}
+{"type":"artifact","id":"DESIGN-002","artifactType":"design","path":"artifacts/04-plans/visual-companion/design.md","status":"draft","timestamp":"2026-11-03T02:25:34.465Z"}
