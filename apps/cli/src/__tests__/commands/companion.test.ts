@@ -318,7 +318,18 @@ describe("haren companion", () => {
   it("__serve stops with owner-exited when the owner process ends", async () => {
     const owner = Bun.spawn(["sleep", "30"]);
     const dir = join(harenDir, ".companion", `1-${Date.now()}`);
-    const run = companion(["__serve", "--session", dir, "--owner-pid", String(owner.pid)], root);
+    const run = companion(
+      [
+        "__serve",
+        "--session",
+        dir,
+        "--owner-pid",
+        String(owner.pid),
+        "--owner-grace-minutes",
+        "0.005",
+      ],
+      root,
+    );
     await Bun.sleep(300);
     expect(latestSession(harenDir)!.running).toBe(true);
     owner.kill("SIGKILL");
@@ -327,6 +338,114 @@ describe("haren companion", () => {
     const stopped = JSON.parse(await readFile(join(dir, "state", "server-stopped"), "utf-8"));
     expect(stopped.reason).toBe("owner-exited");
   }, 15000);
+
+  it("__serve stays up after the owner ends while a client is connected", async () => {
+    const owner = Bun.spawn(["sleep", "30"]);
+    const dir = join(harenDir, ".companion", `1-${Date.now()}`);
+    const run = companion(
+      [
+        "__serve",
+        "--session",
+        dir,
+        "--owner-pid",
+        String(owner.pid),
+        "--owner-grace-minutes",
+        "0.005",
+      ],
+      root,
+    );
+    await Bun.sleep(300);
+    const info = latestSession(harenDir)!.info!;
+    const key = new URL(info.url).searchParams.get("key")!;
+    const ws = new WebSocket(`ws://127.0.0.1:${info.port}/ws?key=${key}`);
+    await new Promise((r) => (ws.onopen = r));
+    owner.kill("SIGKILL");
+    await owner.exited;
+    await Bun.sleep(1800); // past one owner check and the 0.3 s grace
+    expect(existsSync(join(dir, "state", "server-stopped"))).toBe(false);
+    ws.close();
+    await run; // no client and no activity: the grace ends and the server stops
+    const stopped = JSON.parse(await readFile(join(dir, "state", "server-stopped"), "utf-8"));
+    expect(stopped.reason).toBe("owner-exited");
+  }, 15000);
+
+  it("__serve never stops for the owner while the owner is alive", async () => {
+    const owner = Bun.spawn(["sleep", "30"]);
+    const dir = join(harenDir, ".companion", `1-${Date.now()}`);
+    const run = companion(
+      [
+        "__serve",
+        "--session",
+        dir,
+        "--owner-pid",
+        String(owner.pid),
+        "--owner-grace-minutes",
+        "0.005",
+      ],
+      root,
+    );
+    await Bun.sleep(1800);
+    expect(existsSync(join(dir, "state", "server-stopped"))).toBe(false);
+    // __serve runs in this process: end it with the stop file, not a signal.
+    await writeFile(join(dir, "state", "server-stopped"), '{"reason":"test"}\n');
+    await run;
+    owner.kill("SIGKILL");
+  }, 15000);
+
+  it("start validates and persists --owner-grace-minutes and passes it to __serve", async () => {
+    for (const bad of ["0", "-1", "1.5", "x"]) {
+      await expect(companion(["start", "--owner-grace-minutes", bad], root)).rejects.toThrow();
+    }
+    expect(
+      buildServeArgs("/d", { port: 0, host: "h", keyFile: "k", ownerGraceMinutes: "3" }),
+    ).toContain("--owner-grace-minutes");
+    await companion(["start", "--owner-grace-minutes", "3"], root);
+    const a = latestSession(harenDir)!;
+    const opts = JSON.parse(await readFile(join(a.dir, "state", "options.json"), "utf-8"));
+    expect(opts.ownerGraceMinutes).toBe("3");
+    await companion(["stop"], root);
+    const seen: string[][] = [];
+    companionDeps.startTimeoutMs = 100;
+    companionDeps.spawnServe = (args) => {
+      seen.push(args);
+      return { pid: 999999, exitCode: 1 };
+    };
+    await expect(companion(["start"], root)).rejects.toThrow();
+    expect(seen[0][seen[0].indexOf("--owner-grace-minutes") + 1]).toBe("3");
+  }, 15000);
+
+  it("restart moves old screens into content/archive/<epoch>/", async () => {
+    await companion(["start"], root);
+    const a = latestSession(harenDir)!;
+    await writeFile(join(a.info!.screen_dir, "old.html"), "<p>old</p>");
+    await companion(["stop"], root);
+    await companion(["start"], root);
+    const content = a.info!.screen_dir;
+    expect(existsSync(join(content, "old.html"))).toBe(false);
+    const runs = readdirSync(join(content, "archive"));
+    expect(runs.length).toBe(1);
+    expect(runs[0]).toMatch(/^\d+$/);
+    expect(existsSync(join(content, "archive", runs[0], "old.html"))).toBe(true);
+    const body = await (await fetch(latestSession(harenDir)!.info!.url)).text();
+    expect(body).not.toContain("<p>old</p>");
+  }, 15000);
+
+  it("stop with nothing running says so and exits 0", async () => {
+    log.mockClear();
+    await companion(["stop"], root);
+    expect(log.mock.calls.map((c) => c[0])).toEqual(["No companion server is running."]);
+    await companion(["start"], root);
+    await companion(["stop"], root);
+    log.mockClear();
+    await companion(["stop"], root);
+    expect(log.mock.calls.map((c) => c[0])).toEqual(["No companion server is running."]);
+  }, 15000);
+
+  it("status when stopped prints one line and exits 1", async () => {
+    log.mockClear();
+    await expect(companion(["status"], root)).rejects.toThrow();
+    expect(log.mock.calls.map((c) => c[0])).toEqual(["The companion server is not running."]);
+  });
 
   it.skipIf(process.platform === "win32")(
     "uses 0700 folders and 0600 files",

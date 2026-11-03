@@ -137,6 +137,6 @@ async function main() {
 main().catch((err) => {
   const debug = process.env.HAREN_DEBUG === "1";
   const message = err instanceof Error ? (debug && err.stack) || err.message : String(err);
-  console.error(`  ${message}`);
+  if (message) console.error(`  ${message}`);
   process.exit(err instanceof ExitCode ? err.code : 1);
 });

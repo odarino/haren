@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtemp, writeFile, readFile, rm, utimes } from "fs/promises";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import {
@@ -105,9 +105,7 @@ describe("companion server", () => {
     const m = /const COMPANION_KEY = ("(?:[^"\\]|\\.)*");/.exec(helper);
     expect(m).not.toBeNull();
     const served = JSON.parse(m![1]) as string;
-    const ws = new WebSocket(
-      `ws://127.0.0.1:${h!.info.port}/ws?key=${encodeURIComponent(served)}`,
-    );
+    const ws = new WebSocket(`ws://127.0.0.1:${h!.info.port}/ws?key=${encodeURIComponent(served)}`);
     await new Promise((res, rej) => {
       ws.onopen = res;
       ws.onerror = () => rej(new Error("websocket rejected"));
@@ -180,5 +178,50 @@ describe("companion server", () => {
     await setup();
     const r = await fetch(`${base()}/?key=k123`);
     expect(r.headers.get("referrer-policy")).toBe("no-referrer");
+  });
+});
+
+describe("companion helper logic", () => {
+  // helper.js exports its pure parts through module.exports when it runs outside a browser.
+  // Run the source directly: server.ts imports the same file as text, which shares the module cache.
+  const mod = { exports: {} as Record<string, any> };
+  new Function("module", readFileSync(join(import.meta.dir, "../../companion/helper.js"), "utf-8"))(
+    mod,
+  );
+  const helper = mod.exports;
+  const el = (o: { sel?: Record<string, string>; text?: string }) => ({
+    querySelector: (s: string) => (o.sel && s in o.sel ? { textContent: o.sel[s] } : null),
+    innerText: o.text ?? "",
+    textContent: o.text ?? "",
+  });
+
+  it("caps the reconnect delay at 5 s", () => {
+    expect(helper.MAX_RECONNECT_MS).toBe(5000);
+    let d = helper.MIN_RECONNECT_MS;
+    for (let i = 0; i < 20; i++) d = helper.nextReconnectDelay(d, helper.MAX_RECONNECT_MS);
+    expect(d).toBe(5000);
+  });
+
+  it("labels a click with the heading, else letter and title, else short text", () => {
+    expect(helper.choiceLabel(el({ sel: { ".content h3": "  Single\n  column " } }))).toBe(
+      "Single column",
+    );
+    expect(helper.choiceLabel(el({ sel: { ".card-body h3": "Dark" } }))).toBe("Dark");
+    expect(helper.choiceLabel(el({ sel: { ".letter": "A", ".title": "Grid" } }))).toBe("A Grid");
+    expect(helper.choiceLabel(el({ text: "  Pass  " }))).toBe("Pass");
+    expect(helper.choiceLabel(el({ text: "x ".repeat(300) })).length).toBe(200);
+  });
+});
+
+describe("companion server click text", () => {
+  it("truncates the click text to 200 characters", async () => {
+    await setup();
+    const ws = new WebSocket(`ws://127.0.0.1:${h!.info.port}/ws?key=k123`);
+    await new Promise((r) => (ws.onopen = r));
+    ws.send(JSON.stringify({ type: "click", choice: "a", text: "y".repeat(500) }));
+    await Bun.sleep(200);
+    const line = JSON.parse((await readFile(join(dir, "state", "events"), "utf-8")).trim());
+    expect(line.text.length).toBe(200);
+    ws.close();
   });
 });

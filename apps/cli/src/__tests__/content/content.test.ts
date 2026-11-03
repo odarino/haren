@@ -270,6 +270,33 @@ describe("content: no hand edit of progress.json", () => {
   });
 });
 
+describe("content: companion smoke-test follow-ups", () => {
+  it("visual-companion explains the owner grace and the file-write rule", () => {
+    const vc = read("skills/visual-companion/SKILL.md");
+    for (const s of [
+      "--owner-grace-minutes",
+      "--no-owner-watch",
+      "grace",
+      "Write each screen with the file-write tool under a new file name.",
+      "Do not copy a file with cp -p or a clone: the server picks the newest file by modification time.",
+    ])
+      expect(vc).toContain(s);
+  });
+  it("plan registers design, tasks and spec as draft, then approved", () => {
+    const plan = read("skills/plan/SKILL.md");
+    expect(plan).toContain("--status draft");
+    expect(plan).toMatch(/haren track artifact[^\n]*design\.md[^\n]*--status draft/);
+    expect(plan).toMatch(/haren track artifact[^\n]*tasks\.md[^\n]*--status draft/);
+    expect(plan).toContain("--status approved");
+  });
+  it("generate-mockup has the ASCII alignment rule", () => {
+    const gm = read("skills/generate-mockup/SKILL.md");
+    expect(gm).toContain("Every row in a box has the same width as its border.");
+    expect(gm).toContain("Pad cells with spaces.");
+    expect(gm).toContain("Check the column widths before you output the wireframe.");
+  });
+});
+
 describe("content: ui modes wired into skills", () => {
   it("wires ui modes into plan, generate-mockup, evaluate and validate-artifact", () => {
     const gm = read("skills/generate-mockup/SKILL.md");

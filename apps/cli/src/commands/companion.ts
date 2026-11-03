@@ -23,7 +23,7 @@ import { harenDirFlag, resolveHarenDir } from "../workspace/resolve";
 
 const USAGE = `Usage: haren companion <start|status|stop> [--haren-dir <path>]
   start   [--foreground] [--open] [--port <n>] [--host <h>] [--url-host <u>] [--idle-timeout-minutes <m>]
-          [--key <k>] [--no-owner-watch]
+          [--key <k>] [--no-owner-watch] [--owner-grace-minutes <m>]
   status  print the URL of the running server (exit 1 when stopped)
   stop    stop the running server`;
 
@@ -35,6 +35,7 @@ const START_FLAGS = [
   "--host",
   "--url-host",
   "--no-owner-watch",
+  "--owner-grace-minutes",
 ];
 
 /** Process hooks. Tests replace them to reach the timeout and forced-kill paths. */
@@ -58,6 +59,7 @@ interface StartOptions {
   host: string;
   urlHost?: string;
   idleTimeoutMinutes?: string;
+  ownerGraceMinutes?: string;
 }
 
 export interface CompanionSession {
@@ -236,6 +238,7 @@ export interface ServeArgOptions {
   keyFile: string;
   urlHost?: string;
   idleTimeoutMinutes?: string;
+  ownerGraceMinutes?: string;
   open?: boolean;
   portFallback?: boolean;
   ownerPid?: number;
@@ -248,12 +251,20 @@ export function buildServeArgs(dir: string, o: ServeArgOptions): string[] {
   if (o.urlHost !== undefined) args.push("--url-host", o.urlHost);
   if (o.idleTimeoutMinutes !== undefined) args.push("--idle-timeout-minutes", o.idleTimeoutMinutes);
   if (o.ownerPid !== undefined) args.push("--owner-pid", String(o.ownerPid));
+  if (o.ownerGraceMinutes !== undefined) args.push("--owner-grace-minutes", o.ownerGraceMinutes);
   if (o.open) args.push("--open");
   if (o.portFallback) args.push("--port-fallback");
   return args;
 }
 
 const OWNER_CHECK_MS = 1000;
+const DEFAULT_OWNER_GRACE_MINUTES = 10;
+
+/** A positive whole number of minutes from a `start` flag, or a JSON error and exit 1. */
+function checkMinutes(name: string, value: string | undefined): void {
+  if (value !== undefined && (!/^\d+$/.test(value) || Number(value) < 1))
+    badValue(`${name} must be a positive integer`);
+}
 
 async function serve(args: string[]): Promise<void> {
   const sessionDir = flag(args, "--session");
@@ -271,6 +282,10 @@ async function serve(args: string[]): Promise<void> {
     badValue("--owner-pid must be a positive integer");
   // An owner that is gone already means a wrong pid: watch nothing, rely on the idle timeout.
   if (owner !== undefined && !pidAlive(owner)) owner = undefined;
+  const graceText = flag(args, "--owner-grace-minutes");
+  if (graceText !== undefined && !(Number(graceText) > 0))
+    badValue("--owner-grace-minutes must be a positive number");
+  const graceMs = Number(graceText ?? DEFAULT_OWNER_GRACE_MINUTES) * 60_000;
 
   const stateDir = join(sessionDir, "state");
   for (const d of [sessionDir, join(sessionDir, "content"), stateDir]) makePrivateDir(d);
@@ -304,6 +319,7 @@ async function serve(args: string[]): Promise<void> {
     const stopFile = join(handle.info.state_dir, "server-stopped");
     let opened = !args.includes("--open");
     let lastOwnerCheck = Date.now();
+    let ownerGoneAt: number | null = null;
     const finish = () => {
       clearInterval(timer);
       process.off("SIGTERM", onSignal);
@@ -318,7 +334,13 @@ async function serve(args: string[]): Promise<void> {
       }
       if (owner !== undefined && Date.now() - lastOwnerCheck >= OWNER_CHECK_MS) {
         lastOwnerCheck = Date.now();
-        if (!pidAlive(owner)) {
+        if (ownerGoneAt === null && !pidAlive(owner)) ownerGoneAt = Date.now();
+      }
+      // Owner grace: the user may still review the page after a print-mode agent exits.
+      // Stop only with no client and no activity for the grace period after the owner left.
+      if (ownerGoneAt !== null && handle.clientCount() === 0) {
+        const quietSince = Math.max(ownerGoneAt, handle.lastActivity());
+        if (Date.now() - quietSince >= graceMs) {
           void handle.stop("owner-exited").then(finish);
           return;
         }
@@ -386,8 +408,9 @@ async function start(harenDir: string, args: string[]): Promise<void> {
   const askedPort = flag(args, "--port");
   checkPort(askedPort);
   const askedMinutes = flag(args, "--idle-timeout-minutes");
-  if (askedMinutes !== undefined && (!/^\d+$/.test(askedMinutes) || Number(askedMinutes) < 1))
-    badValue("--idle-timeout-minutes must be a positive integer");
+  checkMinutes("--idle-timeout-minutes", askedMinutes);
+  const askedGrace = flag(args, "--owner-grace-minutes");
+  checkMinutes("--owner-grace-minutes", askedGrace);
 
   const current = latestSession(harenDir);
   if (current?.running && current.info) {
@@ -409,6 +432,7 @@ async function start(harenDir: string, args: string[]): Promise<void> {
     host: flag(args, "--host") ?? saved?.host ?? "127.0.0.1",
     urlHost: flag(args, "--url-host") ?? saved?.urlHost,
     idleTimeoutMinutes: askedMinutes ?? saved?.idleTimeoutMinutes,
+    ownerGraceMinutes: askedGrace ?? saved?.ownerGraceMinutes,
   };
   let port = 0;
   let reused = false;
@@ -433,6 +457,7 @@ async function start(harenDir: string, args: string[]): Promise<void> {
     // Move the old info aside (not delete it), so a failed restart can restore it.
     const infoPath = join(stateDir, "server-info");
     if (existsSync(infoPath)) renameSync(infoPath, `${infoPath}.prev`);
+    archiveScreens(join(dir, "content"));
   }
   const foreground = args.includes("--foreground");
   const serveArgs = buildServeArgs(dir, {
@@ -441,6 +466,7 @@ async function start(harenDir: string, args: string[]): Promise<void> {
     keyFile: keyPath,
     urlHost: options.urlHost,
     idleTimeoutMinutes: options.idleTimeoutMinutes,
+    ownerGraceMinutes: options.ownerGraceMinutes,
     open: args.includes("--open"),
     portFallback: reused,
     // --foreground: the owner is this process, so a watch adds nothing.
@@ -501,11 +527,29 @@ async function start(harenDir: string, args: string[]): Promise<void> {
   );
 }
 
+/** Move the screens of an earlier run into content/archive/<epoch>/, so they do not pile up. */
+function archiveScreens(contentDir: string): void {
+  let names: string[];
+  try {
+    names = readdirSync(contentDir).filter(
+      (n) => n.endsWith(".html") && statSync(join(contentDir, n)).isFile(),
+    );
+  } catch {
+    return;
+  }
+  if (names.length === 0) return;
+  const target = join(contentDir, "archive", String(Date.now()));
+  makePrivateDir(join(contentDir, "archive"));
+  makePrivateDir(target);
+  for (const n of names) renameSync(join(contentDir, n), join(target, n));
+}
+
 function status(harenDir: string): void {
   const s = latestSession(harenDir);
   if (!s?.running || !s.info) {
-    console.log("stopped");
-    throw new ExitCode(1, "The companion server is not running.");
+    console.log("The companion server is not running.");
+    // Empty message: the CLI prints nothing more, so the output stays one line.
+    throw new ExitCode(1, "");
   }
   console.log(
     `running ${s.info.url}\nscreen_dir ${s.info.screen_dir}\nstate_dir ${s.info.state_dir}`,
@@ -514,15 +558,26 @@ function status(harenDir: string): void {
 
 async function stop(harenDir: string): Promise<void> {
   const s = latestSession(harenDir);
-  let forced = false;
-  if (s) {
-    const pid = readPid(s.dir);
-    // Signal only a running session: after an idle stop the pid may belong to another process.
-    if (s.running && pid !== null) forced = await terminate(pid, companionDeps.stopWaitMs);
-    const stopped = join(s.dir, "state", "server-stopped");
-    if (existsSync(join(s.dir, "state")) && !existsSync(stopped)) {
-      writeFileSync(stopped, `${JSON.stringify({ reason: "stop" })}\n`);
-    }
+  if (!s?.running) {
+    // Mark a stale session as stopped, so a dead pid never counts as running.
+    if (
+      s &&
+      existsSync(join(s.dir, "state")) &&
+      !existsSync(join(s.dir, "state", "server-stopped"))
+    )
+      writeFileSync(
+        join(s.dir, "state", "server-stopped"),
+        `${JSON.stringify({ reason: "stop" })}\n`,
+      );
+    console.log("No companion server is running.");
+    return;
+  }
+  const pid = readPid(s.dir);
+  // Signal only a running session: after an idle stop the pid may belong to another process.
+  const forced = pid !== null && (await terminate(pid, companionDeps.stopWaitMs));
+  const stopped = join(s.dir, "state", "server-stopped");
+  if (existsSync(join(s.dir, "state")) && !existsSync(stopped)) {
+    writeFileSync(stopped, `${JSON.stringify({ reason: "stop" })}\n`);
   }
   console.log(forced ? "stopped (forced)" : "stopped");
 }

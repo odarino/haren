@@ -43,10 +43,15 @@ export interface CompanionInfo {
 export interface CompanionHandle {
   info: CompanionInfo;
   stop(reason?: string): Promise<void>;
+  /** Connected WebSocket clients. */
+  clientCount(): number;
+  /** Time (ms since epoch) of the last keyed HTTP request or WebSocket event. */
+  lastActivity(): number;
 }
 
 const COOKIE_NAME = "companion_key";
 const POLL_MS = 500;
+const MAX_CLICK_TEXT = 200;
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html",
   ".css": "text/css",
@@ -177,8 +182,10 @@ export async function startCompanion(opts: CompanionOptions): Promise<CompanionH
 
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
+  let lastActivity = Date.now();
   const touch = () => {
     if (stopped) return;
+    lastActivity = Date.now();
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = setTimeout(() => void stop("idle"), idleTimeoutMs);
   };
@@ -256,6 +263,7 @@ export async function startCompanion(opts: CompanionOptions): Promise<CompanionH
       },
       close(ws) {
         clients.delete(ws);
+        touch();
       },
       message(_ws, message) {
         touch();
@@ -269,7 +277,12 @@ export async function startCompanion(opts: CompanionOptions): Promise<CompanionH
         // Write only known fields. A non-string choice drops the event; a missing text becomes "".
         const { choice, text = "" } = event;
         if (typeof choice !== "string" || typeof text !== "string") return;
-        const line = { type: "click", choice, text, timestamp: Math.floor(Date.now() / 1000) };
+        const line = {
+          type: "click",
+          choice,
+          text: text.slice(0, MAX_CLICK_TEXT),
+          timestamp: Math.floor(Date.now() / 1000),
+        };
         appendFileSync(eventsFile, `${JSON.stringify(line)}\n`, { mode: 0o600 });
       },
     },
@@ -319,5 +332,5 @@ export async function startCompanion(opts: CompanionOptions): Promise<CompanionH
   }
 
   touch();
-  return { info, stop };
+  return { info, stop, clientCount: () => clients.size, lastActivity: () => lastActivity };
 }

@@ -1,14 +1,38 @@
 (function() {
   const MIN_RECONNECT_MS = 500;
-  const MAX_RECONNECT_MS = 30000;
+  const MAX_RECONNECT_MS = 5000; // a restarted server is found within 5 s
+  const MAX_LABEL_CHARS = 200;
   const TOMBSTONE_AFTER_MS = 15000; // show the "paused" overlay after this long disconnected
 
   // Pure: next backoff delay (doubles, capped). Exported for unit tests.
   function nextReconnectDelay(current, max) {
     return Math.min(current * 2, max);
   }
+  // Pure: collapse whitespace to single spaces and trim.
+  function cleanText(s) {
+    return String(s || '').replace(/\s+/g, ' ').trim();
+  }
+
+  // Pure (uses only querySelector and text): a short label for a clicked choice element.
+  // The heading of an option or card, else the letter and title, else the text cut to 200 chars.
+  function choiceLabel(el) {
+    const text = (sel) => {
+      const node = el.querySelector(sel);
+      return node ? cleanText(node.textContent) : '';
+    };
+    const heading = text('.content h3') || text('.card-body h3');
+    if (heading) return heading.slice(0, MAX_LABEL_CHARS);
+    const letter = text('.letter');
+    const title = text('.title');
+    if (letter && title) return (letter + ' ' + title).slice(0, MAX_LABEL_CHARS);
+    return cleanText(el.innerText || el.textContent).slice(0, MAX_LABEL_CHARS);
+  }
+
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { nextReconnectDelay, MIN_RECONNECT_MS, MAX_RECONNECT_MS, TOMBSTONE_AFTER_MS };
+    module.exports = {
+      nextReconnectDelay, choiceLabel, cleanText,
+      MIN_RECONNECT_MS, MAX_RECONNECT_MS, TOMBSTONE_AFTER_MS
+    };
   }
 
   // Everything below is browser-only; bail out when loaded in Node (tests).
@@ -58,9 +82,9 @@
       'align-items:center;justify-content:center;padding:2rem;text-align:center;' +
       'background:rgba(20,20,22,0.92);color:#f5f5f7;font-family:system-ui,sans-serif';
     el.innerHTML = '<div style="max-width:480px">' +
-      '<h2 style="margin:0 0 .5rem;font-weight:600">Companion paused</h2>' +
-      '<p style="margin:0;opacity:.85">This haren companion has stopped. ' +
-      'Ask your coding agent to bring it back — this page reconnects automatically.</p></div>';
+      '<h2 style="margin:0 0 .5rem;font-weight:600">Companion paused. Reconnecting…</h2>' +
+      '<p style="margin:0;opacity:.85">This page connects again when the server comes back. ' +
+      'If it does not, ask your coding agent to start the companion.</p></div>';
     if (document.body) document.body.appendChild(el);
   }
 
@@ -123,7 +147,7 @@
 
     sendEvent({
       type: 'click',
-      text: target.textContent.trim(),
+      text: choiceLabel(target),
       choice: target.dataset.choice,
       id: target.id || null
     });
