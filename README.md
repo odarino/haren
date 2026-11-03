@@ -408,15 +408,18 @@ The mode is stored in `manifest.yaml` as `ui.mockups`. The default is `ask`.
 
 ```bash
 haren companion start [--open] [--foreground] [--host <h>] [--url-host <h>] \
-                      [--idle-timeout-minutes <n>] [--port <n>]
+                      [--idle-timeout-minutes <n>] [--port <n>] [--key <k>] [--no-owner-watch]
 haren companion status    # exit 0 when a server runs, 1 when not
 haren companion stop
 ```
 
 - `start` prints one JSON line:
   `{"type":"server-started","port","url","screen_dir","state_dir"}`.
-- A restart of a stopped session reuses its folder, key and port. If the port is busy,
-  the server takes a new port and prints a note on stderr.
+- A restart of a stopped session reuses its folder, key and port. It also reuses
+  `--host`, `--url-host` and `--idle-timeout-minutes` from `state/options.json`. If the
+  port is busy, the server takes a new port and prints a note on stderr.
+- The server stops when the agent process that started it exits. Use `--no-owner-watch`
+  to keep it running. `--idle-timeout-minutes` must be a positive integer.
 - Session files are in `<haren folder>/.companion/<pid>-<epoch>/`. The agent writes
   HTML screens to `content/`. Your clicks go to `state/events` as JSON lines:
   `{"type":"click","choice","text","timestamp"}`.
@@ -427,7 +430,8 @@ Security notes:
 
 - The server binds to `127.0.0.1`.
 - A secret key is in the URL. The server then sets a `SameSite=Strict` cookie.
-  The key is in `state/key` (mode 0600).
+  The key is in `state/key` (mode 0600). The key is not on the server command line.
+- The session folders are mode 0700. The state files are mode 0600.
 - The server sends `Referrer-Policy: no-referrer`.
 - The `/files` route serves only the `content/` folder.
 - `.companion/` is in `.gitignore`. Do not commit it.

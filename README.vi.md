@@ -256,17 +256,19 @@ Transition sai, module không tồn tại hoặc option sai → lệnh in thông
 
 ```bash
 haren companion start [--open] [--foreground] [--host <h>] [--url-host <h>] \
-                      [--idle-timeout-minutes <n>] [--port <n>]
+                      [--idle-timeout-minutes <n>] [--port <n>] [--key <k>] [--no-owner-watch]
 haren companion status    # exit 0 nếu server đang chạy, 1 nếu không
 haren companion stop
 ```
 
 • `start` in một dòng JSON: `{"type":"server-started","port","url","screen_dir","state_dir"}`.
+• Khởi động lại một session đã dừng sẽ dùng lại thư mục, key, port, và `--host`, `--url-host`, `--idle-timeout-minutes` (lưu ở `state/options.json`).
+• Server tự dừng khi tiến trình agent đã khởi động nó thoát. Dùng `--no-owner-watch` để giữ server chạy. `--idle-timeout-minutes` phải là số nguyên dương.
 • Restart một session đã dừng sẽ dùng lại thư mục, key và port. Nếu port bận, server lấy port mới và ghi chú ra stderr.
 • File session nằm ở `<thư mục haren>/.companion/<pid>-<epoch>/`. Agent ghi màn hình HTML vào `content/`. Lượt bấm của bạn được ghi vào `state/events` dạng JSON lines: `{"type":"click","choice","text","timestamp"}`.
 • Skill `visual-companion` điều khiển server, skill `ui-review` kiểm tra màn hình theo rubric. Các skill plan, evaluate, generate-mockup dùng UI mode.
 
-Lưu ý bảo mật: server chỉ bind `127.0.0.1`. Key bí mật nằm trong URL, sau đó server đặt cookie `SameSite=Strict`; key lưu ở `state/key` (quyền 0600). Server gửi `Referrer-Policy: no-referrer`. Route `/files` chỉ phục vụ thư mục `content/`. `.companion/` nằm trong `.gitignore`, không commit.
+Lưu ý bảo mật: server chỉ bind `127.0.0.1`. Key bí mật nằm trong URL, sau đó server đặt cookie `SameSite=Strict`; key lưu ở `state/key` (quyền 0600), không nằm trên dòng lệnh của server. Thư mục session có quyền 0700, file state có quyền 0600. Server gửi `Referrer-Policy: no-referrer`. Route `/files` chỉ phục vụ thư mục `content/`. `.companion/` nằm trong `.gitignore`, không commit.
 
 Server companion được chuyển thể từ visual companion của [Superpowers](https://github.com/obra/superpowers) của Jesse Vincent (giấy phép MIT). Xem `apps/cli/src/companion/NOTICE`.
 

@@ -83,6 +83,12 @@ haren track ui-mode <ask|ascii|browser>
 - Bind `127.0.0.1` by default. `/files/<name>` serves only files inside `content/` (realpath check; traversal → 404).
 - WebSocket: push `reload` when a new file appears; receive `{type:"click", choice, text}` and append to `state/events` with timestamp. New screen clears `events`.
 - Idle timeout (default 240 min, no HTTP/WS activity) → write `server-stopped`, exit. Browser shows a paused overlay while disconnected and reconnects on restart.
+- Owner watch: `start` passes `--owner-pid` to `__serve`. The owner is the grandparent of the CLI process (the parent is often a short-lived shell of the agent harness), as in superpowers `start-server.sh`. The server checks the owner each second and stops with reason `owner-exited` when it is gone. An owner that is gone at startup disables the watch. `--no-owner-watch` disables it; `--foreground` passes no owner (the owner is the server process).
+- Key file: `start` writes `state/key` (0600) before it spawns `__serve`, and passes `--key-file <path>`. The key value is never on a command line. `state/key` exists before `server-info`.
+- Owner-only files: `.companion/<id>/`, `content/` and `state/` are mode 0700 (also set on restart). `server-info`, `events`, `pid`, `key` and `options.json` are mode 0600.
+- Flag checks: `--port` must be an integer 0-65535 and `--idle-timeout-minutes` a positive integer. A bad value prints `{"error":"..."}` to stdout and exits 1.
+- Persisted options: a successful start writes `state/options.json` (`host`, `urlHost`, `idleTimeoutMinutes`). A restart reuses them unless a flag overrides them.
+- Failed start: after the timeout or a child exit, send SIGTERM, wait up to 1 s, then SIGKILL. Remove a fresh session folder, or restore `server-info.prev` on a restart. `stop` also escalates to SIGKILL after 3 s and prints `stopped (forced)`.
 
 ## Frame template and helper
 
