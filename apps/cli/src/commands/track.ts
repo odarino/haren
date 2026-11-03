@@ -6,6 +6,9 @@ import {
   normalizeRepos,
   parseManifest,
   readMigrationConfig,
+  setUiModeText,
+  UI_MODES,
+  type UiMode,
   type MigrationConfig,
 } from "../workspace/manifest";
 import { appendEvent, EVENT_PHASES, isEventPhase, type HarenEvent } from "../workspace/events";
@@ -39,6 +42,7 @@ export const TRACK_USAGE = `Usage:
   haren track event <type> [--module m] [--phase p] [--feature f] [--data '<json object>']
   haren track override on --reason "<text>" [--hours <n>]
   haren track override off
+  haren track ui-mode <ask|ascii|browser>
   haren track check
 Options: --haren-dir <path>`;
 
@@ -153,11 +157,26 @@ export async function track(args: string[], cwd = process.cwd()): Promise<void> 
       return trackEvent(paths, rest, flags);
     case "override":
       return trackOverride(paths, rest, flags);
+    case "ui-mode":
+      return trackUiMode(paths, rest);
     case "check":
       return trackCheck(paths);
     default:
       throw new Error(`Unknown track command: ${sub}\n${TRACK_USAGE}`);
   }
+}
+
+async function trackUiMode(paths: TrackPaths, rest: string[]): Promise<void> {
+  const mode = need(rest[0], "ui mode");
+  if (!UI_MODES.includes(mode as UiMode)) {
+    throw new Error(`Invalid ui mode '${mode}'. Use ${UI_MODES.join(", ")}.`);
+  }
+  const manifestPath = join(paths.harenDir, "manifest.yaml");
+  if (!existsSync(manifestPath)) throw new Error(`No manifest.yaml in ${paths.harenDir}`);
+  const text = await readFile(manifestPath, "utf-8");
+  await writeFile(manifestPath, setUiModeText(text, mode as UiMode));
+  await emit(paths, { type: "ui-mode", mode });
+  console.log(`  UI mockups mode: ${mode}.`);
 }
 
 export async function loadMigration(paths: TrackPaths): Promise<MigrationConfig | null> {

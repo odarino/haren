@@ -142,6 +142,21 @@ function replaceTopLevelBlockLf(text: string, key: string, block: string): strin
   return lines.join("\n");
 }
 
+export type UiMode = "ask" | "ascii" | "browser";
+export const UI_MODES: UiMode[] = ["ask", "ascii", "browser"];
+
+/** The `ui.mockups` setting; a missing or invalid value gives "ask". */
+export function readUiMode(m: Manifest): UiMode {
+  const ui = m.ui as { mockups?: unknown } | null | undefined;
+  const v = ui && typeof ui === "object" ? ui.mockups : undefined;
+  return UI_MODES.find((mode) => mode === v) ?? "ask";
+}
+
+/** Replace the top-level `ui` block, or append it. Other text stays. */
+export function setUiModeText(text: string, mode: UiMode): string {
+  return replaceTopLevelBlock(text, "ui", `ui:\n  mockups: ${mode}\n`);
+}
+
 export interface ManifestMigration {
   version: string;
   layout: Layout;
@@ -199,6 +214,9 @@ mode: ${yamlScalar(o.mode)}
 language: ${yamlScalar(o.language)}
 
 ${renderReposBlock(o.repos)}${o.mode === "migration" ? MIGRATION_SCAFFOLD(Object.keys(o.repos).length === 0) : ""}
+ui:
+  mockups: ask   # ask | ascii | browser
+
 sources:
   # Mode-specific inputs
   # docs: ./artifacts/00-baseline/requirements.pdf

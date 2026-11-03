@@ -9,6 +9,8 @@ import {
   buildManifestText,
   readMigrationConfig,
   legacyRepo,
+  readUiMode,
+  setUiModeText,
 } from "../../workspace/manifest";
 
 const MIG = `mode: migration
@@ -380,5 +382,32 @@ describe("readMigrationConfig type checks", () => {
       "repos:\n  a: { path: ../a, role: legacy }\n  b: { path: ../b, role: legacy }\n",
     );
     expect(() => legacyRepo(m)).toThrow(/more than one repo with role: legacy/);
+  });
+});
+
+describe("ui mode", () => {
+  it("reads ui mode with ask as default", () => {
+    expect(readUiMode(parseManifest("haren:\n  version: 1\n"))).toBe("ask");
+    expect(readUiMode(parseManifest("ui:\n  mockups: browser\n"))).toBe("browser");
+    expect(readUiMode(parseManifest("ui:\n  mockups: nope\n"))).toBe("ask");
+  });
+  it("sets ui mode and keeps comments", () => {
+    const src = "# top comment\nharen:\n  version: 1\nrepos: {}\n";
+    const out = setUiModeText(src, "ascii");
+    expect(out).toContain("# top comment");
+    expect(readUiMode(parseManifest(out))).toBe("ascii");
+    expect(readUiMode(parseManifest(setUiModeText(out, "browser")))).toBe("browser");
+  });
+  it("scaffolds mockups: ask in a new manifest", () => {
+    const text = buildManifestText({
+      version: "1.0.0",
+      layout: "workspace",
+      project: "shop",
+      mode: "explore",
+      language: "English",
+      repos: {},
+    });
+    expect(text).toContain("ui:\n  mockups: ask");
+    expect(readUiMode(parseManifest(text))).toBe("ask");
   });
 });

@@ -671,3 +671,12 @@ describe("track status --branch and --repos", () => {
     );
   });
 });
+
+describe("haren track ui-mode", () => {
+  it("writes the manifest and an event", async () => {
+    await run("ui-mode", "browser");
+    expect(await readFile(join(harenDir, "manifest.yaml"), "utf-8")).toContain("mockups: browser");
+    expect((await events()).at(-1)).toMatchObject({ type: "ui-mode", mode: "browser" });
+    await expect(run("ui-mode", "fancy")).rejects.toThrow(/ask, ascii, browser/);
+  });
+});

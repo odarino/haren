@@ -24,6 +24,7 @@ export const EVENT_TYPES = [
   "commit",
   "artifact",
   "gate-override",
+  "ui-mode",
 ] as const;
 
 /** Event types that skills write with `haren track event <type>`. Any other type is also accepted. */
