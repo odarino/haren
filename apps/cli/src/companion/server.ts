@@ -122,14 +122,14 @@ function cookieValue(header: string | null, name: string): string | null {
 }
 
 function wrapInFrame(content: string): string {
-  return frameTemplate.replace("<!-- CONTENT -->", content);
+  // Function replacer: a string replacement would expand $&, $', $1 in the content.
+  return frameTemplate.replace("<!-- CONTENT -->", () => content);
 }
 
 function injectHelper(html: string): string {
   if (html.includes(HELPER_TAG)) return html;
-  return html.includes("</body>")
-    ? html.replace("</body>", `${HELPER_TAG}\n</body>`)
-    : html + HELPER_TAG;
+  const re = /<\/body>/i;
+  return re.test(html) ? html.replace(re, (m) => `${HELPER_TAG}\n${m}`) : html + HELPER_TAG;
 }
 
 function urlHostForHttp(host: string): string {
@@ -137,6 +137,12 @@ function urlHostForHttp(host: string): string {
   return host.includes(":") ? `[${host}]` : host;
 }
 
+// Security model: there is no WebSocket Origin check, and the key stays in the URL
+// (no bootstrap redirect). Every request, the /ws upgrade included, needs the key.
+// - A cross-site page does not know the key.
+// - The cookie is SameSite=Strict, so the browser does not send it cross-site.
+// - A DNS-rebinding page reaches the port but has no key and no cookie for its origin.
+// - Referrer-Policy: no-referrer stops the keyed URL from leaking via the Referer header.
 export async function startCompanion(opts: CompanionOptions): Promise<CompanionHandle> {
   const contentDir = join(opts.sessionDir, "content");
   const stateDir = join(opts.sessionDir, "state");
@@ -242,7 +248,10 @@ export async function startCompanion(opts: CompanionOptions): Promise<CompanionH
           return;
         }
         if (!event || typeof event !== "object" || event.type !== "click") return;
-        const line = { ...event, timestamp: Date.now() };
+        // Write only known fields. A non-string choice drops the event; a missing text becomes "".
+        const { choice, text = "" } = event;
+        if (typeof choice !== "string" || typeof text !== "string") return;
+        const line = { type: "click", choice, text, timestamp: Math.floor(Date.now() / 1000) };
         appendFileSync(eventsFile, `${JSON.stringify(line)}\n`);
       },
     },

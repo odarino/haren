@@ -83,6 +83,8 @@ describe("companion server", () => {
     const line = JSON.parse((await readFile(join(dir, "state", "events"), "utf-8")).trim());
     expect(line).toMatchObject({ type: "click", choice: "b", text: "Option B" });
     expect(typeof line.timestamp).toBe("number");
+    expect(line.timestamp).toBeLessThan(1e11);
+    expect(line.timestamp).toBeGreaterThan(1e9);
     await writeFile(join(dir, "content", "b.html"), "<p>b</p>");
     await Bun.sleep(1200);
     expect((await readFile(join(dir, "state", "events"), "utf-8")).trim()).toBe("");
@@ -110,5 +112,45 @@ describe("companion server", () => {
     expect(isFullDocument("<h2>x</h2>")).toBe(false);
     dir = await mkdtemp(join(tmpdir(), "companion-"));
     expect(newestScreen(dir)).toBeNull();
+  });
+  it("renders replacement patterns in a fragment literally", async () => {
+    await setup();
+    await writeFile(join(dir, "content", "a.html"), "<p>A $& B $' C $1 D $$</p>");
+    const body = await (await fetch(`${base()}/?key=k123`)).text();
+    expect(body).toContain("<p>A $& B $' C $1 D $$</p>");
+  });
+  it("injects the helper before an uppercase </BODY>", async () => {
+    await setup();
+    await writeFile(
+      join(dir, "content", "f.html"),
+      "<!DOCTYPE html><HTML><BODY><p>U</p></BODY></HTML>",
+    );
+    const body = await (await fetch(`${base()}/?key=k123`)).text();
+    expect(body).toContain('<script src="/helper.js"></script>\n</BODY>');
+  });
+  it("writes only known click fields and drops invalid clicks", async () => {
+    await setup();
+    const ws = new WebSocket(`ws://127.0.0.1:${h!.info.port}/ws?key=k123`);
+    await new Promise((r) => (ws.onopen = r));
+    ws.send(
+      JSON.stringify({ type: "click", choice: "a", text: "A", id: "x", evil: 1, timestamp: 5 }),
+    );
+    ws.send(JSON.stringify({ type: "click", choice: 7, text: "bad" }));
+    ws.send(JSON.stringify({ type: "click", choice: "c" }));
+    await Bun.sleep(200);
+    const lines = (await readFile(join(dir, "state", "events"), "utf-8"))
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    expect(lines.length).toBe(2);
+    expect(Object.keys(lines[0]).sort()).toEqual(["choice", "text", "timestamp", "type"]);
+    expect(lines[0].timestamp).not.toBe(5);
+    expect(lines[1]).toMatchObject({ choice: "c", text: "" });
+    ws.close();
+  });
+  it("sends Referrer-Policy no-referrer", async () => {
+    await setup();
+    const r = await fetch(`${base()}/?key=k123`);
+    expect(r.headers.get("referrer-policy")).toBe("no-referrer");
   });
 });
