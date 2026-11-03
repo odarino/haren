@@ -3,7 +3,16 @@
 import { ExitCode } from "./lib/exit-code";
 
 interface ParsedCommand {
-  command: "init" | "upgrade" | "agent" | "plugin" | "track" | "migrate" | "help" | "unknown";
+  command:
+    | "init"
+    | "upgrade"
+    | "agent"
+    | "plugin"
+    | "track"
+    | "migrate"
+    | "companion"
+    | "help"
+    | "unknown";
   args: string[];
 }
 
@@ -28,6 +37,7 @@ export function parseArgs(args: string[]): ParsedCommand {
     case "plugin":
     case "track":
     case "migrate":
+    case "companion":
       return { command, args: rest };
     default:
       return { command: "unknown", args };
@@ -69,6 +79,11 @@ async function main() {
       await migrate(parsed.args);
       break;
     }
+    case "companion": {
+      const { companion } = await import("./commands/companion");
+      await companion(parsed.args);
+      break;
+    }
     case "help":
       console.log("Usage:");
       console.log("  haren init      Set up haren (detects monorepo or multi-repo workspace)");
@@ -105,10 +120,15 @@ async function main() {
       console.log(
         "                  gate exit codes: 0 approved, 1 failed, 3 PASS but not approved yet",
       );
+      console.log(
+        "  haren companion Visual companion server: start [--foreground] [--open] | status | stop",
+      );
       break;
     case "unknown":
       console.error(`Unknown command: ${parsed.args[0]}`);
-      console.log("Usage: haren init | upgrade | agent | plugin | track | migrate (haren --help)");
+      console.log(
+        "Usage: haren init | upgrade | agent | plugin | track | migrate | companion (haren --help)",
+      );
       process.exit(1);
   }
 }

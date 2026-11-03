@@ -176,10 +176,10 @@ describe("upgrade .gitignore", () => {
   it("creates .gitignore with the agent files as a migration step", async () => {
     const haren = await legacyWorkspace();
     const plan = await planMigration({ harenDir: haren, workspaceDir: ws, legacy: true });
-    expect(plan.steps).toContain(".gitignore: add .agent.json, .agent.pid, .plugins/");
+    expect(plan.steps).toContain(".gitignore: add .agent.json, .agent.pid, .plugins/, .companion/");
     expect(await runUpgrade()).toBe(0);
     expect(await readFile(join(haren, ".gitignore"), "utf-8")).toBe(
-      ".agent.json\n.agent.pid\n.plugins/\n",
+      ".agent.json\n.agent.pid\n.plugins/\n.companion/\n",
     );
   });
 
@@ -188,7 +188,7 @@ describe("upgrade .gitignore", () => {
     await writeFile(join(haren, ".gitignore"), "node_modules\n.agent.json");
     expect(await runUpgrade()).toBe(0);
     expect(await readFile(join(haren, ".gitignore"), "utf-8")).toBe(
-      "node_modules\n.agent.json\n.agent.pid\n.plugins/\n",
+      "node_modules\n.agent.json\n.agent.pid\n.plugins/\n.companion/\n",
     );
   });
 
@@ -197,13 +197,13 @@ describe("upgrade .gitignore", () => {
     await writeFile(join(haren, ".gitignore"), "node_modules\r\n");
     expect(await runUpgrade()).toBe(0);
     expect(await readFile(join(haren, ".gitignore"), "utf-8")).toBe(
-      "node_modules\r\n.agent.json\r\n.agent.pid\r\n.plugins/\r\n",
+      "node_modules\r\n.agent.json\r\n.agent.pid\r\n.plugins/\r\n.companion/\r\n",
     );
   });
 
   it("adds no step when .gitignore already lists every entry", async () => {
     const haren = await legacyWorkspace();
-    await writeFile(join(haren, ".gitignore"), ".agent.pid\n.plugins/\n.agent.json\n");
+    await writeFile(join(haren, ".gitignore"), ".agent.pid\n.plugins/\n.agent.json\n.companion/\n");
     const plan = await planMigration({ harenDir: haren, workspaceDir: ws, legacy: true });
     expect(plan.steps.some((s) => s.startsWith(".gitignore"))).toBe(false);
   });

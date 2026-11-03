@@ -139,8 +139,8 @@ export async function planMigration(location: HarenLocation): Promise<MigrationP
 }
 
 // Agent state (team code, user id, pid) and fetched plugin code must stay out of
-// the haren repo. plugins.json and .plugin-data/ stay committed.
-export const IGNORED = [".agent.json", ".agent.pid", ".plugins/"];
+// the haren repo, and so must companion sessions (.companion/). plugins.json and .plugin-data/ stay committed.
+export const IGNORED = [".agent.json", ".agent.pid", ".plugins/", ".companion/"];
 
 /** Returns the new .gitignore text, or null when it already lists every IGNORED entry. */
 async function planGitignore(harenDir: string): Promise<string | null> {
