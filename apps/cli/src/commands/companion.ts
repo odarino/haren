@@ -282,6 +282,8 @@ async function serve(args: string[]): Promise<void> {
     badValue("--owner-pid must be a positive integer");
   // An owner that is gone already means a wrong pid: watch nothing, rely on the idle timeout.
   if (owner !== undefined && !pidAlive(owner)) owner = undefined;
+  // __serve is internal and accepts a fractional grace on purpose (tests use short grace
+  // periods); `start` checks that the user value is a positive integer.
   const graceText = flag(args, "--owner-grace-minutes");
   if (graceText !== undefined && !(Number(graceText) > 0))
     badValue("--owner-grace-minutes must be a positive number");
@@ -453,11 +455,13 @@ async function start(harenDir: string, args: string[]): Promise<void> {
   const oldKey = restart ? (readKey(keyPath) ?? keyOf(restart.info!.url)) : undefined;
   writePrivateFile(keyPath, `${askedKey ?? oldKey ?? randomBytes(16).toString("hex")}\n`);
   if (restart) {
+    // Read the stop time before the stop file goes away: only older screens are archived.
+    const stoppedAt = mtimeOf(join(stateDir, "server-stopped"));
     rmSync(join(stateDir, "server-stopped"), { force: true });
     // Move the old info aside (not delete it), so a failed restart can restore it.
     const infoPath = join(stateDir, "server-info");
     if (existsSync(infoPath)) renameSync(infoPath, `${infoPath}.prev`);
-    archiveScreens(join(dir, "content"));
+    archiveScreens(join(dir, "content"), stoppedAt);
   }
   const foreground = args.includes("--foreground");
   const serveArgs = buildServeArgs(dir, {
@@ -527,13 +531,26 @@ async function start(harenDir: string, args: string[]): Promise<void> {
   );
 }
 
-/** Move the screens of an earlier run into content/archive/<epoch>/, so they do not pile up. */
-function archiveScreens(contentDir: string): void {
+function mtimeOf(path: string): number {
+  try {
+    return statSync(path).mtimeMs;
+  } catch {
+    return Number.POSITIVE_INFINITY; // no stop time known: every screen is old
+  }
+}
+
+/**
+ * Move the screens of an earlier run into content/archive/<epoch>/, so they do not pile up.
+ * A screen written after the stop (right before the restart) stays current.
+ */
+function archiveScreens(contentDir: string, stoppedAt: number): void {
   let names: string[];
   try {
-    names = readdirSync(contentDir).filter(
-      (n) => n.endsWith(".html") && statSync(join(contentDir, n)).isFile(),
-    );
+    names = readdirSync(contentDir).filter((n) => {
+      if (!n.endsWith(".html")) return false;
+      const st = statSync(join(contentDir, n));
+      return st.isFile() && st.mtimeMs < stoppedAt;
+    });
   } catch {
     return;
   }
@@ -556,29 +573,25 @@ function status(harenDir: string): void {
   );
 }
 
+/** Write state/server-stopped with reason "stop", unless the session has one already. */
+function markStopped(dir: string): void {
+  const stopped = join(dir, "state", "server-stopped");
+  if (existsSync(join(dir, "state")) && !existsSync(stopped))
+    writeFileSync(stopped, `${JSON.stringify({ reason: "stop" })}\n`);
+}
+
 async function stop(harenDir: string): Promise<void> {
   const s = latestSession(harenDir);
   if (!s?.running) {
     // Mark a stale session as stopped, so a dead pid never counts as running.
-    if (
-      s &&
-      existsSync(join(s.dir, "state")) &&
-      !existsSync(join(s.dir, "state", "server-stopped"))
-    )
-      writeFileSync(
-        join(s.dir, "state", "server-stopped"),
-        `${JSON.stringify({ reason: "stop" })}\n`,
-      );
+    if (s) markStopped(s.dir);
     console.log("No companion server is running.");
     return;
   }
   const pid = readPid(s.dir);
   // Signal only a running session: after an idle stop the pid may belong to another process.
   const forced = pid !== null && (await terminate(pid, companionDeps.stopWaitMs));
-  const stopped = join(s.dir, "state", "server-stopped");
-  if (existsSync(join(s.dir, "state")) && !existsSync(stopped)) {
-    writeFileSync(stopped, `${JSON.stringify({ reason: "stop" })}\n`);
-  }
+  markStopped(s.dir);
   console.log(forced ? "stopped (forced)" : "stopped");
 }
 

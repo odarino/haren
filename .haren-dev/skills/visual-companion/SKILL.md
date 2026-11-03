@@ -275,7 +275,7 @@ The server writes the user's clicks to `state_dir/events`, one JSON object for e
 - Never use a file name again. Each screen is a new file.
 - For versions, add a suffix: `layout-v2.html`, `layout-v3.html`.
 - The server shows the newest file by modification time.
-- A restart of a stopped session moves the old screens to `content/archive/<epoch>/`. The server does not show archived screens.
+- A restart of a stopped session moves the screens older than the stop to `content/archive/<epoch>/`. A screen written after the stop stays current. The server does not show archived screens.
 
 ## Cleanup
 

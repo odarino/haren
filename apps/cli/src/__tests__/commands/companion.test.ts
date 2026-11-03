@@ -430,6 +430,21 @@ describe("haren companion", () => {
     expect(body).not.toContain("<p>old</p>");
   }, 15000);
 
+  it("restart keeps a screen written after the stop", async () => {
+    await companion(["start"], root);
+    const content = latestSession(harenDir)!.info!.screen_dir;
+    await writeFile(join(content, "old.html"), "<p>old</p>");
+    await Bun.sleep(20);
+    await companion(["stop"], root);
+    await Bun.sleep(20);
+    await writeFile(join(content, "new.html"), "<p>new</p>");
+    await companion(["start"], root);
+    expect(existsSync(join(content, "new.html"))).toBe(true);
+    expect(existsSync(join(content, "old.html"))).toBe(false);
+    const body = await (await fetch(latestSession(harenDir)!.info!.url)).text();
+    expect(body).toContain("<p>new</p>");
+  }, 15000);
+
   it("stop with nothing running says so and exits 0", async () => {
     log.mockClear();
     await companion(["stop"], root);
