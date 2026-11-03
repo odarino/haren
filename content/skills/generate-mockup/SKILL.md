@@ -25,6 +25,14 @@ Generate ASCII wireframes for UI screens described in specs or designs. Output i
 - **Single** (default): one wireframe for one screen
 - **Options**: 2-3 labeled variants of one screen, for the user to compare and pick. The plan skill uses this mode
 
+### Mode
+
+Read `ui.mockups` in `manifest.yaml`. If the key is missing, use `ask`.
+
+- `ascii`: use the ASCII steps in this skill only.
+- `browser`: write the ASCII wireframes into design.md as before. Also push one options screen with the visual-companion skill. Use `.options` or `.cards`, with one `.mockup` per option. Build each mockup from the HTML mock elements of the visual-companion skill. Read the click from `state_dir/events`. After the pick, write the chosen option as ASCII into design.md.
+- `ask`: follow the offer in the visual-companion skill. Then use the `ascii` or the `browser` path.
+
 ### Options mode
 
 1. Make 2-3 variants of the same screen. Label them `Option A`, `Option B`, `Option C`. Each variant must differ in a real decision (layout, grouping, navigation, density), not only in style
@@ -33,14 +41,6 @@ Generate ASCII wireframes for UI screens described in specs or designs. Output i
 4. Show the variants side by side in one message (see Output Format). If the terminal is narrow, show them one under the other
 5. Ask the user to pick one. Do not continue to the next screen before the pick
 6. Use only synthetic data in mockups (for example "Alex Sample", `user@example.com`). Never copy real third-party personal data
-
-## Mode
-
-Read `ui.mockups` in `manifest.yaml`. If the key is missing, use `ask`.
-
-- `ascii`: use the ASCII steps in this skill only.
-- `browser`: write the ASCII wireframes into design.md as before. Also push one options screen with the visual-companion skill. Use `.options` or `.cards`, with one `.mockup` per option. Build each mockup from the HTML mock elements of the visual-companion skill. Read the click from `state_dir/events`.
-- `ask`: follow the offer in the visual-companion skill. Then use the `ascii` or the `browser` path.
 
 ## ASCII Wireframe Conventions
 

@@ -71,10 +71,10 @@ mockup option per changed screen before you write the spec or the design.
 4. Show the options:
    - ASCII path: show the options side by side in one message
    - Browser path: push the options screen with the visual-companion skill. Read the click from `state_dir/events`. Confirm the choice with the user in the terminal
-5. Ask the user to pick one option. One screen at a time
+5. ASCII path: ask the user to pick one option. Both paths: one screen at a time
 6. Record the chosen option and the rejected options with the reason in the `## Screens` section of the design. Add the same to the `## Screens` section of the spec, and add a Changelog row for that spec edit
 7. After the choice, run the `ui-review` skill on the chosen option. Write the findings table under `## UI Review` in the design. In the browser path, also push the `.findings` screen
-8. **Caution:** a blocker stops the module. Fix each blocker in the mockup, or write "accepted by user" in the Fix column, before the module goes to `planned`
+8. **Caution:** a blocker stops the module. Fix each blocker in the mockup and run the `ui-review` skill again, or write "accepted by user" in the Fix column, before the module goes to `planned`
 
 **Example flow:**
 ```

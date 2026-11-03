@@ -269,7 +269,10 @@ describe("content: ui modes wired into skills", () => {
     const plan = read("skills/plan/SKILL.md");
     for (const s of ["ui.mockups", "ui-review", "## UI Review", "Never skip the UI review for a changed screen."]) expect(plan).toContain(s);
     const ev = read("skills/evaluate/SKILL.md");
-    for (const s of [".compare", "ui-review"]) expect(ev).toContain(s);
+    for (const s of [".compare", "ui-review", "Rebuild the chosen option from the ASCII wireframe in design.md with the HTML mock elements.", "An open blocker (no fix and not 'accepted by user') is a fail.", "skipped and why", "On `ask`, follow the offer in the visual-companion skill"]) expect(ev).toContain(s);
+    expect(gm.indexOf("### Mode")).toBeLessThan(gm.indexOf("### Options mode"));
+    expect(gm).toContain("write the chosen option as ASCII into design.md");
+    expect(plan).toContain("run the `ui-review` skill again");
     expect(read("skills/validate-artifact/SKILL.md")).toContain("## UI Review");
     expect(read("templates/design.md")).toContain("## UI Review");
     expect(read("templates/design.md")).toContain("| ID | Screen | Heuristic | Severity | Finding | Fix |");
