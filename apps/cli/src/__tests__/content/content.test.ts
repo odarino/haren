@@ -250,4 +250,13 @@ describe("content: no hand edit of progress.json", () => {
       "Check that `currentIteration` in progress.json is 1",
     );
   });
+
+  it("ships the visual-companion and ui-review skills", () => {
+    const vc = read("skills/visual-companion/SKILL.md");
+    expect(vc).toContain("name: visual-companion");
+    for (const s of ["haren companion start --open", "haren companion status", "haren track ui-mode browser", "state_dir/events", "waiting.html", "?key="]) expect(vc).toContain(s);
+    const ur = read("skills/ui-review/SKILL.md");
+    expect(ur).toContain("name: ui-review");
+    for (const s of ["blocker", "major", "minor", "## UI Review", "empty", "loading", "contrast"]) expect(ur).toContain(s);
+  });
 });

@@ -230,6 +230,8 @@ function getDirectories(iterations: boolean): string[] {
     "skills/update-links",
     "skills/update-tracking",
     "skills/generate-mockup",
+    "skills/visual-companion",
+    "skills/ui-review",
     "skills/onboard",
     "artifacts/_registry",
     "artifacts/00-baseline",
@@ -405,6 +407,8 @@ You are operating within the Haren agentic SDLC framework.
 | Search artifacts | search-artifact/ | — |
 | Release completed modules | release/ | Architect |
 | Draw a UI wireframe or compare screen options | generate-mockup/ | — |
+| Show mockups or options in a browser tab | visual-companion/ (\`haren companion\`) | — |
+| Review a screen against UX heuristics | ui-review/ | — |
 | Update status, artifacts, events | update-tracking/ (\`haren track\`) | — |
 | Onboard to the project / check the workspace | onboard/ (\`/haren-onboard\`) | — |
 
