@@ -224,7 +224,7 @@ Exit code khác 0 hoặc sai schema là lỗi adapter. Xem adapter mẫu chạy 
 **`haren track`** — cập nhật `progress.json`, artifact index và `events/events.jsonl`. Không sửa các file này bằng tay với `jq` hay `sed`. Lệnh tự tìm thư mục haren từ thư mục hiện tại; dùng `--haren-dir <path>` hoặc `HAREN_DIR` để chọn. Các key khác trong `progress.json` được giữ nguyên.
 
 ```bash
-haren track status <module> <status>
+haren track status <module> <status> [--branch <name>] [--repos <key1,key2>]
 haren track feature <module> <feature> [status]
 haren track commit <module> <repoKey> <sha>
 haren track artifact <id> --type <type> --path <path> [--module <m>] [--status <s>]
@@ -236,7 +236,7 @@ haren track override off
 haren track check          # kiểm tra repos trong manifest và artifact index; exit 1 nếu FAIL
 ```
 
-• `status` — kiểm tra transition của module. Chỉ tạo module mới ở `discovered` hoặc `decomposed`. Thứ tự: `discovered → decomposed → planned → implementing → evaluating → completed → released`. `implementing` và `evaluating` có thể sang `blocked`; `blocked` quay về `implementing` hoặc `planned`.
+• `status` — kiểm tra transition của module. Chỉ tạo module mới ở `discovered` hoặc `decomposed`. Thứ tự: `discovered → decomposed → planned → implementing → evaluating → completed → released`. `implementing` và `evaluating` có thể sang `blocked`; `blocked` quay về `implementing` hoặc `planned`. `--branch` đặt branch của module. `--repos` đặt repos của module; mỗi repo key phải có trong `manifest.yaml`. Nếu status trùng status hiện tại thì lệnh chỉ cập nhật branch và repos.
 • `feature` — không có status thì thêm feature ở `pending`. Có status thì kiểm tra transition: `pending → in-progress → evaluating → passing | fixing | blocked`, `fixing → evaluating`, `blocked → in-progress`.
 • `commit` — ghi `lastCommit[repoKey]`, thêm `repoKey` vào `repos` của module, đặt `branch` là `feat/<module>` nếu chưa có.
 • `artifact` — thêm hoặc cập nhật row có ID này trong `artifacts/_registry/artifact-index.md`. `--type` là text tự do; `--status` mặc định `draft`.

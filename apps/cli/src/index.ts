@@ -84,7 +84,9 @@ async function main() {
       console.log("  haren agent     Manage local agent (start, stop, status)");
       console.log("  haren plugin    Manage plugins (add, remove, list, run, doctor)");
       console.log("  haren track     Record progress and events:");
-      console.log("                  status <module> <status>");
+      console.log(
+        "                  status <module> <status> [--branch <name>] [--repos <key1,key2>]",
+      );
       console.log("                  feature <module> <feature> [status]");
       console.log("                  commit <module> <repoKey> <sha>");
       console.log("                  depends <module> [dep ...]   (replace the dependency list)");

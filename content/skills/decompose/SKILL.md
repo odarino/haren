@@ -47,23 +47,10 @@ These decisions affect ALL modules and must be resolved first.
    - `artifacts/03-modules/module-map.md` (use create-artifact skill)
    - `artifacts/03-modules/{module}/module.md` for each module (use create-artifact skill) — each module gets its own folder so that `spec.md` (BA-owned) can sit alongside it later
 9. Validate with validate-artifact skill (checks for cycles, missing interfaces)
-10. Update progress.json — each module gets "decomposed" status. Write every module with this shape:
-    ```json
-    "<module>": {
-      "status": "decomposed",
-      "currentPhase": "decompose",
-      "features": {},
-      "lastCommit": {},
-      "branch": "feat/<module>",
-      "repos": ["<repo key from manifest>"],
-      "lastUpdated": "<ISO 8601 timestamp>"
-    }
-    ```
-    `features` stays `{}` until the plan phase adds tasks. `branch` and `repos` are optional. Without `branch`, haren uses `feat/<module>`.
-    Write this initial shape once, when the modules are new. After that, change module status only with `haren track status <module> <status>` (see update-tracking skill).
+10. Register each module with `haren track status <module> decomposed --branch feat/<module> --repos <key1,key2>`. Use the repo keys from `manifest.yaml`. The CLI rejects a key that is not in the manifest. `--branch` is optional: without it, haren uses `feat/<module>`. To change the branch or repos later, run the same command with the same status. Never edit progress.json by hand. The plan phase adds the features.
 11. Record the dependencies of each module with `haren track depends <module> <dep> [<dep> ...]`. Run it with no `<dep>` to clear them. The command checks that the modules exist and rejects a cycle. Do not edit progress.json by hand. The implement skill and skill.md "Dependent modules" use this map to choose the base branch and the merge order. The release skill uses it for the release order
 12. Migration mode only (`mode: migration`): the modules come from the Module column of `artifacts/02-discovery/unit-map.md`.
-    1. For each module in the column, run `haren track status <module> decomposed`.
+    1. Make sure each module in the column is registered as in step 10. Do not run `haren track status <module> decomposed` again without `--repos` or `--branch`: the module is already `decomposed` and the CLI rejects the move. Run it with `--repos` or `--branch` only to change them.
     2. Run `haren migrate inventory` once, with no `--module` flag. It reads the Module column of each known unit and registers the unit as `inventoried` in that module. The `--module` flag only sets the module of units that are new to the map.
     3. Check the output for a `warning: skipped` line. Fix the module name or create the module, then run inventory again.
     4. Run `haren track check`.

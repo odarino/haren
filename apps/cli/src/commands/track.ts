@@ -30,7 +30,7 @@ import { adapterMissingMessage, readAdapter } from "../plugins/adapter-read";
 import { harenDirFlag, resolveHarenDir } from "../workspace/resolve";
 
 export const TRACK_USAGE = `Usage:
-  haren track status <module> <status>
+  haren track status <module> <status> [--branch <name>] [--repos <key1,key2>]
   haren track feature <module> <feature> [status]
   haren track unit <module> <unit> <status>
   haren track commit <module> <repoKey> <sha>
@@ -53,6 +53,8 @@ const VALUE_FLAGS = [
   "--data",
   "--reason",
   "--hours",
+  "--branch",
+  "--repos",
 ];
 
 interface ParsedTrackArgs {
@@ -136,7 +138,7 @@ export async function track(args: string[], cwd = process.cwd()): Promise<void> 
 
   switch (sub) {
     case "status":
-      return trackStatus(paths, rest);
+      return trackStatus(paths, rest, flags);
     case "feature":
       return trackFeature(paths, rest);
     case "unit":
@@ -210,15 +212,55 @@ async function trackUnit(paths: TrackPaths, rest: string[]): Promise<void> {
   console.log(`  ${module}/${unit}: ${from ?? "(new)"} → ${to}`);
 }
 
-async function trackStatus(paths: TrackPaths, rest: string[]): Promise<void> {
+/** The branch and repos given with --branch and --repos. Repo keys must exist in manifest.yaml. */
+async function moduleMeta(
+  paths: TrackPaths,
+  flags: Record<string, string>,
+): Promise<{ branch?: string; repos?: string[] }> {
+  const meta: { branch?: string; repos?: string[] } = {};
+  if (flags.branch !== undefined) meta.branch = need(flags.branch, "--branch <name>");
+  if (flags.repos !== undefined) {
+    const repos = [
+      ...new Set(
+        flags.repos
+          .split(",")
+          .map((r) => r.trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (!repos.length) throw new Error(`Missing --repos <key1,key2>.\n${TRACK_USAGE}`);
+    const manifestPath = join(paths.harenDir, "manifest.yaml");
+    const manifest = existsSync(manifestPath)
+      ? parseManifest(await readFile(manifestPath, "utf-8"))
+      : {};
+    const declared = Object.keys(normalizeRepos(manifest.repos));
+    const unknown = repos.filter((r) => !declared.includes(r));
+    if (unknown.length) {
+      throw new Error(
+        `Unknown repo key: ${unknown.join(", ")}. manifest.yaml repos: ${declared.length ? declared.join(", ") : "(none)"}`,
+      );
+    }
+    meta.repos = repos;
+  }
+  return meta;
+}
+
+async function trackStatus(
+  paths: TrackPaths,
+  rest: string[],
+  flags: Record<string, string>,
+): Promise<void> {
   const module = need(rest[0], "<module>");
   const to = need(rest[1], "<status>") as ModuleStatus;
   if (!MODULE_STATUSES.includes(to)) {
     throw new Error(`Invalid module status '${to}'. Allowed: ${MODULE_STATUSES.join(", ")}`);
   }
   const progress = await loadProgress(paths);
+  const meta = await moduleMeta(paths, flags);
+  // Same status plus --branch or --repos only updates the branch and repos.
+  const metaOnly = progress.modules[module]?.status === to && Object.keys(meta).length > 0;
   const migration = await loadMigration(paths);
-  if (migration && progress.modules[module]) {
+  if (migration && progress.modules[module] && !metaOnly) {
     const floor = to === "planned" ? "spec-approved" : to === "completed" ? "parity-signed" : null;
     if (floor) {
       const below = unitsBelow(progress.modules[module], floor);
@@ -246,13 +288,21 @@ async function trackStatus(paths: TrackPaths, rest: string[]): Promise<void> {
           currentPhase: phaseForStatus(to),
           features: {},
           lastCommit: {},
+          ...meta,
           lastUpdated: new Date().toISOString(),
         },
       },
     };
   } else {
     from = progress.modules[module].status;
-    next = updateModuleStatus(progress, module, to);
+    next = metaOnly ? progress : updateModuleStatus(progress, module, to);
+    next = {
+      ...next,
+      modules: {
+        ...next.modules,
+        [module]: { ...next.modules[module], ...meta, lastUpdated: new Date().toISOString() },
+      },
+    };
   }
   await writeProgress(paths.progress, next);
   await emit(paths, { type: "module-status", module, from, to, phase: phaseForStatus(to) });

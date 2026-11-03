@@ -277,6 +277,7 @@ describe("buildManifestText", () => {
     expect(cfg.liveLegacy).toBe(false);
     expect(cfg.adapter).toBeUndefined();
     expect(text).toContain("# adapter:");
+    expect(text).toMatch(/unitId:.*# .*change or remove parentOf/);
     expect(text).toContain("#   legacy_src: { path: ../legacy_src, role: legacy, readOnly: true }");
     expect(legacyRepo(m)).toBeNull();
   });

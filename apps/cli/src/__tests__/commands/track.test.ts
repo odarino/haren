@@ -620,3 +620,54 @@ describe("track check in migration mode (more)", () => {
     await expect(run("check")).rejects.toThrow(/more than one repo with role: legacy/);
   });
 });
+
+describe("track status --branch and --repos", () => {
+  const manifest =
+    'haren:\n  version: "1.3.3"\nrepos:\n  web: { path: ../web }\n  api: { path: ../api }\n';
+  const read = async () => JSON.parse(await readFile(join(harenDir, "progress.json"), "utf-8"));
+
+  it("sets branch and repos on a new module", async () => {
+    await writeFile(join(harenDir, "manifest.yaml"), manifest);
+    await track(
+      ["status", "cart", "decomposed", "--branch", "feat/cart", "--repos", "web,api"],
+      root,
+    );
+    const mod = (await read()).modules.cart;
+    expect(mod.status).toBe("decomposed");
+    expect(mod.branch).toBe("feat/cart");
+    expect(mod.repos).toEqual(["web", "api"]);
+  });
+
+  it("rejects a repo key that is not in the manifest", async () => {
+    await writeFile(join(harenDir, "manifest.yaml"), manifest);
+    await expect(
+      track(["status", "cart", "decomposed", "--repos", "web,nope"], root),
+    ).rejects.toThrow(/Unknown repo key: nope/);
+    expect((await read()).modules.cart).toBeUndefined();
+  });
+
+  it("updates repos with the same status and no transition", async () => {
+    await writeFile(join(harenDir, "manifest.yaml"), manifest);
+    await track(["status", "cart", "decomposed", "--repos", "web"], root);
+    await track(["status", "cart", "decomposed", "--repos", "api", "--branch", "feat/x"], root);
+    const mod = (await read()).modules.cart;
+    expect(mod.status).toBe("decomposed");
+    expect(mod.repos).toEqual(["api"]);
+    expect(mod.branch).toBe("feat/x");
+  });
+
+  it("updates repos with a valid transition on an existing module", async () => {
+    await writeFile(join(harenDir, "manifest.yaml"), manifest);
+    await track(["status", "checkout", "implementing", "--repos", "web"], root);
+    const mod = (await read()).modules.checkout;
+    expect(mod.status).toBe("implementing");
+    expect(mod.repos).toEqual(["web"]);
+  });
+
+  it("still rejects a same-status move without branch or repos", async () => {
+    await track(["status", "cart", "decomposed"], root);
+    await expect(track(["status", "cart", "decomposed"], root)).rejects.toThrow(
+      /Invalid module transition/,
+    );
+  });
+});

@@ -4,5 +4,9 @@
   "phase": "init",
   "status": "active",
   "modules": {},
-  "dependencies": {}
+  "dependencies": {},
+  "gateOverride": {
+    "reason": "user asked: fix decompose hand-edit, extract spec registration order, parentOf hint",
+    "until": "2026-11-03T05:14:53.056Z"
+  }
 }

@@ -319,7 +319,7 @@ The command finds the haren folder from the current folder. Use `--haren-dir <pa
 or `HAREN_DIR` to choose one. It keeps all other keys in `progress.json`.
 
 ```bash
-haren track status <module> <status>
+haren track status <module> <status> [--branch <name>] [--repos <key1,key2>]
 haren track feature <module> <feature> [status]
 haren track commit <module> <repoKey> <sha>
 haren track artifact <id> --type <type> --path <path> [--module <m>] [--status <s>]
@@ -335,7 +335,9 @@ haren track check          # manifest repos + artifact index consistency; exits 
   `discovered` or `decomposed`. Transitions:
   `discovered → decomposed → planned → implementing → evaluating → completed → released`.
   `implementing` and `evaluating` can go to `blocked`. `blocked` goes back to
-  `implementing` or `planned`.
+  `implementing` or `planned`. `--branch` sets the module branch. `--repos` sets the module
+  repos. Each repo key must exist in `manifest.yaml`. With the same status as the module,
+  the command only updates the branch and repos.
 - `feature` without a status adds the feature as `pending`. With a status it checks
   the transition: `pending → in-progress → evaluating → passing | fixing | blocked`,
   `fixing → evaluating`, `blocked → in-progress`.

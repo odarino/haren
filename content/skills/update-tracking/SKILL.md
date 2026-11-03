@@ -18,7 +18,7 @@ Run every command from the haren folder.
 
 | Goal | Command |
 |------|---------|
-| Set module status | `haren track status <module> <status>` |
+| Set module status | `haren track status <module> <status> [--branch <name>] [--repos <key1,key2>]` |
 | Add a feature (status `pending`) | `haren track feature <module> <feature>` |
 | Set feature status | `haren track feature <module> <feature> <status>` |
 | Record a commit | `haren track commit <module> <repoKey> <sha>` |
@@ -46,6 +46,7 @@ In migration mode, `haren migrate gate <unit>` runs the adapter gate. A gate FAI
 
 ### Update Module Status
 1. Run `haren track status <module> <status>`. The CLI rejects an invalid transition
+2. To set the module branch and repos, add `--branch <name>` and `--repos <key1,key2>`. Each repo key must be in `manifest.yaml`. If you give the same status as the module has now, the CLI only updates the branch and repos
 
 ### Add Feature to Module
 1. Run `haren track feature <module> <feature>`. The feature starts as `pending`

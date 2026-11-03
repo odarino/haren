@@ -112,7 +112,13 @@ describe("content: migration mode", () => {
     expect(text).toMatch(/^---\nname: extract\n/);
     expect(text).toContain("haren migrate gate <unit> --approve");
   });
-  for (const t of ["unit-map", "unit-spec", "legacy-semantics", "deviation-log", "parity-evidence"]) {
+  for (const t of [
+    "unit-map",
+    "unit-spec",
+    "legacy-semantics",
+    "deviation-log",
+    "parity-evidence",
+  ]) {
     it(`template ${t}.md exists`, () => {
       expect(read(`templates/${t}.md`).length).toBeGreaterThan(0);
     });
@@ -136,6 +142,22 @@ describe("content: migration mode", () => {
   it("decompose records dependencies with haren track depends", () => {
     expect(read("skills/decompose/SKILL.md")).toContain("haren track depends");
     expect(read("agents/architect.md")).toContain("haren track depends");
+  });
+  it("decompose registers modules with the CLI and has no hand-written progress.json shape", () => {
+    const text = read("skills/decompose/SKILL.md");
+    expect(text).toContain("haren track status <module> decomposed --branch feat/<module> --repos");
+    expect(text).not.toContain('"currentPhase"');
+    expect(text).not.toContain("```json");
+    expect(text).not.toContain("Update progress.json");
+  });
+  it("extract registers the unit spec at spec-draft, before approval", () => {
+    const text = read("skills/extract/SKILL.md");
+    const draft = text.indexOf("spec-draft");
+    const register = text.indexOf("haren track artifact <id> --type unit-spec");
+    const approve = text.indexOf("Only after the user approves");
+    expect(register).toBeGreaterThan(draft);
+    expect(register).toBeLessThan(approve);
+    expect(text.split("--type unit-spec").length - 1).toBe(1);
   });
   it("extract explains that a blocked unit skips the gate.json check", () => {
     const text = read("skills/extract/SKILL.md");
