@@ -1,0 +1,114 @@
+import { describe, it, expect, afterEach } from "bun:test";
+import { mkdtemp, writeFile, readFile, rm, utimes } from "fs/promises";
+import { existsSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
+import {
+  startCompanion,
+  isFullDocument,
+  newestScreen,
+  type CompanionHandle,
+} from "../../companion/server";
+
+let dir: string;
+let h: CompanionHandle | null = null;
+const setup = async (o: Record<string, unknown> = {}) => {
+  dir = await mkdtemp(join(tmpdir(), "companion-"));
+  h = await startCompanion({ sessionDir: dir, port: 0, key: "k123", ...o });
+  return h;
+};
+afterEach(async () => {
+  await h?.stop("test");
+  h = null;
+  await rm(dir, { recursive: true, force: true });
+});
+const base = () => `http://127.0.0.1:${h!.info.port}`;
+
+describe("companion server", () => {
+  it("writes server-info with the exact keys", async () => {
+    await setup();
+    const info = JSON.parse(await readFile(join(dir, "state", "server-info"), "utf-8"));
+    expect(Object.keys(info).sort()).toEqual(["port", "screen_dir", "state_dir", "type", "url"]);
+    expect(info.url).toBe(`http://localhost:${info.port}/?key=k123`);
+  });
+  it("rejects requests without the key", async () => {
+    await setup();
+    expect((await fetch(`${base()}/`)).status).toBe(403);
+    expect((await fetch(`${base()}/?key=bad`)).status).toBe(403);
+  });
+  it("sets a cookie and accepts it", async () => {
+    await setup();
+    const r = await fetch(`${base()}/?key=k123`);
+    const cookie = r.headers.get("set-cookie")!;
+    expect(cookie).toContain("companion_key=k123");
+    expect((await fetch(`${base()}/`, { headers: { cookie: "companion_key=k123" } })).status).toBe(
+      200,
+    );
+  });
+  it("wraps a fragment in the frame and serves the newest file", async () => {
+    await setup();
+    await writeFile(join(dir, "content", "a.html"), "<h2>First</h2>");
+    await writeFile(join(dir, "content", "b.html"), "<h2>Second</h2>");
+    await utimes(join(dir, "content", "a.html"), new Date(1000), new Date(1000));
+    const body = await (await fetch(`${base()}/?key=k123`)).text();
+    expect(body).toContain("<h2>Second</h2>");
+    expect(body).toContain("haren companion");
+    expect(body).toContain("helper.js");
+  });
+  it("serves a full document with the helper injected", async () => {
+    await setup();
+    await writeFile(
+      join(dir, "content", "full.html"),
+      "<!DOCTYPE html><html><body><p>X</p></body></html>",
+    );
+    const body = await (await fetch(`${base()}/?key=k123`)).text();
+    expect(body).toContain("<p>X</p>");
+    expect(body).toContain("helper.js");
+    expect(body).not.toContain("haren companion</");
+  });
+  it("blocks path traversal under /files", async () => {
+    await setup();
+    await writeFile(join(dir, "secret.txt"), "s");
+    expect((await fetch(`${base()}/files/..%2Fsecret.txt?key=k123`)).status).toBe(404);
+    await writeFile(join(dir, "content", "img.txt"), "ok");
+    expect((await fetch(`${base()}/files/img.txt?key=k123`)).status).toBe(200);
+  });
+  it("records clicks and clears events on a new screen", async () => {
+    await setup();
+    await writeFile(join(dir, "content", "a.html"), "<p>a</p>");
+    const ws = new WebSocket(`ws://127.0.0.1:${h!.info.port}/ws?key=k123`);
+    await new Promise((r) => (ws.onopen = r));
+    ws.send(JSON.stringify({ type: "click", choice: "b", text: "Option B" }));
+    await Bun.sleep(200);
+    const line = JSON.parse((await readFile(join(dir, "state", "events"), "utf-8")).trim());
+    expect(line).toMatchObject({ type: "click", choice: "b", text: "Option B" });
+    expect(typeof line.timestamp).toBe("number");
+    await writeFile(join(dir, "content", "b.html"), "<p>b</p>");
+    await Bun.sleep(1200);
+    expect((await readFile(join(dir, "state", "events"), "utf-8")).trim()).toBe("");
+    ws.close();
+  });
+  it("rejects a WebSocket without the key", async () => {
+    await setup();
+    const ws = new WebSocket(`ws://127.0.0.1:${h!.info.port}/ws`);
+    const closed = await new Promise<boolean>((r) => {
+      ws.onerror = () => r(true);
+      ws.onclose = () => r(true);
+      ws.onopen = () => r(false);
+    });
+    expect(closed).toBe(true);
+  });
+  it("stops after the idle timeout and writes server-stopped", async () => {
+    await setup({ idleTimeoutMs: 300 });
+    await Bun.sleep(700);
+    expect(existsSync(join(dir, "state", "server-stopped"))).toBe(true);
+    h = null;
+  });
+  it("detects full documents and the newest screen", async () => {
+    expect(isFullDocument("  <!doctype html><p>")).toBe(true);
+    expect(isFullDocument("<html>")).toBe(true);
+    expect(isFullDocument("<h2>x</h2>")).toBe(false);
+    dir = await mkdtemp(join(tmpdir(), "companion-"));
+    expect(newestScreen(dir)).toBeNull();
+  });
+});
