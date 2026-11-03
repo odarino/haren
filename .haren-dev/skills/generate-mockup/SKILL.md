@@ -20,12 +20,12 @@ Generate ASCII wireframes for UI screens described in specs or designs. Output i
 - Key UI elements (components, fields, actions)
 - Layout hints (sidebar, modal, table, form, tabs, etc.)
 
-## Modes
+## Wireframe modes
 
 - **Single** (default): one wireframe for one screen
 - **Options**: 2-3 labeled variants of one screen, for the user to compare and pick. The plan skill uses this mode
 
-### Mode
+### UI mode (ui.mockups)
 
 Read `ui.mockups` in `manifest.yaml`. If the key is missing, use `ask`.
 

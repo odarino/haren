@@ -249,6 +249,27 @@ Transition sai, module không tồn tại hoặc option sai → lệnh in thông
 • Event do `haren track` ghi: `module-status` (`from`, `to`, `phase`), `feature-status` (`from`, `to`), `commit` (`repo`, `sha`), `artifact` (`id`, `artifactType`, `path`, `status`), `gate-override` (`action`, `reason`, `until`).
 • Skill ghi thêm qua `haren track event`: `ideate-complete`, `discover-complete`, `feature-ready`, `escalate-human`, `iteration-complete`, `release-step`. Mọi type khác đều được chấp nhận.
 
+**Visual companion** — hiển thị mockup UI trong trình duyệt. Chọn UI mode bằng `haren track ui-mode <ask|ascii|browser>`; giá trị lưu ở `ui.mockups` trong `manifest.yaml` (mặc định `ask`).
+• `ask` — agent hỏi bạn có muốn dùng trình duyệt trước khi hiện màn hình.
+• `ascii` — chỉ wireframe ASCII trong terminal.
+• `browser` — agent hiện các option trong trình duyệt, bạn bấm để chọn.
+
+```bash
+haren companion start [--open] [--foreground] [--host <h>] [--url-host <h>] \
+                      [--idle-timeout-minutes <n>] [--port <n>]
+haren companion status    # exit 0 nếu server đang chạy, 1 nếu không
+haren companion stop
+```
+
+• `start` in một dòng JSON: `{"type":"server-started","port","url","screen_dir","state_dir"}`.
+• Restart một session đã dừng sẽ dùng lại thư mục, key và port. Nếu port bận, server lấy port mới và ghi chú ra stderr.
+• File session nằm ở `<thư mục haren>/.companion/<pid>-<epoch>/`. Agent ghi màn hình HTML vào `content/`. Lượt bấm của bạn được ghi vào `state/events` dạng JSON lines: `{"type":"click","choice","text","timestamp"}`.
+• Skill `visual-companion` điều khiển server, skill `ui-review` kiểm tra màn hình theo rubric. Các skill plan, evaluate, generate-mockup dùng UI mode.
+
+Lưu ý bảo mật: server chỉ bind `127.0.0.1`. Key bí mật nằm trong URL, sau đó server đặt cookie `SameSite=Strict`; key lưu ở `state/key` (quyền 0600). Server gửi `Referrer-Policy: no-referrer`. Route `/files` chỉ phục vụ thư mục `content/`. `.companion/` nằm trong `.gitignore`, không commit.
+
+Server companion được chuyển thể từ visual companion của [Superpowers](https://github.com/obra/superpowers) của Jesse Vincent (giấy phép MIT). Xem `apps/cli/src/companion/NOTICE`.
+
 ━━━━━━━━━━━━━━━━━━━━
 
 ⚙️ **Cách hoạt động**

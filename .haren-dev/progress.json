@@ -4,5 +4,9 @@
   "phase": "init",
   "status": "active",
   "modules": {},
-  "dependencies": {}
+  "dependencies": {},
+  "gateOverride": {
+    "reason": "user approved: execute visual-companion plan (TASKS-002)",
+    "until": "2026-11-03T14:30:15.618Z"
+  }
 }

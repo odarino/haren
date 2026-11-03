@@ -41,7 +41,7 @@ Run through each criterion:
    - Read `ui.mockups` in `manifest.yaml`. On `ask`, follow the offer in the visual-companion skill
    - Browser mode (`ui.mockups` is `browser`, or the user chose the browser): push one `.compare` screen per changed screen with the visual-companion skill (chosen mockup | screenshot). Rebuild the chosen option from the ASCII wireframe in design.md with the HTML mock elements. Read the `pass` or `fail` click from `state_dir/events`. Confirm the verdict with the user in the terminal
    - ASCII mode: compare as above in the terminal
-   - No screenshot (the app cannot run): use the ASCII path. Run the `ui-review` skill on the screen derived from the code, or record in the review that the screen check was skipped and why
+   - No screenshot (the app cannot run): use the ASCII path. Run the `ui-review` skill on the screen derived from the code, or record in the review that the screen check was skipped and why. Do not push `.compare`.
    - Both modes: run the `ui-review` skill on each screenshot. Add the findings table to the review
    - An open blocker (no fix and not 'accepted by user') is a fail.
 6. **Privacy**: fixtures, examples, seeds, test data and screenshots contain no real third-party personal data (names, emails, phone numbers, addresses, handles, photos). Synthetic data only. Real personal data is a fail

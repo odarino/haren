@@ -394,6 +394,48 @@ Skills also write these types with `haren track event`: `ideate-complete`,
 `discover-complete`, `feature-ready`, `escalate-human`, `iteration-complete`,
 `release-step`. Any other type is accepted.
 
+### Visual companion
+
+The visual companion shows UI mockups in a browser. The plan and evaluate phases use it
+when the UI mode allows it. Choose the UI mode with `haren track ui-mode <ask|ascii|browser>`.
+The mode is stored in `manifest.yaml` as `ui.mockups`. The default is `ask`.
+
+| Mode      | What happens                                                       |
+| --------- | ------------------------------------------------------------------ |
+| `ask`     | The agent offers the browser before it shows a screen.             |
+| `ascii`   | The agent shows ASCII wireframes in the terminal only.             |
+| `browser` | The agent shows option screens in the browser. You click a choice. |
+
+```bash
+haren companion start [--open] [--foreground] [--host <h>] [--url-host <h>] \
+                      [--idle-timeout-minutes <n>] [--port <n>]
+haren companion status    # exit 0 when a server runs, 1 when not
+haren companion stop
+```
+
+- `start` prints one JSON line:
+  `{"type":"server-started","port","url","screen_dir","state_dir"}`.
+- A restart of a stopped session reuses its folder, key and port. If the port is busy,
+  the server takes a new port and prints a note on stderr.
+- Session files are in `<haren folder>/.companion/<pid>-<epoch>/`. The agent writes
+  HTML screens to `content/`. Your clicks go to `state/events` as JSON lines:
+  `{"type":"click","choice","text","timestamp"}`.
+- The `visual-companion` skill drives the server. The `ui-review` skill checks a
+  screen against a rubric. The plan, evaluate and generate-mockup skills use the mode.
+
+Security notes:
+
+- The server binds to `127.0.0.1`.
+- A secret key is in the URL. The server then sets a `SameSite=Strict` cookie.
+  The key is in `state/key` (mode 0600).
+- The server sends `Referrer-Policy: no-referrer`.
+- The `/files` route serves only the `content/` folder.
+- `.companion/` is in `.gitignore`. Do not commit it.
+
+The companion server is adapted from the visual companion in
+[Superpowers](https://github.com/obra/superpowers) by Jesse Vincent (MIT license).
+See `apps/cli/src/companion/NOTICE`.
+
 ---
 
 ## How it works
