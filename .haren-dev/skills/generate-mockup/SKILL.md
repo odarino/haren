@@ -51,7 +51,7 @@ Send the offer as its own message, with nothing else. List only the formats that
 
 Needs the `Artifact` tool (Claude Code with claude.ai). If the tool is missing, tell the user and use ASCII.
 
-Use a plain HTML page, not an Artifact type such as Design or Slides, and skip the quickstart for a type. The page file must stay in `artifacts/04-plans/{module}/mockups/`. Give the page a `<title>` of 2-4 words (for example `Skip Input Options`) and the icon `layout`.
+Use a plain HTML page, not an Artifact type such as Design or Slides, and skip the quickstart for a type. The page file must stay in `artifacts/04-plans/{module}/mockups/`. Give the page a `<title>` of 2-4 words (for example `Checkout Layout Options`) and the icon `layout`.
 
 1. Draw the ASCII options first (Options mode below). They stay the source of truth in design.md.
 2. Build one HTML page: one card per option, side by side on wide screens and stacked on phones. Label each card `Option A`/`B`/`C` and show its trade-off line. Mark the recommended option. Use synthetic data only.
