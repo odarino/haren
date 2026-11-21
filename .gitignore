@@ -43,5 +43,6 @@ apps/cli/content/
 apps/cli/dist/
 apps/cli/README.md
 apps/cli/LICENSE
+apps/cli/CHANGELOG.md
 
 .claude
