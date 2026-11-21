@@ -49,6 +49,13 @@ describe("brainstorm-gate path check", () => {
     expect(await runGate(harenDir, workspace, join(workspace, "backend", "x.ts"))).toBe(2);
   });
 
+  it("allows a write outside the workspace even when no module is planned", async () => {
+    const { workspace, harenDir } = await setup("ws/haren");
+    await writeFile(join(harenDir, "progress.json"), JSON.stringify({ version: 2, modules: {} }));
+    expect(await runGate(harenDir, workspace, join(root, "other-project", "x.html"))).toBe(0);
+    expect(await runGate(harenDir, workspace, join(workspace, "src", "x.ts"))).toBe(2);
+  });
+
   it("blocks a sibling folder whose name starts with the haren folder name", async () => {
     const { workspace, harenDir } = await setup("ws/haren");
     expect(await runGate(harenDir, workspace, join(workspace, "haren-old", "x.ts"))).toBe(2);

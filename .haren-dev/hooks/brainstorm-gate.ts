@@ -373,6 +373,9 @@ async function main() {
 
   if (process.env.HAREN_GATE === "off") allow();
 
+  // A file outside the workspace (another project, temp files) is not ours to gate.
+  if (target && !inside(target, workspaceDir)) allow();
+
   const progressFile = Bun.file(resolve(harenDir, "progress.json"));
   if (!(await progressFile.exists())) allow();
 
@@ -392,8 +395,8 @@ async function main() {
     deny(message);
   }
 
-  // No file path, or a file outside the workspace (temp files): legacy rule.
-  if (!target || !inside(target, workspaceDir)) allow();
+  // No file path: legacy rule.
+  if (!target) allow();
 
   const repos = await readRepos();
   const roots: string[] = [];

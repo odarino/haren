@@ -37,14 +37,17 @@ export const TRACK_USAGE = `Usage:
   haren track feature <module> <feature> [status]
   haren track unit <module> <unit> <status>
   haren track commit <module> <repoKey> <sha>
+  haren track commit <module> <repoKey> --remove
   haren track depends <module> [dep ...]
   haren track artifact <id> --type <type> --path <path> [--module <m>] [--status <s>]
   haren track event <type> [--module m] [--phase p] [--feature f] [--data '<json object>']
   haren track override on --reason "<text>" [--hours <n>]
   haren track override off
-  haren track ui-mode <ask|ascii|browser>
+  haren track ui-mode <ask|ascii|browser|artifact>
   haren track check
 Options: --haren-dir <path>`;
+
+const BOOL_FLAGS = ["--remove"];
 
 const VALUE_FLAGS = [
   "--haren-dir",
@@ -74,6 +77,10 @@ export function parseTrackArgs(args: string[]): ParsedTrackArgs {
     if (arg.startsWith("--")) {
       const eq = arg.indexOf("=");
       const name = eq === -1 ? arg : arg.slice(0, eq);
+      if (BOOL_FLAGS.includes(name) && eq === -1) {
+        flags[name.slice(2)] = "true";
+        continue;
+      }
       if (!VALUE_FLAGS.includes(name)) throw new Error(`Unknown option: ${name}`);
       const value = eq === -1 ? args[++i] : arg.slice(eq + 1);
       if (value === undefined) throw new Error(`${name} needs a value`);
@@ -148,7 +155,7 @@ export async function track(args: string[], cwd = process.cwd()): Promise<void> 
     case "unit":
       return trackUnit(paths, rest);
     case "commit":
-      return trackCommit(paths, rest);
+      return trackCommit(paths, rest, flags);
     case "depends":
       return trackDepends(paths, rest);
     case "artifact":
@@ -248,20 +255,34 @@ async function moduleMeta(
       ),
     ];
     if (!repos.length) throw new Error(`Missing --repos <key1,key2>.\n${TRACK_USAGE}`);
-    const manifestPath = join(paths.harenDir, "manifest.yaml");
-    const manifest = existsSync(manifestPath)
-      ? parseManifest(await readFile(manifestPath, "utf-8"))
-      : {};
-    const declared = Object.keys(normalizeRepos(manifest.repos));
-    const unknown = repos.filter((r) => !declared.includes(r));
-    if (unknown.length) {
-      throw new Error(
-        `Unknown repo key: ${unknown.join(", ")}. manifest.yaml repos: ${declared.length ? declared.join(", ") : "(none)"}`,
-      );
-    }
+    await checkRepoKeys(paths, repos);
     meta.repos = repos;
   }
   return meta;
+}
+
+/**
+ * Repo keys must exist in manifest.yaml `repos`. When `repos` is empty, the only
+ * key is `default`: the repo that holds the haren folder (skill.md "No repos listed").
+ */
+async function allowedRepoKeys(paths: TrackPaths): Promise<{ allowed: string[]; empty: boolean }> {
+  const manifestPath = join(paths.harenDir, "manifest.yaml");
+  const manifest = existsSync(manifestPath)
+    ? parseManifest(await readFile(manifestPath, "utf-8"))
+    : {};
+  const declared = Object.keys(normalizeRepos(manifest.repos));
+  return { allowed: declared.length ? declared : ["default"], empty: !declared.length };
+}
+
+async function checkRepoKeys(paths: TrackPaths, keys: string[]): Promise<void> {
+  const { allowed, empty } = await allowedRepoKeys(paths);
+  const declared = empty ? [] : allowed;
+  const unknown = keys.filter((k) => !allowed.includes(k));
+  if (unknown.length) {
+    throw new Error(
+      `Unknown repo key: ${unknown.join(", ")}. Allowed: ${allowed.join(", ")}${declared.length ? "" : " (manifest.yaml repos is empty)"}`,
+    );
+  }
 }
 
 async function trackStatus(
@@ -365,10 +386,16 @@ async function trackFeature(paths: TrackPaths, rest: string[]): Promise<void> {
   console.log(`  ${module}/${feature}: ${from ?? "(new)"} → ${status}`);
 }
 
-async function trackCommit(paths: TrackPaths, rest: string[]): Promise<void> {
+async function trackCommit(
+  paths: TrackPaths,
+  rest: string[],
+  flags: Record<string, string> = {},
+): Promise<void> {
   const module = need(rest[0], "<module>");
   const repo = need(rest[1], "<repoKey>");
+  if (flags.remove) return removeCommitKey(paths, module, repo);
   const sha = need(rest[2], "<sha>");
+  await checkRepoKeys(paths, [repo]);
   const progress = await loadProgress(paths);
   requireModule(progress, module);
   const mod = progress.modules[module];
@@ -389,6 +416,32 @@ async function trackCommit(paths: TrackPaths, rest: string[]): Promise<void> {
   await writeProgress(paths.progress, next);
   await emit(paths, { type: "commit", module, repo, sha });
   console.log(`  ${module}: lastCommit.${repo} = ${sha}`);
+}
+
+/** Drop a stale repo key from lastCommit and repos. Any key can be removed. */
+async function removeCommitKey(paths: TrackPaths, module: string, repo: string): Promise<void> {
+  const progress = await loadProgress(paths);
+  requireModule(progress, module);
+  const mod = progress.modules[module];
+  const lastCommit = { ...(mod.lastCommit ?? {}) };
+  const had = Object.hasOwn(lastCommit, repo) || (mod.repos ?? []).includes(repo);
+  if (!had) throw new Error(`Module '${module}' has no repo key '${repo}'.`);
+  delete lastCommit[repo];
+  const next: Progress = {
+    ...progress,
+    modules: {
+      ...progress.modules,
+      [module]: {
+        ...mod,
+        lastCommit,
+        repos: (mod.repos ?? []).filter((r) => r !== repo),
+        lastUpdated: new Date().toISOString(),
+      },
+    },
+  };
+  await writeProgress(paths.progress, next);
+  await emit(paths, { type: "commit", module, repo, sha: null, removed: true });
+  console.log(`  ${module}: removed repo key ${repo}`);
 }
 
 /** A path that closes a cycle when `module` depends on `deps`; null when there is none. */
@@ -604,13 +657,14 @@ export async function checkWorkspace(paths: TrackPaths): Promise<CheckResult> {
   const manifest = existsSync(manifestPath)
     ? parseManifest(await readFile(manifestPath, "utf-8"))
     : {};
-  const declared = new Set(Object.keys(normalizeRepos(manifest.repos)));
+  const { allowed: allowedKeys, empty: noRepos } = await allowedRepoKeys(paths);
+  const declared = new Set(allowedKeys);
   for (const [name, mod] of Object.entries(progress.modules)) {
     const used = new Set([...(mod.repos ?? []), ...Object.keys(mod.lastCommit ?? {})]);
     for (const key of used) {
       if (!declared.has(key)) {
         errors.push(
-          `module '${name}' uses repo '${key}', but manifest.yaml has no repos.${key} entry`,
+          `module '${name}' uses repo '${key}', but ${noRepos ? "manifest.yaml repos is empty, so the only key is 'default'" : `manifest.yaml has no repos.${key} entry`}. Remove a stale key with: haren track commit ${name} ${key} --remove`,
         );
       }
     }

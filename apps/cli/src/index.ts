@@ -112,7 +112,7 @@ async function main() {
         "                  event <type> [--module m] [--phase p] [--feature f] [--data '<json>']",
       );
       console.log("                  unit <module> <unit> <status>   (migration mode)");
-      console.log("                  ui-mode <ask|ascii|browser>");
+      console.log("                  ui-mode <ask|ascii|browser|artifact>");
       console.log('                  override on --reason "<text>" [--hours <n>] | override off');
       console.log("  haren migrate   Run the migration adapter:");
       console.log(

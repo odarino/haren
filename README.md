@@ -397,7 +397,7 @@ Skills also write these types with `haren track event`: `ideate-complete`,
 ### Visual companion
 
 The visual companion shows UI mockups in a browser. The plan and evaluate phases use it
-when the UI mode allows it. Choose the UI mode with `haren track ui-mode <ask|ascii|browser>`.
+when the UI mode allows it. Choose the UI mode with `haren track ui-mode <ask|ascii|browser|artifact>`.
 The mode is stored in `manifest.yaml` as `ui.mockups`. The default is `ask`.
 
 | Mode      | What happens                                                       |
@@ -486,7 +486,8 @@ model behaves like the right specialist at the right time.
 
 Skills are the procedures the agent follows — `discover` (brainstorming),
 `research`, `decompose`, `plan`, `implement`, `evaluate`, `extract-stories`,
-`generate-mockup`, and a set of artifact-management helpers
+`generate-mockup`, `collect-components` (catalog of common UI components,
+shared services and functions, updated after each task), and a set of artifact-management helpers
 (`create-artifact`, `validate-artifact`, `search-artifact`, `update-tracking`,
 and more).
 

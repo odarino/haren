@@ -15,12 +15,13 @@ Execute the implementation plan for a module, one feature at a time.
 ## Pre-Implementation (every session)
 
 1. Run read-context skill to orient
-2. Read tasks from the **active plan path** (see skill.md Plan Paths convention)
-3. Read `progress.json` to find current feature status
-4. Read `artifacts/05-implementation/{module}/task-{N}-{slug}.md` if it exists for the target feature (previous session context)
-5. If iterations enabled, also read the **master plan path** for broader module context if needed
-6. Pick the highest-priority feature in "pending" status
-7. Set up the module branch. Follow skill.md "Repos and Git":
+2. Read tasks and `checklist.md` from the **active plan path** (see skill.md Plan Paths convention). If checklist.md is missing, tell the user and ask to run the plan skill or continue without it
+3. Read `artifacts/03-modules/component-catalog.md` if it exists. Use its entries before you write new UI components, services or functions
+4. Read `progress.json` to find current feature status
+5. Read `artifacts/05-implementation/{module}/task-{N}-{slug}.md` if it exists for the target feature (previous session context)
+6. If iterations enabled, also read the **master plan path** for broader module context if needed
+7. Pick the highest-priority feature in "pending" status
+8. Set up the module branch. Follow skill.md "Repos and Git":
    - Read the module's repos from the `repos:` front matter of `artifacts/03-modules/{module}/module.md`. If it lists no repos, follow "No repos listed" in skill.md "Repos and Git"
    - For each repo: if it has uncommitted changes, stop and ask the user what to do. Changes inside the haren folder do not count as uncommitted changes for this check
    - For each repo: if the branch `feat/{module-slug}` does not exist, create it from the repo's `default_branch`, or from the current branch if `default_branch` is not set. Then switch to it
@@ -40,14 +41,16 @@ For each feature:
 1. Update feature status: `haren track feature <module> <feature> in-progress`
 2. Choose the path by task size (see "Fast path" below):
    - **Small task:** implement it directly in the main session with superpowers:test-driven-development
-   - **Other tasks:** delegate to superpowers:subagent-driven-development. Pass the full task description from tasks.md and the design context from design.md. Ensure TDD discipline via superpowers:test-driven-development
-3. After implementation:
+   - **Other tasks:** delegate to superpowers:subagent-driven-development. Pass the full task description from tasks.md, the checklist section of the task and the design context from design.md. Ensure TDD discipline via superpowers:test-driven-development
+3. Before the code commit, go through the task's section in `checklist.md`. Tick an item (`- [x]`) only when you verified it in the code or in a test run. Do not tick from the design alone. If the code differs from the item, keep it unticked and add `— changed: {what and why}`. If an item does not apply or you cannot do it, keep it unticked and add `— skipped: {reason}`. Do not commit while an item is unticked without a reason. The main session ticks the items, also when a subagent wrote the code
+4. After implementation:
    - (a) Commit the code in each repo that the feature changed: `git -C <repo> commit` with a descriptive message. In the monorepo layout, make one code commit for all repo keys; see skill.md "Repos and Git"
-   - (b) Record each new commit SHA in `lastCommit.<repoKey>`: `haren track commit <module> <repoKey> <sha>`
+   - (b) Record each new commit SHA in `lastCommit.<repoKey>`. The repo key is a key of manifest.yaml `repos`, or `default` when `repos` is empty. Never guess a key such as `backend`: `haren track commit <module> <repoKey> <sha>`
+   - Run the collect-components skill in incremental mode on the new code commits. It updates `artifacts/03-modules/component-catalog.md`
    - Update feature status: `haren track feature <module> <feature> evaluating`
    - Append to task session log (`task-{N}-{slug}.md`): what was done, decisions made, any deviations from plan, and the commit SHA for each repo
    - Append the "feature-ready" event: `haren track event feature-ready --module <module> --phase implement --feature <feature>`
-   - (c) Commit the haren files (session log, `progress.json` and `events/events.jsonl`) in the haren repo. List the code commits in the message, for example `docs(checkout): task 2 session log — backend@abc1234, frontend@def5678`. In the monorepo layout the haren folder is in the same repo, so (a) and (c) are two commits on the same branch: the code commit first, then the haren commit. In the workspace layout, commit the haren files on the haren repo's current branch. Do not create a module branch in the haren repo.
+   - (c) Commit the haren files (session log, `checklist.md`, `component-catalog.md`, `progress.json` and `events/events.jsonl`) in the haren repo. List the code commits in the message, for example `docs(checkout): task 2 session log — backend@abc1234, frontend@def5678`. In the monorepo layout the haren folder is in the same repo, so (a) and (c) are two commits on the same branch: the code commit first, then the haren commit. In the workspace layout, commit the haren files on the haren repo's current branch. Do not create a module branch in the haren repo.
    - Never push
 
 ## Fast path
@@ -83,5 +86,5 @@ If iterations are enabled (check manifest.yaml for `iterations` block), include 
 - Always write tests before implementation (TDD)
 - If blocked, run `haren track feature <module> <feature> blocked` and surface to user — don't guess
 - If you need to deviate from the plan, document why in the session log
-- Never modify files in the haren folder except session logs. Change `progress.json` and `events/events.jsonl` only with `haren track` (see update-tracking skill). Never edit them with sed or jq
+- Never modify files in the haren folder except session logs, the ticks in `checklist.md` and `component-catalog.md` (through the collect-components skill). Change `progress.json` and `events/events.jsonl` only with `haren track` (see update-tracking skill). Never edit them with sed or jq
 - Never push. Never create pull requests unless the user asks

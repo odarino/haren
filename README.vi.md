@@ -249,7 +249,7 @@ Transition sai, module không tồn tại hoặc option sai → lệnh in thông
 • Event do `haren track` ghi: `module-status` (`from`, `to`, `phase`), `feature-status` (`from`, `to`), `commit` (`repo`, `sha`), `artifact` (`id`, `artifactType`, `path`, `status`), `gate-override` (`action`, `reason`, `until`).
 • Skill ghi thêm qua `haren track event`: `ideate-complete`, `discover-complete`, `feature-ready`, `escalate-human`, `iteration-complete`, `release-step`. Mọi type khác đều được chấp nhận.
 
-**Visual companion** — hiển thị mockup UI trong trình duyệt. Chọn UI mode bằng `haren track ui-mode <ask|ascii|browser>`; giá trị lưu ở `ui.mockups` trong `manifest.yaml` (mặc định `ask`).
+**Visual companion** — hiển thị mockup UI trong trình duyệt. Chọn UI mode bằng `haren track ui-mode <ask|ascii|browser|artifact>`; giá trị lưu ở `ui.mockups` trong `manifest.yaml` (mặc định `ask`).
 • `ask` — agent hỏi bạn có muốn dùng trình duyệt trước khi hiện màn hình.
 • `ascii` — chỉ wireframe ASCII trong terminal.
 • `browser` — agent hiện các option trong trình duyệt, bạn bấm để chọn.
@@ -295,7 +295,7 @@ Hook `brainstorm-gate` chỉ cho `Edit`/`Write` file **ngoài thư mục haren**
 
 **Agents** — haren đi kèm các định nghĩa agent theo vai trò mà LLM của bạn "nhập vai" theo từng giai đoạn — gồm **researcher**, **ideator**, **architect**, **planner**, **developer**, **reviewer** và **qa-engineer**. Mỗi vai trò có phạm vi tập trung để model hành xử như đúng chuyên gia vào đúng thời điểm.
 
-**Skills** — là các quy trình mà agent tuân theo: `discover` (brainstorming), `research`, `decompose`, `plan`, `implement`, `evaluate`, `extract-stories`, `generate-mockup`, cùng một bộ helper quản lý artifact (`create-artifact`, `validate-artifact`, `search-artifact`, `update-tracking`, v.v.).
+**Skills** — là các quy trình mà agent tuân theo: `discover` (brainstorming), `research`, `decompose`, `plan`, `implement`, `evaluate`, `extract-stories`, `generate-mockup`, `collect-components` (catalog các UI component, shared service và function dùng chung, cập nhật sau mỗi task), cùng một bộ helper quản lý artifact (`create-artifact`, `validate-artifact`, `search-artifact`, `update-tracking`, v.v.).
 
 **Thư mục haren:**
 

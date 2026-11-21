@@ -142,8 +142,8 @@ function replaceTopLevelBlockLf(text: string, key: string, block: string): strin
   return lines.join("\n");
 }
 
-export type UiMode = "ask" | "ascii" | "browser";
-export const UI_MODES: UiMode[] = ["ask", "ascii", "browser"];
+export type UiMode = "ask" | "ascii" | "browser" | "artifact";
+export const UI_MODES: UiMode[] = ["ask", "ascii", "browser", "artifact"];
 
 /** The `ui.mockups` setting; a missing or invalid value gives "ask". */
 export function readUiMode(m: Manifest): UiMode {
@@ -233,7 +233,7 @@ language: ${yamlScalar(o.language)}
 
 ${renderReposBlock(o.repos)}${o.mode === "migration" ? MIGRATION_SCAFFOLD(Object.keys(o.repos).length === 0) : ""}
 ui:
-  mockups: ask   # ask | ascii | browser
+  mockups: ask   # ask | ascii | browser | artifact
 
 sources:
   # Mode-specific inputs

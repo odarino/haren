@@ -257,7 +257,6 @@ describe("content: no hand edit of progress.json", () => {
     for (const s of [
       "haren companion start --open",
       "haren companion status",
-      "haren track ui-mode browser",
       "state_dir/events",
       "waiting.html",
       "?key=",
@@ -317,7 +316,7 @@ describe("content: ui modes wired into skills", () => {
       "Rebuild the chosen option from the ASCII wireframe in design.md with the HTML mock elements.",
       "An open blocker (no fix and not 'accepted by user') is a fail.",
       "skipped and why",
-      "On `ask`, follow the offer in the visual-companion skill",
+      "On `ask`, follow the offer in the generate-mockup skill",
     ])
       expect(ev).toContain(s);
     expect(gm.indexOf("### UI mode")).toBeLessThan(gm.indexOf("### Options mode"));
@@ -362,4 +361,48 @@ describe("content: dogfood copies of the companion skills", () => {
       expect(readFileSync(resolve(HAREN_DEV, rel), "utf-8")).toBe(read(rel));
     });
   }
+});
+
+describe("content: component catalog and implementation checklist", () => {
+  it("ships the collect-components skill and templates", () => {
+    const cc = read("skills/collect-components/SKILL.md");
+    expect(cc).toContain("name: collect-components");
+    for (const s of [
+      "artifacts/03-modules/component-catalog.md",
+      "Incremental",
+      "Full scan",
+      "UI component",
+      "Shared service",
+      "Shared function",
+      "Sketch",
+      "Screenshot",
+    ])
+      expect(cc).toContain(s);
+    expect(read("templates/component-catalog.md")).toContain("last_scan:");
+    expect(read("templates/checklist.md")).toContain("skipped:");
+  });
+  it("wires the checklist and catalog into plan, implement, evaluate and validate-artifact", () => {
+    const plan = read("skills/plan/SKILL.md");
+    expect(plan).toContain("component-catalog.md");
+    expect(plan).toMatch(/haren track artifact[^\n]*--type checklist[^\n]*--status draft/);
+    expect(plan).toContain("iteration-{N}/checklist.md");
+    const impl = read("skills/implement/SKILL.md");
+    expect(impl).toContain("checklist.md");
+    expect(impl).toContain("collect-components skill in incremental mode");
+    const dev = read("agents/developer.md");
+    expect(dev).toContain("collect-components skill in incremental mode");
+    expect(read("skills/evaluate/SKILL.md")).toContain("Treat each tick as a claim");
+    const va = read("skills/validate-artifact/SKILL.md");
+    expect(va).toContain("### Checklist (04-plans)");
+    expect(va).toContain("### Component Catalog (03-modules)");
+  });
+});
+
+describe("content: generate-mockup asks for the mockup format", () => {
+  it("offers ASCII, Claude Artifact and the browser tab on ask", () => {
+    const gm = read("skills/generate-mockup/SKILL.md");
+    for (const s of ["### Ask the user", "### Artifact mode", "Never fall back to ASCII without asking", "haren track ui-mode <ascii|artifact|browser>"])
+      expect(gm).toContain(s);
+    expect(read("skills/visual-companion/SKILL.md")).toContain("- `artifact`:");
+  });
 });

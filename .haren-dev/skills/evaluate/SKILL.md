@@ -28,6 +28,8 @@ Run through each criterion:
    - Check edge cases mentioned in the spec
 2. **Completeness**: Are all spec requirements addressed?
    - Cross-reference spec checklist against implementation
+   - Read the task's section in `checklist.md` (active plan path). Treat each tick as a claim, not as evidence. Check it in the code. A false tick, or an unticked item without a `skipped:` or `changed:` reason, is a finding. Check each `changed:` item against the spec: a change that breaks the spec is a finding
+   - Reuse: if the code adds a UI component, service or function that duplicates an entry in `artifacts/03-modules/component-catalog.md`, that is a finding
 3. **Correctness**: Do tests pass?
    - Run the test suite
    - Check test coverage for the feature
@@ -38,7 +40,8 @@ Run through each criterion:
    - If the app can run, start it and take a screenshot of each changed screen. Save it under `artifacts/06-evaluation/{module}/screens/` and link it in the review
    - If the app cannot run, say so in the review and compare the code with the mockup
    - A difference from the chosen mockup is a fail unless the session log records a reason the user approved
-   - Read `ui.mockups` in `manifest.yaml`. On `ask`, follow the offer in the visual-companion skill
+   - Read `ui.mockups` in `manifest.yaml`. On `ask`, follow the offer in the generate-mockup skill
+   - Artifact mode (`ui.mockups` is `artifact`, or the user chose a Claude Artifact): publish one private Artifact page per changed screen with the chosen mockup and the screenshot side by side (see "Artifact mode" in the generate-mockup skill). Ask the user for the pass or fail verdict in the terminal
    - Browser mode (`ui.mockups` is `browser`, or the user chose the browser): push one `.compare` screen per changed screen with the visual-companion skill (chosen mockup | screenshot). Rebuild the chosen option from the ASCII wireframe in design.md with the HTML mock elements. Read the `pass` or `fail` click from `state_dir/events`. Confirm the verdict with the user in the terminal
    - ASCII mode: compare as above in the terminal
    - No screenshot (the app cannot run): use the ASCII path. Run the `ui-review` skill on the screen derived from the code, or record in the review that the screen check was skipped and why. Do not push `.compare`.

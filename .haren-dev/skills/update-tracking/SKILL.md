@@ -22,6 +22,7 @@ Run every command from the haren folder.
 | Add a feature (status `pending`) | `haren track feature <module> <feature>` |
 | Set feature status | `haren track feature <module> <feature> <status>` |
 | Record a commit | `haren track commit <module> <repoKey> <sha>` |
+| Remove a stale repo key | `haren track commit <module> <repoKey> --remove` |
 | Register an artifact | `haren track artifact <id> --type <type> --path <path> [--module <m>] [--status <s>]` |
 | Append another event | `haren track event <type> [--module m] [--phase p] [--feature f] [--data '<json>']` |
 | Open the code gate for a user request | `haren track override on --reason "<text>" [--hours <n>]` |

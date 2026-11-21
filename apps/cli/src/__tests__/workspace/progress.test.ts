@@ -288,3 +288,28 @@ describe("units (review fixes)", () => {
     expect(m.c).toEqual({ lastCommit: {}, units: {} });
   });
 });
+
+import { updateModuleStatus as _ums, updateFeatureStatus as _ufs } from "../../workspace/progress";
+
+describe("legacy statuses from an old progress file", () => {
+  const legacy = (status: string, feature = "pending") =>
+    ({
+      project: "p",
+      version: 3,
+      phase: "plan",
+      status: "active",
+      modules: { m: { status, currentPhase: "plan", features: { f: feature } } },
+      dependencies: {},
+    }) as never;
+  it("moves an unknown module status to planned instead of crashing", () => {
+    expect(_ums(legacy("specified"), "m", "planned").modules.m.status).toBe("planned");
+  });
+  it("gives a clear error for a bad exit from an unknown module status", () => {
+    expect(() => _ums(legacy("specified"), "m", "released")).toThrow(/unknown status/);
+  });
+  it("moves an unknown feature status to in-progress", () => {
+    expect(_ufs(legacy("planned", "todo"), "m", "f", "in-progress").modules.m.features.f).toBe(
+      "in-progress",
+    );
+  });
+});

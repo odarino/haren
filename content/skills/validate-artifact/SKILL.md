@@ -53,6 +53,19 @@ Required:
 - [ ] Each task has: title, description, files
 - [ ] Tasks are ordered
 
+### Checklist (04-plans)
+Required:
+- [ ] One `## Task N` section for each task in tasks.md of the same plan path, with the same number
+- [ ] Each section has a Tests item and a Reuse item. Generic items only ("write tests") → FAIL
+- [ ] After implement: each unticked item has `— skipped: {reason}` or `— changed: {what and why}`
+- [ ] The Reuse items name entries that exist in `## Existing Code` or in `artifacts/03-modules/component-catalog.md`, or say "none"
+
+### Component Catalog (03-modules)
+Required:
+- [ ] Front matter `updated:` and `last_scan:`
+- [ ] Each entry has Kind, Path (`repoKey:file:line`), API, Use for, Used by
+- [ ] Each Path exists in the repo
+
 ### Iteration-Scoped Design (04-plans, iterations only)
 Iteration-scoped designs are filtered subsets of the master design. Relaxed checks:
 - [ ] Architecture overview (can reference master for full detail)
