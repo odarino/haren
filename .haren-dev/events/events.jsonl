@@ -35,3 +35,5 @@
 {"type":"gate-override","action":"off","timestamp":"2026-11-21T02:22:05.814Z"}
 {"type":"gate-override","action":"on","reason":"artifact test skill gaps","until":"2026-11-21T04:22:17.718Z","timestamp":"2026-11-21T02:22:17.718Z"}
 {"type":"gate-override","action":"off","timestamp":"2026-11-21T02:23:02.223Z"}
+{"type":"gate-override","action":"on","reason":"user: CHANGELOG + upgrade what's new","until":"2026-11-21T05:09:39.896Z","timestamp":"2026-11-21T03:09:39.899Z"}
+{"type":"gate-override","action":"off","timestamp":"2026-11-21T03:16:26.088Z"}
