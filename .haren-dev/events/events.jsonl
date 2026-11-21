@@ -19,3 +19,19 @@
 {"type":"gate-override","action":"off","timestamp":"2026-11-03T03:56:24.631Z"}
 {"type":"gate-override","action":"on","reason":"smoke test notes: options.json numbers, print-mode doc line","until":"2026-11-03T05:05:35.401Z","timestamp":"2026-11-03T04:05:35.427Z"}
 {"type":"gate-override","action":"off","timestamp":"2026-11-03T04:08:25.844Z"}
+{"type":"gate-override","action":"on","reason":"user feedback: collect-components skill + implementation checklist step","until":"2026-11-20T17:17:40.053Z","timestamp":"2026-11-20T15:17:40.056Z"}
+{"type":"gate-override","action":"off","timestamp":"2026-11-20T15:20:09.472Z"}
+{"type":"gate-override","action":"on","reason":"user: generate-mockup asks ascii vs Claude artifact","until":"2026-11-20T17:27:16.288Z","timestamp":"2026-11-20T15:27:16.290Z"}
+{"type":"gate-override","action":"off","timestamp":"2026-11-20T15:29:22.170Z"}
+{"type":"gate-override","action":"on","reason":"fix e2e findings","until":"2026-11-20T18:20:56.432Z","timestamp":"2026-11-20T16:20:56.434Z"}
+{"type":"gate-override","action":"off","timestamp":"2026-11-20T16:21:48.901Z"}
+{"type":"gate-override","action":"on","reason":"fix e2e round 2 findings","until":"2026-11-20T19:04:12.397Z","timestamp":"2026-11-20T17:04:12.399Z"}
+{"type":"gate-override","action":"off","timestamp":"2026-11-20T17:04:58.004Z"}
+{"type":"gate-override","action":"on","reason":"fix e2e round 3 findings","until":"2026-11-20T19:27:16.626Z","timestamp":"2026-11-20T17:27:16.627Z"}
+{"type":"gate-override","action":"off","timestamp":"2026-11-20T17:28:02.121Z"}
+{"type":"gate-override","action":"on","reason":"fix gate + generate-mockup from artifact test","until":"2026-11-21T04:19:38.913Z","timestamp":"2026-11-21T02:19:38.916Z"}
+{"type":"gate-override","action":"off","timestamp":"2026-11-21T02:20:25.838Z"}
+{"type":"gate-override","action":"on","reason":"E2E test generate-mockup artifact","until":"2026-11-21T03:22:02.920Z","timestamp":"2026-11-21T02:22:02.921Z"}
+{"type":"gate-override","action":"off","timestamp":"2026-11-21T02:22:05.814Z"}
+{"type":"gate-override","action":"on","reason":"artifact test skill gaps","until":"2026-11-21T04:22:17.718Z","timestamp":"2026-11-21T02:22:17.718Z"}
+{"type":"gate-override","action":"off","timestamp":"2026-11-21T02:23:02.223Z"}
