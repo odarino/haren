@@ -29,7 +29,7 @@
     "bun"
   ],
   "bin": {
-    "haren": "./dist/index.js"
+    "haren": "dist/index.js"
   },
   "files": [
     "dist",
