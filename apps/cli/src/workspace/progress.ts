@@ -107,6 +107,9 @@ const VALID_MODULE_TRANSITIONS: Record<ModuleStatus, ModuleStatus[]> = {
   blocked: ["implementing", "planned"],
 };
 
+/** Exits for a module status that this version does not know. */
+const LEGACY_MODULE_EXITS: ModuleStatus[] = ["decomposed", "planned"];
+
 const STATUS_TO_PHASE: Record<ModuleStatus, string> = {
   discovered: "discover",
   decomposed: "decompose",
@@ -117,6 +120,9 @@ const STATUS_TO_PHASE: Record<ModuleStatus, string> = {
   released: "release",
   blocked: "blocked",
 };
+
+/** Exits for a feature status that this version does not know. */
+const LEGACY_FEATURE_EXITS: FeatureStatus[] = ["pending", "in-progress"];
 
 const VALID_FEATURE_TRANSITIONS: Record<FeatureStatus, FeatureStatus[]> = {
   pending: ["in-progress"],
@@ -159,10 +165,14 @@ export function updateModuleStatus(
     throw new Error(`Module '${moduleName}' not found in progress`);
   }
 
-  const allowed = VALID_MODULE_TRANSITIONS[mod.status];
+  // A status from an old progress file (for example `specified`) has no row.
+  // Let it move back onto the known path instead of crashing.
+  const known = Object.hasOwn(VALID_MODULE_TRANSITIONS, mod.status);
+  const allowed = known ? VALID_MODULE_TRANSITIONS[mod.status] : LEGACY_MODULE_EXITS;
   if (!allowed.includes(newStatus)) {
+    const from = known ? mod.status : `${mod.status} (unknown status from an old progress file)`;
     throw new Error(
-      `Invalid module transition: ${mod.status} → ${newStatus}. Allowed: ${allowed.join(", ")}`,
+      `Invalid module transition: ${from} → ${newStatus}. Allowed: ${allowed.join(", ")}`,
     );
   }
 
@@ -196,7 +206,9 @@ export function updateFeatureStatus(
     throw new Error(`Feature '${featureName}' not found in module '${moduleName}'`);
   }
 
-  const allowed = VALID_FEATURE_TRANSITIONS[currentStatus];
+  const allowed = Object.hasOwn(VALID_FEATURE_TRANSITIONS, currentStatus)
+    ? VALID_FEATURE_TRANSITIONS[currentStatus]
+    : LEGACY_FEATURE_EXITS;
   if (!allowed.includes(newStatus)) {
     throw new Error(
       `Invalid feature transition: ${currentStatus} → ${newStatus}. Allowed: ${allowed.join(", ")}`,

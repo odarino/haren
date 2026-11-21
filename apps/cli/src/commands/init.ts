@@ -232,6 +232,7 @@ function getDirectories(iterations: boolean): string[] {
     "skills/generate-mockup",
     "skills/visual-companion",
     "skills/ui-review",
+    "skills/collect-components",
     "skills/onboard",
     "artifacts/_registry",
     "artifacts/00-baseline",
@@ -390,7 +391,7 @@ You are operating within the Haren agentic SDLC framework.
    - Rewrite of a legacy system with parity as the bar → \`migration\`
 6. Suggest next action based on current state
 
-Visual questions follow the ui mode in manifest.yaml (\`ui.mockups\`: ask | ascii | browser). See the visual-companion skill.
+Visual questions follow the ui mode in manifest.yaml (\`ui.mockups\`: ask | ascii | browser | artifact). See the visual-companion skill.
 
 ## Available Actions
 
@@ -411,6 +412,7 @@ Visual questions follow the ui mode in manifest.yaml (\`ui.mockups\`: ask | asci
 | Draw a UI wireframe or compare screen options | generate-mockup/ | — |
 | Show mockups or options in a browser tab | visual-companion/ (\`haren companion\`) | — |
 | Review a screen against UX heuristics | ui-review/ | — |
+| Catalog common UI components, shared services and functions | collect-components/ | Developer |
 | Update status, artifacts, events | update-tracking/ (\`haren track\`) | — |
 | Onboard to the project / check the workspace | onboard/ (\`/haren-onboard\`) | — |
 
@@ -446,6 +448,8 @@ Change \`progress.json\`, \`events/events.jsonl\` and \`artifacts/_registry/arti
 | Module definition | Discover phase | \`artifacts/03-modules/{module}/module.md\` |
 | Design (architecture) | Dev | \`artifacts/04-plans/{module}/design.md\` |
 | Tasks (implementation) | Dev | \`artifacts/04-plans/{module}/[iteration-{N}/]tasks.md\` |
+| Implementation checklist | Dev | \`artifacts/04-plans/{module}/[iteration-{N}/]checklist.md\` |
+| Component catalog | Dev | \`artifacts/03-modules/component-catalog.md\` |
 
 ## Plan Paths
 
@@ -463,7 +467,7 @@ All skills that read or write plan artifacts MUST resolve paths using this conve
 - The plan skill writes to BOTH master and active paths (it is the only skill that does this)
 
 **If no \`iterations\` block in manifest.yaml:**
-- **Active plan path:** \`artifacts/04-plans/{module}/\` — contains design.md, tasks.md
+- **Active plan path:** \`artifacts/04-plans/{module}/\` — contains design.md, tasks.md, checklist.md
 - **Master plan path:** (same as active)
 
 When a skill says "read the spec", it means from \`artifacts/03-modules/{module}/spec.md\`.

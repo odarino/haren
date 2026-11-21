@@ -13,7 +13,7 @@ await cp(src, dest, { recursive: true });
 console.log(`Copied content from ${src} to ${dest}`);
 
 // npm auto-includes README/LICENSE from the package dir, so mirror them here.
-for (const file of ["README.md", "LICENSE"]) {
+for (const file of ["README.md", "LICENSE", "CHANGELOG.md"]) {
   await cp(resolve(repoRoot, file), resolve(pkgRoot, file));
   console.log(`Copied ${file} into ${pkgRoot}`);
 }

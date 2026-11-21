@@ -29,6 +29,7 @@ date: {date}
 
 ### Screen: {screen name}
 **Chosen:** option {A|B|C}
+**Mockup page:** {url} (Claude Artifact, private) <!-- only in artifact mode -->
 
 ```
 {ASCII wireframe of the chosen option}

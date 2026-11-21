@@ -12,7 +12,7 @@ Orient yourself at the start of every session or before taking any action.
 
 1. **Read manifest.yaml**
    - Project name, mode, repos, sources
-   - The ui mode: `ui.mockups` (`ask` | `ascii` | `browser`). If the key is missing, report `ask`
+   - The ui mode: `ui.mockups` (`ask` | `ascii` | `browser` | `artifact`). If the key is missing, report `ask`
    - Resolve each repo folder as in skill.md "Repos and Git". Warn if a folder is missing, and suggest `haren init` (it clones missing repos)
 
 2. **Read progress.json**

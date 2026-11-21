@@ -32,10 +32,12 @@ You are a technical planner within the Haren framework. Your job is to create de
 ## Outputs
 
 - `artifacts/04-plans/{module}/design.md` — master design (full module scope)
-- When iterations disabled: `artifacts/04-plans/{module}/tasks.md` — full task breakdown
+- When iterations disabled: `artifacts/04-plans/{module}/tasks.md` — full task breakdown, and `checklist.md` — implementation checklist per task
 - When iterations enabled:
   - `artifacts/04-plans/{module}/iteration-{N}/design.md` — scoped subset per iteration
   - `artifacts/04-plans/{module}/iteration-{N}/tasks.md` — tasks for that iteration only
+  - `artifacts/04-plans/{module}/iteration-{N}/checklist.md` — implementation checklist for those tasks
+- Read `artifacts/03-modules/component-catalog.md` before the reuse inventory (collect-components skill)
   - `artifacts/07-iterations/iteration-{N}.md` — iteration goal, deliverables, demo script
 
 ## Decision Protocol

@@ -128,13 +128,37 @@ describe("haren track", () => {
   });
 
   it("commit: records the sha, branch and repo", async () => {
-    await run("commit", "checkout", "web", "abc123");
-    await run("commit", "checkout", "web", "def456");
+    await run("commit", "checkout", "default", "abc123");
+    await run("commit", "checkout", "default", "def456");
     const m = (await progress()).modules.checkout;
-    expect(m.lastCommit).toEqual({ web: "def456" });
+    expect(m.lastCommit).toEqual({ default: "def456" });
     expect(m.branch).toBe("feat/checkout");
-    expect(m.repos).toEqual(["web"]);
-    expect((await events())[0]).toMatchObject({ type: "commit", module: "checkout", repo: "web" });
+    expect(m.repos).toEqual(["default"]);
+    expect((await events())[0]).toMatchObject({ type: "commit", module: "checkout", repo: "default" });
+  });
+
+  it("check accepts 'default' when manifest repos is empty", async () => {
+    await run("commit", "checkout", "default", "abc123");
+    await expect(run("check")).resolves.toBeUndefined();
+  });
+
+  it("commit --remove drops a stale repo key", async () => {
+    await run("commit", "checkout", "default", "abc123");
+    await run("commit", "checkout", "default", "--remove");
+    const m = (await progress()).modules.checkout;
+    expect(m.lastCommit).toEqual({});
+    expect(m.repos).toEqual([]);
+    await expect(run("commit", "checkout", "default", "--remove")).rejects.toThrow(/has no repo key/);
+  });
+
+  it("commit and status --repos use the same repo key rule", async () => {
+    await expect(run("commit", "checkout", "backend", "abc123")).rejects.toThrow(
+      /Unknown repo key: backend\. Allowed: default/,
+    );
+    await run("status", "checkout", "planned", "--repos", "default", "--branch", "feat/x");
+    const m = (await progress()).modules.checkout;
+    expect(m.repos).toEqual(["default"]);
+    expect(m.branch).toBe("feat/x");
   });
 
   it("artifact: appends then updates a registry row", async () => {
@@ -267,12 +291,12 @@ describe("haren track check", () => {
   });
 
   it("fails when progress.json uses a repo key that manifest.yaml does not declare", async () => {
+    const declared = 'haren:\n  version: "1.3.3"\nrepos:\n  legacy_be:\n    path: ../legacy_be\n';
+    await writeFile(join(harenDir, "manifest.yaml"), declared);
     await run("commit", "checkout", "legacy_be", "abc123");
+    await writeFile(join(harenDir, "manifest.yaml"), 'haren:\n  version: "1.3.3"\n');
     await expect(run("check")).rejects.toThrow(/uses repo 'legacy_be'/);
-    await writeFile(
-      join(harenDir, "manifest.yaml"),
-      'haren:\n  version: "1.3.3"\nrepos:\n  legacy_be:\n    path: ../legacy_be\n',
-    );
+    await writeFile(join(harenDir, "manifest.yaml"), declared);
     await expect(run("check")).resolves.toBeUndefined();
   });
 });
@@ -681,6 +705,6 @@ describe("haren track ui-mode", () => {
     // Everything else in the manifest stays.
     expect(after.startsWith(before.replace(/\n*$/, ""))).toBe(true);
     expect((await events()).at(-1)).toMatchObject({ type: "ui-mode", mode: "browser" });
-    await expect(run("ui-mode", "fancy")).rejects.toThrow(/ask, ascii, browser/);
+    await expect(run("ui-mode", "fancy")).rejects.toThrow(/ask, ascii, browser, artifact/);
   });
 });

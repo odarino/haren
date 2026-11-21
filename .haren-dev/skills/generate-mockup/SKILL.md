@@ -31,7 +31,35 @@ Read `ui.mockups` in `manifest.yaml`. If the key is missing, use `ask`.
 
 - `ascii`: use the ASCII steps in this skill only.
 - `browser`: write the ASCII wireframes into design.md as before. Also push one options screen with the visual-companion skill. Use `.options` or `.cards`, with one `.mockup` per option. Build each mockup from the HTML mock elements of the visual-companion skill. Read the click from `state_dir/events`. After the pick, write the chosen option as ASCII into design.md.
-- `ask`: follow the offer in the visual-companion skill. Then use the `ascii` or the `browser` path.
+- `artifact`: write the ASCII wireframes into design.md as before. Also publish the options as a Claude Artifact page. See "Artifact mode".
+- `ask`: ask the user before the first mockup of the session. See "Ask the user".
+
+### Ask the user
+
+<HARD-GATE>
+On `ask`, do not draw the first mockup of the session before the user picks a format. Never fall back to ASCII without asking.
+</HARD-GATE>
+
+Send the offer as its own message, with nothing else. List only the formats that work here: list Claude Artifact only if you have the `Artifact` tool, and the browser tab only if `haren companion` can run.
+
+> How do you want to see the mockups? (1) ASCII in the terminal and in design.md, (2) Claude Artifact: a private web page on claude.ai, (3) local browser tab with clickable options. Add "always" to save the choice.
+
+- With "always": run `haren track ui-mode <ascii|artifact|browser>`. Without it: use the choice for this session only.
+- If only ASCII works here, say so in one line and use ASCII. Do not ask.
+
+### Artifact mode
+
+Needs the `Artifact` tool (Claude Code with claude.ai). If the tool is missing, tell the user and use ASCII.
+
+Use a plain HTML page, not an Artifact type such as Design or Slides, and skip the quickstart for a type. The page file must stay in `artifacts/04-plans/{module}/mockups/`. Give the page a `<title>` of 2-4 words (for example `Checkout Layout Options`) and the icon `layout`.
+
+1. Draw the ASCII options first (Options mode below). They stay the source of truth in design.md.
+2. Build one HTML page: one card per option, side by side on wide screens and stacked on phones. Label each card `Option A`/`B`/`C` and show its trade-off line. Mark the recommended option. Use synthetic data only.
+3. Render each option as a real UI mock (HTML/CSS), not as ASCII in a `<pre>`. Follow the artifact-design skill for the page rules.
+4. Write the page to `artifacts/04-plans/{module}/mockups/{screen}.html` and publish it with the `Artifact` tool. Publish again from the same path for a new round, so the URL stays the same. Do not register the page with `haren track artifact`: the `.html` files in `mockups/` are working files, and `haren track check` only checks `.md` files. design.md is the registered record
+5. Give the user the link. Tell the user that the page is private until they share it. Ask for the pick in the terminal.
+6. After the pick, write the chosen option as ASCII into design.md `## Screens`. Put the link under `**Chosen:**` in this format: `**Mockup page:** <url> (Claude Artifact, private)`.
+7. If the pick is not the recommended option, check that it does not change a reuse verdict or a task. If it does, update `## Existing Code`, tasks.md and checklist.md, and tell the user what changed.
 
 ### Options mode
 

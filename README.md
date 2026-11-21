@@ -180,7 +180,7 @@ every repo.
 | Command         | What it does                                                                                                                                                                                                                                 |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `haren init`    | Set up haren in the current directory: scaffold a new haren folder, or set up a cloned one. Interactive, or pass flags (below).                                                                                                              |
-| `haren upgrade` | Update framework files in an existing haren folder to the installed version, and migrate old `manifest.yaml` / `progress.json`. It also restores missing plugins from `plugins.json`. Use `--yes` to accept plugins from unofficial sources. |
+| `haren upgrade` | Update framework files in an existing haren folder to the installed version, and migrate old `manifest.yaml` / `progress.json`. It also restores missing plugins from `plugins.json`, and prints what's new since your old version (from [CHANGELOG.md](CHANGELOG.md)). Use `--yes` to accept plugins from unofficial sources. |
 | `haren plugin`  | Manage plugins: `add <name\|source>`, `remove <name>`, `list`, `doctor`, `run <hook>`. See [PLUGINS.md](PLUGINS.md).                                                                                                                         |
 | `haren migrate` | Migration mode only: `inventory [--module m]`, `extract <unit>`, `gate <unit> [--approve]`. It runs the adapter commands. See [Migration mode](#migration-mode).                                                                             |
 | `haren agent`   | Manage the local agent bridge _(experimental — for the in-progress Haren Portal)_.                                                                                                                                                           |
@@ -397,7 +397,7 @@ Skills also write these types with `haren track event`: `ideate-complete`,
 ### Visual companion
 
 The visual companion shows UI mockups in a browser. The plan and evaluate phases use it
-when the UI mode allows it. Choose the UI mode with `haren track ui-mode <ask|ascii|browser>`.
+when the UI mode allows it. Choose the UI mode with `haren track ui-mode <ask|ascii|browser|artifact>`.
 The mode is stored in `manifest.yaml` as `ui.mockups`. The default is `ask`.
 
 | Mode      | What happens                                                       |
@@ -486,7 +486,8 @@ model behaves like the right specialist at the right time.
 
 Skills are the procedures the agent follows — `discover` (brainstorming),
 `research`, `decompose`, `plan`, `implement`, `evaluate`, `extract-stories`,
-`generate-mockup`, and a set of artifact-management helpers
+`generate-mockup`, `collect-components` (catalog of common UI components,
+shared services and functions, updated after each task), and a set of artifact-management helpers
 (`create-artifact`, `validate-artifact`, `search-artifact`, `update-tracking`,
 and more).
 

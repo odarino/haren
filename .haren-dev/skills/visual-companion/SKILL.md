@@ -35,14 +35,11 @@ A question about a UI topic is not automatically a visual question. "What kind o
 Read `ui.mockups` in `manifest.yaml`.
 
 - `ascii`: never use the browser. Use ASCII wireframes (see generate-mockup/).
+- `artifact`: do not start the companion. Use a Claude Artifact page (see "Artifact mode" in generate-mockup/).
 - `browser`: use the browser for visual questions. Do not ask first.
 - `ask`: at the first visual question in a session, send the offer as its own message, with nothing else:
 
-  > This next part is easier to show than to describe. I can open a browser tab with mockups and options. Choose: (1) this time, (2) always, (3) no, use ASCII.
-
-  - On (1): use the browser for this session.
-  - On (2): run `haren track ui-mode browser`, then use the browser.
-  - On (3): ask "Always use ASCII?". If yes, run `haren track ui-mode ascii`. Use ASCII.
+  use the offer in the generate-mockup skill ("Ask the user"). It lists ASCII, Claude Artifact and the browser tab.
 
 ## How It Works
 
