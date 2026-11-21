@@ -1,6 +1,6 @@
 {
   "name": "@odarino/haren",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Minimal skill-based agentic SDLC framework",
   "type": "module",
   "license": "MIT",
@@ -33,7 +33,8 @@
   },
   "files": [
     "dist",
-    "content"
+    "content",
+    "CHANGELOG.md"
   ],
   "publishConfig": {
     "access": "public"

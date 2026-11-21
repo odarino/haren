@@ -3,6 +3,7 @@ import { join, resolve } from "path";
 import { existsSync } from "fs";
 import { resolveContentDir } from "../lib/content-dir";
 import { HAREN_VERSION } from "../lib/version";
+import { readChangelog, whatsNew } from "../lib/changelog";
 import { getRemoteUrl } from "../workspace/git";
 import { inferLayout } from "../workspace/detect";
 import {
@@ -37,6 +38,8 @@ export interface MigrationPlan {
   layout: Layout;
   editor: Editor;
   steps: string[];
+  /** The haren version in manifest.yaml before the upgrade, if any. */
+  fromVersion?: string;
 }
 
 async function moduleRepoKey(harenDir: string, moduleName: string): Promise<string | undefined> {
@@ -135,6 +138,7 @@ export async function planMigration(location: HarenLocation): Promise<MigrationP
     layout,
     editor,
     steps,
+    fromVersion: hasMarker(manifest) ? String(manifest.haren?.version) : undefined,
   };
 }
 
@@ -310,4 +314,26 @@ export async function upgrade(args: string[]): Promise<void> {
     `  \x1b[2mYour artifacts are untouched. Manifest and progress were migrated if needed.\x1b[0m`,
   );
   console.log("");
+  printWhatsNew(migration.fromVersion, HAREN_VERSION);
+}
+
+/** Print the changelog sections between the old and the new version. */
+export function printWhatsNew(
+  from: string | undefined,
+  to: string,
+  text: string | null = readChangelog(),
+  log: (line: string) => void = console.log,
+): void {
+  if (!text || from === to) return;
+  const sections = whatsNew(text, from, to);
+  if (!sections.length) return;
+  log(`\x1b[36m  What's new${from ? ` since ${from}` : ""}\x1b[0m`);
+  for (const s of sections) {
+    log("");
+    log(`  \x1b[1m${s.version}\x1b[0m`);
+    for (const line of s.body.split("\n")) log(line ? `  ${line}` : "");
+  }
+  log("");
+  log("  \x1b[2mFull changelog: https://github.com/odarino/haren/blob/main/CHANGELOG.md\x1b[0m");
+  log("");
 }
